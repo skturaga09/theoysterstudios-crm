@@ -11,7 +11,7 @@ export const SECTIONS = [
   { to: "integrations", label: "Integrations", admin: true },
   { to: "routing", label: "Lead routing" },
   { to: "notifications", label: "Notifications" },
-  { to: "data", label: "Data export", admin: true },
+  { to: "data", label: "Import & export", admin: true },
 ] as const;
 
 export function SettingsLayout() {

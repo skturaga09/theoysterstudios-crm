@@ -150,3 +150,8 @@ export const RoutingRuleSchema = z
   })
   .refine((r) => r.channel || r.city || r.minPaise, "A rule needs at least one condition");
 export const RoutingSchema = z.object({ rules: z.array(RoutingRuleSchema).max(50) });
+
+/* ---------- Import (CSV rows, already mapped to field names) ---------- */
+export const ImportRequestSchema = z.object({ rows: z.array(z.record(z.string(), z.unknown())).min(1).max(2000) });
+/** A contact row may name its company instead of pointing at an id; the API finds or creates it. */
+export const ImportContactRowSchema = CreateContactSchema.omit({ companyId: true }).extend({ companyName: z.string().trim().max(120).optional() });

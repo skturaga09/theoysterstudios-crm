@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-type Composer = "deal" | "task" | "call" | "invoice";
+type Composer = "deal" | "task" | "call" | "invoice" | "company" | "contact";
 
 /** Small UI state: open sheets, the screen's create action, the Won pulse. */
 interface UiState {

@@ -9,6 +9,8 @@ import {
   CreateActivitySchema,
   CreateInvoiceSchema,
   CreateTaskSchema,
+  ImportContactRowSchema,
+  ImportRequestSchema,
   RecordPaymentSchema,
   RoutingSchema,
   UpdateCompanySchema,
@@ -193,6 +195,58 @@ export function buildApp({
   records("contacts", CreateContactSchema, UpdateContactSchema, () => ({ lastActivityAt: now() }));
   records("deals", CreateDealSchema, UpdateDealSchema, () => ({ createdAt: now(), position: 0 }));
   records("tasks", CreateTaskSchema, UpdateTaskSchema, () => ({ done: false }));
+
+  /* ---------- Import (admins): CSV rows already mapped to field names ---------- */
+  type Skipped = { row: number; reason: string };
+  const why = (e: ZodError) => e.issues.map((i) => `${i.path.join(".") || "row"}: ${i.message}`).join("; ");
+  const companiesCol = db.collection<Doc>("companies");
+  const nameKey = (n: string) => n.trim().toLowerCase();
+
+  app.post("/import/companies", { preHandler: adminOnly }, async (req) => {
+    const { rows } = ImportRequestSchema.parse(req.body);
+    const seen = new Set((await companiesCol.find({}, { projection: { name: 1 } }).toArray()).map((c) => nameKey(String(c.name))));
+    const docs: Doc[] = [];
+    const skipped: Skipped[] = [];
+    rows.forEach((raw, i) => {
+      const r = CreateCompanySchema.safeParse(raw);
+      if (!r.success) return skipped.push({ row: i + 1, reason: why(r.error) });
+      if (seen.has(nameKey(r.data.name))) return skipped.push({ row: i + 1, reason: `${r.data.name} already exists` });
+      seen.add(nameKey(r.data.name));
+      docs.push({ _id: new ObjectId().toHexString(), lastActivityAt: now(), ...r.data });
+    });
+    if (docs.length) await companiesCol.insertMany(docs);
+    return { created: docs.length, skipped };
+  });
+
+  app.post("/import/contacts", { preHandler: adminOnly }, async (req) => {
+    const { rows } = ImportRequestSchema.parse(req.body);
+    const contactsCol = db.collection<Doc>("contacts");
+    const emails = new Set((await contactsCol.find({ email: { $type: "string" } }, { projection: { email: 1 } }).toArray()).map((c) => String(c.email)));
+    const companyIds = new Map((await companiesCol.find({}, { projection: { name: 1 } }).toArray()).map((c) => [nameKey(String(c.name)), c._id]));
+    const newCompanies: Doc[] = [];
+    const docs: Doc[] = [];
+    const skipped: Skipped[] = [];
+    rows.forEach((raw, i) => {
+      const r = ImportContactRowSchema.safeParse(raw);
+      if (!r.success) return skipped.push({ row: i + 1, reason: why(r.error) });
+      const { companyName, ...contact } = r.data;
+      if (contact.email && emails.has(contact.email)) return skipped.push({ row: i + 1, reason: `${contact.email} already exists` });
+      if (contact.email) emails.add(contact.email);
+      let companyId: string | undefined;
+      if (companyName) {
+        companyId = companyIds.get(nameKey(companyName));
+        if (!companyId) {
+          companyId = new ObjectId().toHexString();
+          companyIds.set(nameKey(companyName), companyId);
+          newCompanies.push({ _id: companyId, name: companyName, domain: "", industry: "", city: contact.city, ownerId: contact.ownerId, tags: [], lastActivityAt: now() });
+        }
+      }
+      docs.push({ _id: new ObjectId().toHexString(), lastActivityAt: now(), ...contact, ...(companyId && { companyId }) });
+    });
+    if (newCompanies.length) await companiesCol.insertMany(newCompanies);
+    if (docs.length) await contactsCol.insertMany(docs);
+    return { created: docs.length, companiesCreated: newCompanies.length, skipped };
+  });
 
   /* ---------- Activity: an append-only log (notes, calls, stage changes…) ---------- */
   const activities = db.collection<Doc>("activities");

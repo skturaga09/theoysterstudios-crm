@@ -20,7 +20,7 @@ export function ContactsRoute() {
   const s = useCrm();
   const navigate = useNavigate();
   const [openId, setOpenId] = useState<string>();
-  useCreateAction(() => useUi.getState().openComposer("deal"));
+  useCreateAction(() => useUi.getState().openComposer("contact"));
 
   const rows: Row[] = useMemo(
     () =>
@@ -67,7 +67,12 @@ export function ContactsRoute() {
       <PageHeader
         eyebrow={`${rows.length} people`}
         title="Contacts"
-        actions={<Button variant="ink" onClick={() => useUi.getState().openComposer("deal")}><Plus strokeWidth={1.5} /> New deal</Button>}
+        actions={
+          <>
+            <Button onClick={() => useUi.getState().openComposer("deal")}>New deal</Button>
+            <Button variant="ink" onClick={() => useUi.getState().openComposer("contact")}><Plus strokeWidth={1.5} /> New contact</Button>
+          </>
+        }
       />
       <DataTable
         data={rows}

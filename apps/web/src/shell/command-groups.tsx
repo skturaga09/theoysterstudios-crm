@@ -32,6 +32,8 @@ export function useCommandGroups(): CommandGroup[] {
       items: [
         { id: "a-deal", label: "New deal", icon: <Plus strokeWidth={1.5} />, hint: "C", onSelect: () => useUi.getState().openComposer("deal") },
         { id: "a-call", label: "Log call", icon: <Phone strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("call") },
+        { id: "a-company", label: "New company", icon: <Building2 strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("company") },
+        { id: "a-contact", label: "New contact", icon: <User strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("contact") },
         { id: "a-invoice", label: "New invoice", icon: <FileText strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("invoice") },
         { id: "a-task", label: "Add task", icon: <CheckSquare strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("task") },
         { id: "a-theme", label: "Toggle theme", icon: <Contrast strokeWidth={1.5} />, onSelect: () => useTheme.getState().toggle() },

@@ -26,7 +26,7 @@ export const Monogram = ({ name }: { name: string }) => (
 export function CompaniesRoute() {
   const s = useCrm();
   const [openId, setOpenId] = useState<string>();
-  useCreateAction(() => useUi.getState().openComposer("deal"));
+  useCreateAction(() => useUi.getState().openComposer("company"));
 
   const rows: Row[] = useMemo(
     () =>
@@ -85,7 +85,12 @@ export function CompaniesRoute() {
       <PageHeader
         eyebrow={`${rows.length} accounts`}
         title="Companies"
-        actions={<Button variant="ink" onClick={() => useUi.getState().openComposer("deal")}><Plus strokeWidth={1.5} /> New deal</Button>}
+        actions={
+          <>
+            <Button onClick={() => useUi.getState().openComposer("deal")}>New deal</Button>
+            <Button variant="ink" onClick={() => useUi.getState().openComposer("company")}><Plus strokeWidth={1.5} /> New company</Button>
+          </>
+        }
       />
       <DataTable
         data={rows}

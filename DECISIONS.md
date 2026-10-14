@@ -110,3 +110,10 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   change saves. `routeLead()` in `@pinnacle/shared` picks the owner — first rule whose conditions all match
   (channel, city case-insensitive, min value in paise; an unknown value never matches a value rule) and whose
   owner is still on the team. Inbox → Create deal uses it now; the channel integrations will call the same function.
+- **Adding records directly:** New company / New contact composers (Companies and Contacts pages, C, ⌘K). A contact
+  needs a name and at least one of email, phone or Instagram; a typed company name is matched or created.
+- **Import (Settings → Import & export, admins):** CSV from Sheets / Excel / Notion, parsed in the browser
+  (`parseCsv` in `@pinnacle/shared`), columns auto-matched by header name and adjustable, 5-row preview, ≤2,000 rows.
+  The API validates each row with the same schemas, skips duplicates (contacts by email, companies by
+  case-insensitive name) and bad rows with a reason, and creates companies named on contact rows. Export now writes
+  real CSV (`toCsv`) instead of JSON-escaped fields.

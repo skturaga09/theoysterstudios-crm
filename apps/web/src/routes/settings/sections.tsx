@@ -1,13 +1,14 @@
-import { CHANNEL_LABEL, CHANNELS, formatCompact, gstState, lakh, STAGE_LABEL, STAGES, type Channel, type RoutingRule } from "@pinnacle/shared";
+import { CHANNEL_LABEL, CHANNELS, formatCompact, gstState, lakh, parseCsv, STAGE_LABEL, STAGES, toCsv, type Channel, type RoutingRule } from "@pinnacle/shared";
 import type { Workspace } from "@pinnacle/shared/schemas";
-import { Button, ChannelChip, cn, Input, Pill, Select, toast } from "@pinnacle/ui";
-import { ArrowDown, ArrowRight, ArrowUp, Download, Plus, RefreshCw, Trash2, Unplug } from "lucide-react";
+import { Button, ChannelChip, cn, Input, Pill, Segmented, Select, toast } from "@pinnacle/ui";
+import { ArrowDown, ArrowRight, ArrowUp, Download, Plus, RefreshCw, Trash2, Unplug, Upload } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { PROBABILITY } from "../../data/derive";
 import { CHANNEL_STATUS, type ChannelStatus } from "../../data/seed";
 import { IS_DEMO } from "../../lib/demo";
-import { useCrm, useMe, useWorkspace } from "../../data/store";
+import { defaultOwnerId, useCrm, useMe, useWorkspace } from "../../data/store";
+import type { Company, Contact } from "../../data/types";
 import { api, ApiError } from "../../lib/api";
 import { fmtMin } from "../../shell/sidebar";
 import { SettingsHeader } from "./layout";
@@ -343,6 +344,178 @@ export function NotificationsRoute() {
   );
 }
 
+/* ---------- Import (CSV from spreadsheets / Notion) ---------- */
+type ImportTarget = "contacts" | "companies";
+type ImportField = { key: string; label: string; required?: boolean; guess: RegExp };
+const IMPORT_FIELDS: Record<ImportTarget, ImportField[]> = {
+  companies: [
+    { key: "name", label: "Company name", required: true, guess: /^(company|company name|name|organi[sz]ation|account|brand|client)$/i },
+    { key: "domain", label: "Website", guess: /web|domain|url|site/i },
+    { key: "industry", label: "Industry", guess: /industry|sector|category/i },
+    { key: "city", label: "City", guess: /city|location|town/i },
+    { key: "gstin", label: "GSTIN", guess: /gst/i },
+    { key: "tags", label: "Tags", guess: /tag|label/i },
+  ],
+  contacts: [
+    { key: "name", label: "Name", required: true, guess: /^(name|full ?name|contact|contact name|person|client name|lead name|lead)$/i },
+    { key: "email", label: "Email", guess: /e-?mail/i },
+    { key: "phone", label: "Phone", guess: /phone|mobile|whats ?app|number|contact no/i },
+    { key: "companyName", label: "Company", guess: /company|organi[sz]ation|brand|business/i },
+    { key: "title", label: "Title", guess: /title|role|designation|position/i },
+    { key: "city", label: "City", guess: /city|location|town/i },
+    { key: "handle", label: "Instagram", guess: /insta|handle|^ig$/i },
+    { key: "source", label: "Source", guess: /source|channel/i },
+  ],
+};
+/** Spreadsheet wording → channel ("Insta DM" → instagram). Unknown → the default chosen above the preview. */
+const channelFrom = (v: string): Channel | undefined =>
+  /insta|\big\b/i.test(v) ? "instagram" : /whats/i.test(v) ? "whatsapp" : /facebook|\bfb\b|meta|lead ad/i.test(v) ? "facebook"
+  : /calendar|meeting|booking/i.test(v) ? "calendar" : /web|site|form/i.test(v) ? "web" : /mail/i.test(v) ? "gmail" : /refer|friend|word/i.test(v) ? "referral" : undefined;
+
+function guessMapping(target: ImportTarget, headers: string[]) {
+  const used = new Set<number>();
+  return Object.fromEntries(
+    IMPORT_FIELDS[target].map((f) => {
+      const i = headers.findIndex((h, k) => !used.has(k) && f.guess.test(h.trim()));
+      if (i >= 0) used.add(i);
+      return [f.key, i];
+    }),
+  ) as Record<string, number>;
+}
+
+type ImportResult = { created: number; companiesCreated?: number; skipped: { row: number; reason: string }[] };
+
+function ImportPanel() {
+  const members = useCrm((s) => s.members);
+  const [target, setTarget] = useState<ImportTarget>("contacts");
+  const [file, setFile] = useState<{ name: string; headers: string[]; rows: string[][] }>();
+  const [mapping, setMapping] = useState<Record<string, number>>({});
+  const [ownerId, setOwnerId] = useState(defaultOwnerId);
+  const [source, setSource] = useState<Channel>("referral");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<ImportResult>();
+  const fields = IMPORT_FIELDS[target];
+
+  const records = (file?.rows ?? []).map((cells) => {
+    const r: Record<string, unknown> = { ownerId };
+    for (const f of fields) {
+      const v = (cells[mapping[f.key] ?? -1] ?? "").trim();
+      if (!v) continue;
+      r[f.key] = f.key === "tags" ? v.split(/[;,]/).map((t) => t.trim()).filter(Boolean) : f.key === "source" ? channelFrom(v) : v;
+    }
+    if (target === "contacts") r.source ??= source;
+    return r;
+  });
+  const missing = fields.filter((f) => f.required && (mapping[f.key] ?? -1) < 0);
+
+  return (
+    <section className="mb-10 rounded-panel border border-line bg-surface p-4 md:p-5" aria-labelledby="import-h">
+      <h2 id="import-h" className="m-0 mb-1 flex items-center gap-2 text-[14px] font-medium"><Upload size={16} strokeWidth={1.5} /> Import from a spreadsheet</h2>
+      <p className="t-meta m-0 mb-4 text-ink-3">Export a CSV from Google Sheets, Excel or Notion (… menu → Export → CSV). Up to 2,000 rows at a time. Duplicates are skipped: contacts by email, companies by name.</p>
+      <div className="flex flex-wrap items-end gap-3">
+        <Segmented label="Import" value={target} onChange={(t) => { setTarget(t); setMapping(file ? guessMapping(t, file.headers) : {}); setResult(undefined); }} options={[{ value: "contacts", label: "Contacts" }, { value: "companies", label: "Companies" }]} />
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[12px] text-ink-3">CSV file</span>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            className="t-dense file:mr-3 file:rounded-control file:border file:border-line-2 file:bg-surface file:px-3 file:py-1.5 file:text-[12.5px]"
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              setResult(undefined);
+              if (!f) return setFile(undefined);
+              const [headers = [], ...rows] = parseCsv(await f.text());
+              if (!rows.length) return toast("That file has no rows under the header.");
+              if (rows.length > 2000) return toast(`That file has ${rows.length} rows — split it into files of 2,000 or fewer.`);
+              setFile({ name: f.name, headers, rows });
+              setMapping(guessMapping(target, headers));
+            }}
+          />
+        </label>
+      </div>
+
+      {file && (
+        <>
+          <h3 className="t-eyebrow m-0 mt-6 mb-2 text-ink-3">Match the columns · {file.rows.length} rows in {file.name}</h3>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {fields.map((f) => (
+              <label key={f.key} className="flex flex-col gap-1.5">
+                <span className="text-[12px] text-ink-3">{f.label}{f.required && " *"}</span>
+                <Select value={mapping[f.key] ?? -1} onChange={(e) => setMapping({ ...mapping, [f.key]: Number(e.target.value) })}>
+                  <option value={-1}>— Skip —</option>
+                  {file.headers.map((h, k) => <option key={k} value={k}>{h || `Column ${k + 1}`}</option>)}
+                </Select>
+              </label>
+            ))}
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12px] text-ink-3">Owner for all rows</span>
+              <Select value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>{members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</Select>
+            </label>
+            {target === "contacts" && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-[12px] text-ink-3">Source when not given</span>
+                <Select value={source} onChange={(e) => setSource(e.target.value as Channel)}>{CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}</Select>
+              </label>
+            )}
+          </div>
+
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full text-left t-dense">
+              <thead><tr>{fields.filter((f) => (mapping[f.key] ?? -1) >= 0).map((f) => <th key={f.key} className="t-eyebrow border-b border-line py-2 pr-4 font-normal text-ink-3">{f.label}</th>)}</tr></thead>
+              <tbody>
+                {records.slice(0, 5).map((r, k) => (
+                  <tr key={k}>{fields.filter((f) => (mapping[f.key] ?? -1) >= 0).map((f) => <td key={f.key} className="border-b border-line py-2 pr-4">{Array.isArray(r[f.key]) ? (r[f.key] as string[]).join(", ") : f.key === "source" ? CHANNEL_LABEL[r.source as Channel] : String(r[f.key] ?? "—")}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+            {file.rows.length > 5 && <p className="t-meta m-0 mt-2 text-ink-3">…and {file.rows.length - 5} more</p>}
+          </div>
+
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            {missing.length > 0 && <span className="t-meta text-risk">Choose a column for {missing.map((f) => f.label).join(", ")}.</span>}
+            <Button
+              variant="ink"
+              className="ml-auto"
+              disabled={busy || missing.length > 0}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const res = await api<ImportResult>(`/import/${target}`, { method: "POST", body: { rows: records } });
+                  setResult(res);
+                  const [companies, contacts] = await Promise.all([api<Company[]>("/companies"), api<Contact[]>("/contacts")]);
+                  useCrm.setState({ companies, contacts });
+                  toast(`Imported ${res.created} ${target}${res.skipped.length ? ` · ${res.skipped.length} skipped` : ""}`);
+                } catch (err) {
+                  toast(`Import failed — ${(err as Error).message}. Nothing was imported.`);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? "Importing…" : `Import ${file.rows.length} ${target}`}
+            </Button>
+          </div>
+        </>
+      )}
+
+      {result && (
+        <div className="mt-5 border-t border-line pt-4" role="status">
+          <p className="t-dense m-0 font-medium">
+            Imported {result.created} {target}{result.companiesCreated ? `, plus ${result.companiesCreated} new ${result.companiesCreated === 1 ? "company" : "companies"}` : ""}.
+            {result.skipped.length > 0 && ` ${result.skipped.length} skipped:`}
+          </p>
+          {result.skipped.length > 0 && (
+            <ul className="m-0 mt-2 max-h-48 list-none overflow-y-auto p-0 font-mono text-[11.5px] text-ink-2">
+              {result.skipped.slice(0, 200).map((x) => <li key={x.row}>Row {x.row + 1}: {x.reason}</li>)}
+            </ul>
+          )}
+          {result.skipped.length > 0 && <p className="t-meta m-0 mt-2 text-ink-3">Row numbers match the spreadsheet (the header is row 1). Fix those rows and import the file again — rows already imported are skipped as duplicates.</p>}
+        </div>
+      )}
+    </section>
+  );
+}
+
 /* ---------- Data export ---------- */
 function download(name: string, text: string, type = "text/csv") {
   const a = document.createElement("a");
@@ -356,13 +529,11 @@ export function DataRoute() {
   const [contactId, setContactId] = useState(s.contacts[0]?.id ?? "");
   const [confirm, setConfirm] = useState(false);
   const contact = s.contacts.find((c) => c.id === contactId);
-  const csv = <T extends object>(rows: T[]) => {
-    const keys = Object.keys(rows[0] ?? {});
-    return [keys.join(","), ...rows.map((r) => keys.map((k) => JSON.stringify((r as Record<string, unknown>)[k] ?? "")).join(","))].join("\n");
-  };
+  const csv = toCsv;
   return (
     <>
-      <SettingsHeader title="Data export" body="Your data, whenever you want it. Per-person export and deletion support requests under India's DPDP Act 2023." />
+      <SettingsHeader title="Import & export" body="Bring in your existing spreadsheets, and take your data with you whenever you want. Per-person export and deletion support requests under India's DPDP Act 2023." />
+      <ImportPanel />
       <Row label="Everything" hint="Deals, companies, contacts, tasks, invoices as CSV">
         <div className="flex flex-wrap gap-2">
           {(

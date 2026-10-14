@@ -89,6 +89,34 @@ describe("auth", () => {
     expect((await call("PUT", "/routing", { rules }, "ok:seller@gmail.com")).statusCode).toBe(403);
   });
 
+  it("imports companies and contacts, skipping bad rows and duplicates with a reason", async () => {
+    const co = await call("POST", "/import/companies", {
+      rows: [
+        { name: "Halcyon Hotels", city: "Goa", ownerId: "sr", tags: ["Retainer"] },
+        { name: "halcyon hotels", ownerId: "sr" }, // same name, other case
+        { name: "", ownerId: "sr" },
+        { name: "Marrow & Co", gstin: "not-a-gstin", ownerId: "sr" },
+      ],
+    });
+    expect(co.json().created).toBe(1);
+    expect(co.json().skipped.map((s: { row: number }) => s.row)).toEqual([2, 3, 4]);
+    const ct = await call("POST", "/import/contacts", {
+      rows: [
+        { name: "Riya Mehta", email: "Riya@Halcyon.in", companyName: "HALCYON HOTELS", ownerId: "sr", source: "instagram" },
+        { name: "Arjun", email: "riya@halcyon.in", ownerId: "sr", source: "web" }, // duplicate email
+        { name: "Neha", companyName: "Brand New Co", ownerId: "sr", source: "referral" },
+        { name: "Bad", email: "nope", ownerId: "sr", source: "web" },
+      ],
+    });
+    expect(ct.json()).toMatchObject({ created: 2, companiesCreated: 1 });
+    expect(ct.json().skipped.map((s: { row: number }) => s.row)).toEqual([2, 4]);
+    const contacts = (await call("GET", "/contacts")).json();
+    const halcyon = (await call("GET", "/companies")).json().find((c: { name: string }) => c.name === "Halcyon Hotels");
+    expect(contacts.find((c: { name: string }) => c.name === "Riya Mehta").companyId).toBe(halcyon.id); // matched existing company
+    await call("POST", "/members", { email: "importer@gmail.com" });
+    expect((await call("POST", "/import/companies", { rows: [{ name: "X", ownerId: "sr" }] }, "ok:importer@gmail.com")).statusCode).toBe(403);
+  });
+
   it("never leaves the team without an admin", async () => {
     const adminId = (await call("GET", "/me")).json().id;
     expect((await call("DELETE", `/members/${adminId}`)).statusCode).toBe(409);

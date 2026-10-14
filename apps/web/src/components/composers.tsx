@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { Link } from "react-router";
 import { defaultOwnerId, useCrm } from "../data/store";
-import type { Company, Deal, Invoice } from "../data/types";
+import type { Company, Contact, Deal, Invoice } from "../data/types";
 import { api, save } from "../lib/api";
 import { useUi } from "../lib/ui-store";
 
@@ -343,8 +343,123 @@ function NewInvoiceForm({ dealId, onDone }: { dealId?: string; onDone: () => voi
   );
 }
 
-const TITLES = { deal: "New deal", task: "Add task", call: "Log call", invoice: "New invoice" } as const;
-const SUBMIT = { deal: "Create deal", task: "Add task", call: "Log call", invoice: "Create draft invoice" } as const;
+/* ---------- New company / New contact ---------- */
+/** Removes blank optional fields so the API's "optional" checks see them as absent. */
+const compact = (o: Record<string, string | undefined>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v?.trim()]).filter(([, v]) => v));
+
+function NewCompanyForm({ onDone }: { onDone: () => void }) {
+  const s = useCrm();
+  const [f, setF] = useState({ name: "", domain: "", industry: "", city: "", gstin: "" });
+  const [owner, setOwner] = useState(defaultOwnerId);
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  return (
+    <form
+      id="composer-form"
+      className="flex flex-col gap-4"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (busy) return;
+        if (!f.name.trim()) return setError("Add the company name.");
+        if (s.companies.some((c) => c.name.trim().toLowerCase() === f.name.trim().toLowerCase())) return setError(`${f.name.trim()} is already in Companies.`);
+        setBusy(true);
+        try {
+          const co = await api<Company>("/companies", { method: "POST", body: { ...compact(f), ownerId: owner, tags: [] } });
+          useCrm.setState((x) => ({ companies: [co, ...x.companies] }));
+          toast(`Added ${co.name}`);
+          onDone();
+        } catch (err) {
+          setError(`Couldn't add the company — ${(err as Error).message}`);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <Field label="Company name"><Input value={f.name} onChange={set("name")} autoFocus placeholder="Halcyon Hotels" /></Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Website"><Input value={f.domain} onChange={set("domain")} placeholder="halcyon.in" className="font-mono" /></Field>
+        <Field label="City"><Input value={f.city} onChange={set("city")} placeholder="Goa" /></Field>
+        <Field label="Industry"><Input value={f.industry} onChange={set("industry")} placeholder="Hospitality" /></Field>
+        <Field label="Owner">
+          <Select value={owner} onChange={(e) => setOwner(e.target.value)}>
+            {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </Select>
+        </Field>
+      </div>
+      <Field label="GSTIN" hint="Optional. Needed on their tax invoices; decides CGST + SGST or IGST.">
+        <Input value={f.gstin} onChange={set("gstin")} placeholder="30ABCDE1234F1Z5" className="font-mono" />
+      </Field>
+      {error && <p role="alert" className="t-meta m-0 text-risk">{error}</p>}
+    </form>
+  );
+}
+
+function NewContactForm({ onDone }: { onDone: () => void }) {
+  const s = useCrm();
+  const [f, setF] = useState({ name: "", company: "", title: "", email: "", phone: "", handle: "", city: "" });
+  const [source, setSource] = useState<Channel>("referral");
+  const [owner, setOwner] = useState(defaultOwnerId);
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  return (
+    <form
+      id="composer-form"
+      className="flex flex-col gap-4"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (busy) return;
+        if (!f.name.trim()) return setError("Add the person's name.");
+        if (!f.email.trim() && !f.phone.trim() && !f.handle.trim()) return setError("Add at least one way to reach them: email, phone or Instagram.");
+        setBusy(true);
+        let newCompany: Company | undefined;
+        try {
+          const name = f.company.trim();
+          let co = name ? s.companies.find((c) => c.name.toLowerCase() === name.toLowerCase()) : undefined;
+          if (name && !co) co = newCompany = await api<Company>("/companies", { method: "POST", body: { name, domain: "", industry: "", city: f.city.trim(), ownerId: owner, tags: [] } });
+          const { company: _, ...fields } = f;
+          const contact = await api<Contact>("/contacts", { method: "POST", body: { ...compact(fields), companyId: co?.id, ownerId: owner, source } });
+          useCrm.setState((x) => ({ companies: newCompany ? [newCompany, ...x.companies] : x.companies, contacts: [contact, ...x.contacts] }));
+          toast(`Added ${contact.name}${newCompany ? ` and ${newCompany.name}` : ""}`);
+          onDone();
+        } catch (err) {
+          if (newCompany) void api(`/companies/${newCompany.id}`, { method: "DELETE" }).catch(() => {});
+          setError(`Couldn't add the contact — ${(err as Error).message}`);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <Field label="Name"><Input value={f.name} onChange={set("name")} autoFocus placeholder="Riya Mehta" /></Field>
+      <Field label="Company" hint="Pick an existing company or type a new name. Optional.">
+        <Input list="contact-company-options" value={f.company} onChange={set("company")} placeholder="Halcyon Hotels" />
+        <datalist id="contact-company-options">{s.companies.map((c) => <option key={c.id} value={c.name} />)}</datalist>
+      </Field>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Email"><Input type="email" value={f.email} onChange={set("email")} placeholder="riya@halcyon.in" className="font-mono" /></Field>
+        <Field label="Phone"><Input type="tel" value={f.phone} onChange={set("phone")} placeholder="+91 98765 43210" className="font-mono" /></Field>
+        <Field label="Instagram"><Input value={f.handle} onChange={set("handle")} placeholder="@riya.m" className="font-mono" /></Field>
+        <Field label="Title"><Input value={f.title} onChange={set("title")} placeholder="Marketing head" /></Field>
+        <Field label="City"><Input value={f.city} onChange={set("city")} placeholder="Goa" /></Field>
+        <Field label="Source">
+          <Select value={source} onChange={(e) => setSource(e.target.value as Channel)}>
+            {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}
+          </Select>
+        </Field>
+      </div>
+      <Field label="Owner">
+        <Select value={owner} onChange={(e) => setOwner(e.target.value)}>
+          {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </Select>
+      </Field>
+      {error && <p role="alert" className="t-meta m-0 text-risk">{error}</p>}
+    </form>
+  );
+}
+
+const TITLES = { deal: "New deal", task: "Add task", call: "Log call", invoice: "New invoice", company: "New company", contact: "New contact" } as const;
+const SUBMIT = { deal: "Create deal", task: "Add task", call: "Log call", invoice: "Create draft invoice", company: "Add company", contact: "Add contact" } as const;
 
 export function Composers() {
   const c = useUi((s) => s.composer);
@@ -367,6 +482,8 @@ export function Composers() {
       {c?.kind === "task" && <NewTaskForm dealId={c.dealId} onDone={close} />}
       {c?.kind === "call" && <LogCallForm dealId={c.dealId} onDone={close} />}
       {c?.kind === "invoice" && <NewInvoiceForm dealId={c.dealId} onDone={close} />}
+      {c?.kind === "company" && <NewCompanyForm onDone={close} />}
+      {c?.kind === "contact" && <NewContactForm onDone={close} />}
     </Sheet>
   );
 }
