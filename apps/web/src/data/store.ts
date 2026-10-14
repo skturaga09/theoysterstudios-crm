@@ -187,9 +187,17 @@ export const useCrm = create<CrmState>((set, get) => ({
     save(patch(`/deals/${id}`, changes), () => set({ deals: prev }));
   },
 
-  markRead: (id) => set({ conversations: get().conversations.map((c) => (c.id === id ? { ...c, unread: false } : c)) }),
-  assign: (id, memberId) =>
-    set({ conversations: get().conversations.map((c) => (c.id === id ? { ...c, assigneeId: memberId } : c)) }),
+  markRead: (id) => {
+    const prev = get().conversations;
+    if (!prev.find((c) => c.id === id)?.unread) return;
+    set({ conversations: prev.map((c) => (c.id === id ? { ...c, unread: false } : c)) });
+    save(patch(`/conversations/${id}`, { unread: false }), () => set({ conversations: prev }));
+  },
+  assign: (id, memberId) => {
+    const prev = get().conversations;
+    set({ conversations: prev.map((c) => (c.id === id ? { ...c, assigneeId: memberId } : c)) });
+    save(patch(`/conversations/${id}`, { assigneeId: memberId }), () => set({ conversations: prev }));
+  },
   reply: (id, body) =>
     set({
       conversations: get().conversations.map((c) =>
@@ -262,12 +270,14 @@ export const useCrm = create<CrmState>((set, get) => ({
         ),
         activities: [entry.activity, ...latest.activities],
       });
+      // Link the conversation to what was created (saved; the sample inbox in the demo just keeps it on screen).
+      save(patch(`/conversations/${id}`, { dealId: deal.id, contactId: ct.id, assigneeId: input.ownerId, unread: false }), () => {});
       return {
         deal,
         undo: () => {
           set(snapshot);
           entry.remove();
-          save(removeCreated(), () => {});
+          save(Promise.all([removeCreated(), patch(`/conversations/${id}`, { dealId: null, contactId: null, assigneeId: conv.assigneeId ?? null })]), () => {});
         },
       };
     } catch (e) {

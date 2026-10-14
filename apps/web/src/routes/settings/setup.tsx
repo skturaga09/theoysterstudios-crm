@@ -64,10 +64,18 @@ function Steps({ steps, done, toggle }: { steps: Step[]; done: Set<string>; togg
   );
 }
 
-type Keys = { googleClientId: string; googleClientSecretSaved: boolean; metaAppId: string; metaAppSecretSaved: boolean };
+type Keys = {
+  googleClientId: string;
+  googleClientSecretSaved: boolean;
+  instagramAppId: string;
+  instagramAppSecretSaved: boolean;
+  metaAppSecretSaved: boolean;
+  /** Pasted into Meta so it can prove it's talking to this CRM; shown to admins. */
+  webhookVerifyToken: string;
+};
 
 /** Paste the keys from Google or Meta. Secrets are write-only: once saved they're never shown again. */
-type KeyField = "googleClientId" | "googleClientSecret" | "metaAppId" | "metaAppSecret";
+type KeyField = "googleClientId" | "googleClientSecret" | "instagramAppId" | "instagramAppSecret" | "metaAppSecret";
 
 function KeysForm({ fields, keys, onSaved }: { fields: { key: KeyField; label: string; secret?: boolean; placeholder: string }[]; keys?: Keys; onSaved: (k: Keys) => void }) {
   const [values, setValues] = useState<Record<string, string>>({});
@@ -158,17 +166,36 @@ const googleSteps = (redirect: string): Step[] => {
   ];
 };
 
-const metaSteps: Step[] = [
+const metaSteps = (site: string, verifyToken: string): Step[] => [
     { id: "m-business-account", title: "Check it's an Instagram Business account", body: <>In the Instagram app: Settings → Account type and tools → it should say <strong>Business</strong> (not Creator or Personal).</> },
     { id: "m-allow-messages", title: "Allow apps to read your messages", body: <>Instagram app → Settings → Messages and story replies → Message controls → Connected tools → turn on <strong>Allow access to messages</strong>.</> },
     { id: "m-assets", title: "Check your Page and Instagram are in your business portfolio", body: <>business.facebook.com → Settings → Accounts: both your Facebook Page and Instagram account should be listed under The Oyster Studios.</> },
     { id: "m-verify", title: "Verify the business (recommended)", body: <>Meta Business Suite → Settings → Security Center → Start verification. Use the legal name and address exactly as on your GST certificate, PAN, incorporation certificate, bank statement or utility bill (PDF or JPEG under 5 MB). Meta usually reviews within about 7 working days.</> },
-    { id: "m-app", title: "Create the Meta app", body: <>developers.facebook.com, signed in as the business admin (register as a developer if asked) → My Apps → Create app → name <em>The Oyster Studios CRM</em>, use case <strong>Manage messaging &amp; content on Instagram</strong>, business portfolio <strong>The Oyster Studios</strong>. Because it serves only your own account, it needs no App Review.</> },
-    { id: "m-keys", title: "Copy the app's keys", body: <>App settings → Basic → copy the <strong>App ID</strong> and <strong>App secret</strong> and paste them below. Keep the app's roles to your own team — no outside accounts need access. The last two settings will appear here, with the values to copy, when Instagram is switched on.</> },
-];
+    { id: "m-app", title: "Create the Meta app", body: <>developers.facebook.com, signed in as the business admin (register as a developer if asked) → My Apps → Create app → name <em>The Oyster Studios CRM</em>, use case <strong>Manage messaging &amp; content on Instagram</strong>, business portfolio <strong>The Oyster Studios</strong>. Because it serves only your own account, it needs no App Review. Keep its roles to your own team.</> },
+    {
+      id: "m-ig-login",
+      title: "Set up Instagram sign-in",
+      body: <>In the app: Instagram → API setup with Instagram login → <strong>Set up Instagram business login</strong> → Business login settings. Add this OAuth redirect URI: <Copyable value={`${site}/api/integrations/instagram/callback`} />On the same screen, copy the <strong>Instagram App ID</strong> and <strong>Instagram App secret</strong> and paste them below.</>,
+    },
+    {
+      id: "m-basic",
+      title: "Add the privacy pages and copy the app secret",
+      body: <>App settings → Basic: Privacy Policy URL <Copyable value={`${site}/privacy`} />User data deletion → Data deletion instructions URL <Copyable value={`${site}/privacy#delete`} />Save, then copy the <strong>App secret</strong> on that page and paste it below as the Meta App secret.</>,
+    },
+    {
+      id: "m-webhooks",
+      title: "Send new messages to the CRM",
+      body: verifyToken ? (
+        <>Instagram → API setup with Instagram login → <strong>Configure webhooks</strong>. Callback URL: <Copyable value={`${site}/api/integrations/instagram/webhook`} />Verify token: <Copyable value={verifyToken} />Click Verify and save, then turn on the <strong>messages</strong> field.</>
+      ) : (
+        <>Save the keys below first; the values for this step appear here once they're saved.</>
+      ),
+    },
+    { id: "m-live", title: "Switch the app to Live", body: <>At the top of the app dashboard, switch App mode from Development to <strong>Live</strong>. Meta only sends messages to Live apps.</> },
+  ];
 
 export const setupProgress = (state: SetupState, kind: "google" | "meta") => {
-  const steps = kind === "google" ? googleSteps("") : metaSteps;
+  const steps = kind === "google" ? googleSteps("") : metaSteps("", "");
   return { done: steps.filter((s) => state.done.has(s.id)).length, total: steps.length };
 };
 
@@ -194,20 +221,45 @@ export function GoogleSetup({ state }: { state: SetupState }) {
   );
 }
 
-/** Meta steps + key fields for Instagram DMs. */
-export function MetaSetup({ state }: { state: SetupState }) {
+/** Meta steps, key fields and the Connect button for Instagram DMs. */
+export function MetaSetup({ state, connected }: { state: SetupState; connected: boolean }) {
+  const site = window.location.origin;
+  const [busy, setBusy] = useState(false);
+  const ready = !!state.keys?.instagramAppId && !!state.keys.instagramAppSecretSaved && !!state.keys.metaAppSecretSaved;
   return (
     <div className="mt-4">
       <p className="t-meta m-0 mb-3 text-ink-3">For your Meta Business portfolio admin · about 30 minutes. Tick each step as you finish it — progress is saved for everyone.</p>
-      <Steps steps={metaSteps} done={state.done} toggle={state.toggle} />
+      <Steps steps={metaSteps(site, state.keys?.webhookVerifyToken ?? "")} done={state.done} toggle={state.toggle} />
       <KeysForm
         keys={state.keys}
         onSaved={state.setKeys}
         fields={[
-          { key: "metaAppId", label: "App ID", placeholder: "e.g. 1234567890123456" },
-          { key: "metaAppSecret", label: "App secret", secret: true, placeholder: "Paste the app secret" },
+          { key: "instagramAppId", label: "Instagram App ID", placeholder: "From Business login settings" },
+          { key: "instagramAppSecret", label: "Instagram App secret", secret: true, placeholder: "From Business login settings" },
+          { key: "metaAppSecret", label: "Meta App secret", secret: true, placeholder: "From App settings → Basic" },
         ]}
       />
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-panel border border-line p-4">
+        <p className="t-dense m-0 min-w-0 flex-1 text-ink-2">
+          {connected ? "Instagram is connected. Reconnect if you change the app's keys or Meta asks you to sign in again." : ready ? "All set — sign in as your Instagram Business account to connect it." : "Save all three keys above, then connect."}
+        </p>
+        <Button
+          variant="ink"
+          disabled={!ready || busy || IS_DEMO}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const { url } = await api<{ url: string }>("/integrations/instagram/start", { method: "POST", body: { origin: site } });
+              window.location.href = url;
+            } catch (e) {
+              toast(`Couldn't start — ${(e as Error).message}`);
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "Opening Instagram…" : connected ? "Reconnect Instagram" : "Connect Instagram"}
+        </Button>
+      </div>
     </div>
   );
 }

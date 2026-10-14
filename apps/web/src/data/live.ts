@@ -1,10 +1,11 @@
 /**
- * Demo build only: a few believable sample leads trickle in while the app is open, exercising the
- * feed flash, nav count and Lead Flow burst. Real leads will arrive from the channel integrations.
+ * Live: checks for new conversations from the connected channels every 30 seconds while the app is open.
+ * Demo: a few believable sample leads trickle in instead, exercising the feed flash and nav count.
  */
 import { lakh } from "@pinnacle/shared";
 import { useEffect } from "react";
 import { useCrm } from "./store";
+import { api } from "../lib/api";
 import { IS_DEMO } from "../lib/demo";
 import type { Conversation } from "./types";
 
@@ -29,7 +30,19 @@ const POOL: Seed[] = [
 
 export function useLiveArrivals() {
   useEffect(() => {
-    if (!IS_DEMO) return;
+    if (!IS_DEMO) {
+      // shortcut: polling every 30s; switch to server-sent events if leads need to appear instantly.
+      const poll = async () => {
+        if (document.hidden) return;
+        const fresh = await api<Conversation[]>("/conversations").catch(() => undefined);
+        if (!fresh) return;
+        const known = new Set(useCrm.getState().conversations.map((c) => c.id));
+        const arrived = fresh.find((c) => !known.has(c.id));
+        useCrm.setState({ conversations: fresh, ...(arrived && { lastArrival: { conversationId: arrived.id, channel: arrived.channel, at: Date.now() } }) });
+      };
+      const every = window.setInterval(() => void poll(), 30_000);
+      return () => window.clearInterval(every);
+    }
     let i = 0;
     const tick = () => {
       if (i >= POOL.length) return;

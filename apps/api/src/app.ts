@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
-import { MongoServerError, ObjectId, type Db, type Filter, type MongoClient } from "mongodb";
+import { MongoServerError, ObjectId, type Db, type Filter, type MongoClient, type UpdateFilter } from "mongodb";
 import { z, ZodError, type ZodType } from "zod";
 import {
   AddMemberSchema,
@@ -21,6 +21,7 @@ import {
   UpdateMemberSchema,
   UpdateTaskSchema,
   IntegrationKeysSchema,
+  UpdateConversationSchema,
   SetupProgressSchema,
   WorkspaceSchema,
   type Workspace,
@@ -29,6 +30,7 @@ import { formatFull, invoiceTotals, type InvoiceMath } from "@pinnacle/shared";
 import { nameFromEmail, SUPPORT_MEMBER, type Member, type Verify } from "./auth";
 import type { Doc } from "./db";
 import { createCreditNote, createInvoice } from "./invoices";
+import { authorizeUrl, exchangeCode, handleWebhook, newVerifyToken, subscribeMessages, validSignature, type Fetch, type InstagramIntegration, type SetupKeys } from "./instagram";
 
 /** `_id` → `id`, matching the web app's types. */
 const out = ({ _id, ...rest }: { _id: string } & object) => ({ id: _id, ...rest });
@@ -52,6 +54,7 @@ export function buildApp({
   verify,
   supportEmails = [],
   preParsedBody = false,
+  fetch: f = globalThis.fetch,
 }: {
   db: Db;
   client: MongoClient;
@@ -59,6 +62,8 @@ export function buildApp({
   supportEmails?: string[];
   /** Cloud Functions has already read and parsed the JSON body (into `req.body`) before Fastify sees the request. */
   preParsedBody?: boolean;
+  /** For calls to Instagram; tests pass a stand-in. */
+  fetch?: Fetch;
 }): FastifyInstance {
   const support = new Set(supportEmails.map((e) => e.trim().toLowerCase()));
   const app = Fastify({
@@ -67,17 +72,30 @@ export function buildApp({
     rewriteUrl: (req) => req.url!.replace(/^\/api(?=\/|\?|$)/, "") || "/",
   });
   const members = db.collection<Member>("members");
+  // Webhook signatures are checked over the exact bytes received, so keep the raw body next to the parsed one.
+  app.removeContentTypeParser("application/json");
   if (preParsedBody) {
-    app.removeContentTypeParser("application/json");
+    // Cloud Functions has parsed the body already and keeps the bytes as `rawBody`.
     app.addContentTypeParser("application/json", (req, _payload, done) => done(null, (req.raw as { body?: unknown }).body));
+  } else {
+    app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
+      (req.raw as { rawBody?: string }).rawBody = body as string;
+      try {
+        done(null, body === "" ? undefined : JSON.parse(body as string));
+      } catch (e) {
+        done(Object.assign(e as Error, { statusCode: 400 }), undefined);
+      }
+    });
   }
+  /** Called by Meta or by a browser coming back from Instagram sign-in — no CRM login; each checks its own proof. */
+  const PUBLIC = new Set(["/healthz", "/integrations/instagram/webhook", "/integrations/instagram/callback", "/public/privacy-info"]);
 
   /**
    * Every route except /healthz needs a Google sign-in (Firebase ID token) whose verified email is on
    * the team list. Checked per request, so removing someone cuts access immediately.
    */
   app.addHook("onRequest", async (req, reply) => {
-    if (req.url === "/healthz") return;
+    if (PUBLIC.has(req.url.split("?")[0]!)) return;
     const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
     const claims = token ? await verify(token).catch(() => undefined) : undefined;
     if (!claims?.email || !claims.email_verified) return reply.code(401).send({ error: "Sign in with Google" });
@@ -151,15 +169,106 @@ export function buildApp({
   const keysView = (k: Record<string, unknown> | null) => ({
     googleClientId: String(k?.googleClientId ?? ""),
     googleClientSecretSaved: !!k?.googleClientSecret,
-    metaAppId: String(k?.metaAppId ?? ""),
+    instagramAppId: String(k?.instagramAppId ?? ""),
+    instagramAppSecretSaved: !!k?.instagramAppSecret,
     metaAppSecretSaved: !!k?.metaAppSecret,
+    // Not a secret from admins: they paste it into Meta so Meta can prove it's talking to this CRM.
+    webhookVerifyToken: String(k?.webhookVerifyToken ?? ""),
   });
-  app.get("/setup/keys", { preHandler: adminOnly }, async () => keysView(await setupCol.findOne({ _id: "keys" })));
+  const getKeys = async () => ((await setupCol.findOne({ _id: "keys" })) ?? {}) as SetupKeys;
+  app.get("/setup/keys", { preHandler: adminOnly }, async () => {
+    if (!(await getKeys()).webhookVerifyToken) await setupCol.updateOne({ _id: "keys" }, { $set: { webhookVerifyToken: newVerifyToken() } }, { upsert: true });
+    return keysView(await setupCol.findOne({ _id: "keys" }));
+  });
   app.put("/setup/keys", { preHandler: adminOnly }, async (req) => {
     // Only the fields typed in change; a blank field keeps what's saved.
     const changes = Object.fromEntries(Object.entries(IntegrationKeysSchema.parse(req.body)).filter(([, v]) => v !== ""));
     if (Object.keys(changes).length) await setupCol.updateOne({ _id: "keys" }, { $set: { ...changes, updatedAt: now(), updatedBy: req.member._id } }, { upsert: true });
     return keysView(await setupCol.findOne({ _id: "keys" }));
+  });
+
+  /* ---------- Instagram (the client's own Meta app) ---------- */
+  const integrations = db.collection<InstagramIntegration>("integrations");
+  const origin = z.string().regex(/^(https:\/\/[a-z0-9.-]+|http:\/\/localhost:\d+)$/i, "Unexpected site address");
+
+  /** Status of each channel, for the Integrations page and the sidebar. Never includes tokens. */
+  app.get("/integrations", async () => {
+    const ig = await integrations.findOne({ _id: "instagram" });
+    return { instagram: ig ? { connected: true, username: ig.username, lastEventAt: ig.lastEventAt, tokenExpiresAt: ig.tokenExpiresAt, connectedAt: ig.connectedAt } : { connected: false } };
+  });
+  app.post("/integrations/instagram/start", { preHandler: adminOnly }, async (req, reply) => {
+    const site = origin.parse((req.body as { origin?: unknown } | undefined)?.origin);
+    const keys = await getKeys();
+    if (!keys.instagramAppId || !keys.instagramAppSecret) return reply.code(409).send({ error: "Save the Instagram App ID and secret first" });
+    const state = newVerifyToken();
+    await setupCol.insertOne({ _id: `oauth:${state}`, site, memberId: req.member._id, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() });
+    return { url: authorizeUrl(keys.instagramAppId, `${site}/api/integrations/instagram/callback`, state) };
+  });
+  /** Instagram sends the browser back here after sign-in. The one-time `state` proves the visit started in the CRM. */
+  app.get("/integrations/instagram/callback", async (req, reply) => {
+    const q = z.object({ code: z.string().optional(), state: z.string().optional(), error_description: z.string().optional() }).parse(req.query);
+    const pending = q.state ? await setupCol.findOneAndDelete({ _id: `oauth:${q.state}` }) : null;
+    if (!pending || String(pending.expiresAt) < now()) return reply.code(400).type("text/plain").send("This sign-in link has expired. Go back to the CRM and click Connect Instagram again.");
+    const back = (status: string) => reply.redirect(`${pending.site}/settings/integrations?setup=meta&instagram=${encodeURIComponent(status)}`);
+    if (!q.code) return back(q.error_description ? "cancelled" : "error");
+    try {
+      const keys = await getKeys();
+      const got = await exchangeCode(f, { instagramAppId: keys.instagramAppId!, instagramAppSecret: keys.instagramAppSecret! }, `${pending.site}/api/integrations/instagram/callback`, q.code);
+      await subscribeMessages(f, got.token);
+      const at = now();
+      await integrations.replaceOne(
+        { _id: "instagram" },
+        { igUserId: got.igUserId, username: got.username, accessToken: got.token, tokenIssuedAt: at, tokenExpiresAt: new Date(Date.now() + got.expiresIn * 1000).toISOString(), connectedAt: at, connectedBy: String(pending.memberId) },
+        { upsert: true },
+      );
+      return back("connected");
+    } catch (e) {
+      app.log.error(e);
+      return back("error");
+    }
+  });
+  app.post("/integrations/instagram/disconnect", { preHandler: adminOnly }, async () => {
+    await integrations.deleteOne({ _id: "instagram" });
+    return { connected: false };
+  });
+  /** Meta checks the address once ("subscribe" + our verify token) and then posts each new message, signed. */
+  app.get("/integrations/instagram/webhook", async (req, reply) => {
+    const q = req.query as Record<string, string | undefined>;
+    const token = (await getKeys()).webhookVerifyToken;
+    if (q["hub.mode"] === "subscribe" && token && q["hub.verify_token"] === token) return reply.type("text/plain").send(q["hub.challenge"] ?? "");
+    return reply.code(403).send({ error: "Verify token doesn't match" });
+  });
+  app.post("/integrations/instagram/webhook", async (req, reply) => {
+    const keys = await getKeys();
+    const raw = (req.raw as { rawBody?: string | Buffer }).rawBody;
+    if (!validSignature(raw, req.headers["x-hub-signature-256"] as string | undefined, [keys.metaAppSecret, keys.instagramAppSecret])) return reply.code(401).send({ error: "Bad signature" });
+    return handleWebhook(db, f, req.body as Parameters<typeof handleWebhook>[2]);
+  });
+  /** What the public privacy page needs: who the studio is and how to reach them. */
+  app.get("/public/privacy-info", async () => {
+    const w = await getWorkspace();
+    return { studioName: w.studioName, legalName: w.legalName, address: w.address, contactEmail: w.enquiryEmail };
+  });
+
+  /* ---------- Inbox conversations (filled by the channel integrations) ---------- */
+  const conversationsCol = db.collection<Doc>("conversations");
+  app.get("/conversations", async (req) => {
+    // A Member limited to their own deals sees the conversations assigned to them.
+    const mine = (await ownDealIds(req)) ? { assigneeId: req.member._id } : {};
+    return (await conversationsCol.find(mine).sort({ lastMessageAt: -1 }).limit(2000).toArray()).map(({ _id, externalId: _, ...c }) => ({ id: _id, ...c }));
+  });
+  app.patch<{ Params: { id: string } }>("/conversations/:id", async (req, reply) => {
+    const changes = UpdateConversationSchema.parse(req.body);
+    // null clears a link (e.g. undoing "Create deal"); anything else is set.
+    const update: UpdateFilter<Doc> = {};
+    const set = Object.entries(changes).filter(([, v]) => v !== null && v !== undefined);
+    const unset = Object.entries(changes).filter(([, v]) => v === null);
+    if (set.length) update.$set = Object.fromEntries(set);
+    if (unset.length) update.$unset = Object.fromEntries(unset.map(([k]) => [k, true as const]));
+    const doc = await conversationsCol.findOneAndUpdate({ _id: req.params.id }, update, { returnDocument: "after" });
+    if (!doc) return reply.code(404).send({ error: "Not found" });
+    const { _id, externalId: _, ...c } = doc;
+    return { id: _id, ...c };
   });
 
   /* ---------- Lead routing (one ordered list of rules) ---------- */

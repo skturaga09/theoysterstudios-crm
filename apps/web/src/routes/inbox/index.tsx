@@ -22,6 +22,7 @@ import { useNavigate, useParams } from "react-router";
 import { ME_ID } from "../../data/seed";
 import { defaultOwnerId, useCrm, useIsManager } from "../../data/store";
 import type { Conversation } from "../../data/types";
+import { IS_DEMO } from "../../lib/demo";
 import { useCreateAction, useListNav } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 
@@ -339,6 +340,18 @@ function Composer({ c }: { c: Conversation }) {
   const hoursLeft = c.windowExpiresAt ? Math.round((+new Date(c.windowExpiresAt) - now) / 3600_000) : 0;
   const via = c.channel === "calendar" || c.channel === "web" ? "Gmail" : CHANNEL_LABEL[c.channel];
 
+  // Live: the CRM reads conversations; replies happen in the channel's own app.
+  if (!IS_DEMO)
+    return (
+      <div className="flex flex-wrap items-center gap-3 rounded-card bg-sunken p-4 t-dense text-ink-2">
+        <span className="min-w-0 flex-1">Replies are sent from {CHANNEL_LABEL[c.channel]} itself; they appear here when they're sent.</span>
+        {c.channel === "instagram" && c.handle && (
+          <Button asChild size="sm" variant="ink">
+            <a href={`https://ig.me/m/${c.handle.replace(/^@/, "")}`} target="_blank" rel="noreferrer">Reply in Instagram</a>
+          </Button>
+        )}
+      </div>
+    );
   if (c.channel === "facebook")
     return (
       <div className="rounded-card bg-sunken p-4 t-dense text-ink-2">

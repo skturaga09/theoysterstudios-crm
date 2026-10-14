@@ -42,5 +42,6 @@ A budget only alerts; it never stops the site.
 | Publish the current code | `firebase deploy --only functions:api,hosting` |
 | Change a secret (database password, admin or support emails) | `firebase functions:secrets:set MONGODB_URI` (or `ADMIN_EMAIL`, `SUPPORT_EMAILS`), then redeploy |
 | Restore the database | Firebase console → Firestore → `oyster-crm` → Disaster recovery: point-in-time (last 7 days) or a daily backup (kept 14 days) |
+| Instagram access | Renewed automatically by the `daily` function (03:00 IST). If Instagram shows "Needs attention", an admin clicks Reconnect on Settings → Integrations |
 | See backend logs | https://console.cloud.google.com/run → service `api` → Logs |
 | Run the tests against Firestore | `cd apps/api && pnpm test:firestore` (uses `oyster-crm-test`, never the live database) |

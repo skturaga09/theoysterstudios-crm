@@ -175,6 +175,14 @@ export const SetupProgressSchema = z.object({ done: z.array(z.string().trim().mi
 export const IntegrationKeysSchema = z.object({
   googleClientId: optionalField(z.string().regex(/^[\w.-]+\.apps\.googleusercontent\.com$/, "A Google Client ID ends in .apps.googleusercontent.com")),
   googleClientSecret: z.string().trim().max(200).default(""),
-  metaAppId: optionalField(z.string().regex(/^\d{6,25}$/, "A Meta App ID is a long number")),
+  instagramAppId: optionalField(z.string().regex(/^\d{6,25}$/, "An Instagram App ID is a long number")),
+  instagramAppSecret: optionalField(z.string().regex(/^[a-f0-9]{32}$/i, "An Instagram App secret is 32 letters and numbers")),
   metaAppSecret: optionalField(z.string().regex(/^[a-f0-9]{32}$/i, "A Meta App secret is 32 letters and numbers")),
+});
+
+export const UpdateConversationSchema = z.object({
+  unread: z.boolean().optional(),
+  assigneeId: id.nullable().optional(),
+  dealId: id.nullable().optional(),
+  contactId: id.nullable().optional(),
 });

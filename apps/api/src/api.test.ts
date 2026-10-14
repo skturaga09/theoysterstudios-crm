@@ -2,14 +2,31 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createHmac } from "node:crypto";
 import { buildApp } from "./app";
 import { ensureAdmin, type Verify } from "./auth";
+import { refreshToken } from "./instagram";
 import { connect } from "./db";
 import { financialYear } from "./invoices";
 
 const ADMIN = "owner@theoysterstudios.in";
 const SUPPORT = "dev@gmail.com";
 /** Stand-in for Google: "ok:<email>" is a verified sign-in, "unverified:<email>" isn't, anything else is a bad token. */
+/** Stand-in for Instagram's servers: records calls and answers like the real endpoints. */
+const igCalls: string[] = [];
+const fakeInstagram: typeof fetch = async (input, init) => {
+  const url = String(input);
+  igCalls.push(`${init?.method ?? "GET"} ${url.split("?")[0]}`);
+  const ok = (body: object) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  if (url.startsWith("https://api.instagram.com/oauth/access_token")) return ok({ access_token: "short-token", user_id: 17841400000000001 });
+  if (url.startsWith("https://graph.instagram.com/access_token")) return ok({ access_token: "LONG-SECRET-TOKEN", token_type: "bearer", expires_in: 5184000 });
+  if (url.startsWith("https://graph.instagram.com/refresh_access_token")) return ok({ access_token: "RENEWED-TOKEN", token_type: "bearer", expires_in: 5184000 });
+  if (url.startsWith("https://graph.instagram.com/me/subscribed_apps")) return ok({ success: true });
+  if (url.startsWith("https://graph.instagram.com/me?")) return ok({ user_id: "17841400000000001", username: "theoysterstudios" });
+  if (url.startsWith("https://graph.instagram.com/")) return ok({ name: "Riya Mehta", username: "riya.m" }); // a DM sender's profile
+  return new Response("{}", { status: 404 });
+};
+
 const verify: Verify = async (t) => {
   const [kind, email] = t.split(":");
   if (kind === "ok") return { email, email_verified: true, name: "Name From Google", picture: "https://p/x.png" };
@@ -25,10 +42,10 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
-  app = buildApp({ ...deps, verify });
+  app = buildApp({ ...deps, verify, fetch: fakeInstagram });
   close = async () => { await app.close(); await client.close(); await rs?.stop(); };
 }, 600_000); // first run against Firestore builds indexes (~75s each, in parallel)
 afterAll(() => close?.());
@@ -156,12 +173,75 @@ describe("auth", () => {
     expect((await call("GET", "/setup/progress")).json().done).toHaveLength(2);
     const secret = "GOCSPX-abcdefghijklmnopqrstuvwx";
     const saved = (await call("PUT", "/setup/keys", { googleClientId: "123-abc.apps.googleusercontent.com", googleClientSecret: secret })).json();
-    expect(saved).toEqual({ googleClientId: "123-abc.apps.googleusercontent.com", googleClientSecretSaved: true, metaAppId: "", metaAppSecretSaved: false });
+    expect(saved).toMatchObject({ googleClientId: "123-abc.apps.googleusercontent.com", googleClientSecretSaved: true, instagramAppId: "", instagramAppSecretSaved: false, metaAppSecretSaved: false });
     expect(JSON.stringify((await call("GET", "/setup/keys")).json())).not.toContain(secret); // never read back
     expect((await call("PUT", "/setup/keys", { googleClientId: "" })).json().googleClientId).toBe("123-abc.apps.googleusercontent.com"); // blank keeps it
     expect((await call("PUT", "/setup/keys", { metaAppSecret: "nope" })).statusCode).toBe(400);
     await call("POST", "/members", { email: "setup-member@gmail.com" });
     expect((await call("GET", "/setup/keys", undefined, "ok:setup-member@gmail.com")).statusCode).toBe(403);
+  });
+
+  it("connects Instagram through the client's own app and turns DMs into routed conversations", async () => {
+    const igSecret = "a".repeat(32), metaSecret = "b".repeat(32);
+    expect((await call("POST", "/integrations/instagram/start", { origin: "https://crm.example.com" })).statusCode).toBe(409); // keys first
+    await call("PUT", "/setup/keys", { instagramAppId: "1234567890", instagramAppSecret: igSecret, metaAppSecret: metaSecret });
+    const { webhookVerifyToken } = (await call("GET", "/setup/keys")).json();
+    expect(webhookVerifyToken).toMatch(/^[\w-]{20,}$/);
+
+    // Meta's one-time check of the webhook address (no CRM login involved).
+    const check = await app.inject({ url: `/api/integrations/instagram/webhook?hub.mode=subscribe&hub.verify_token=${webhookVerifyToken}&hub.challenge=4242` });
+    expect([check.statusCode, check.body]).toEqual([200, "4242"]);
+    expect((await app.inject({ url: "/api/integrations/instagram/webhook?hub.mode=subscribe&hub.verify_token=wrong&hub.challenge=1" })).statusCode).toBe(403);
+
+    // Connect: start → Instagram → callback with a one-time state.
+    const { url } = (await call("POST", "/integrations/instagram/start", { origin: "https://crm.example.com" })).json();
+    const u = new URL(url);
+    expect(u.searchParams.get("client_id")).toBe("1234567890");
+    expect(u.searchParams.get("redirect_uri")).toBe("https://crm.example.com/api/integrations/instagram/callback");
+    const state = u.searchParams.get("state")!;
+    const back = await app.inject({ url: `/api/integrations/instagram/callback?code=abc&state=${state}` });
+    expect(back.statusCode).toBe(302);
+    expect(back.headers.location).toBe("https://crm.example.com/settings/integrations?setup=meta&instagram=connected");
+    expect(igCalls).toContain("POST https://graph.instagram.com/me/subscribed_apps");
+    expect((await app.inject({ url: `/api/integrations/instagram/callback?code=abc&state=${state}` })).statusCode).toBe(400); // state is one-time
+    const status = (await call("GET", "/integrations")).json();
+    expect(status.instagram).toMatchObject({ connected: true, username: "theoysterstudios" });
+    expect(JSON.stringify(status)).not.toContain("LONG-SECRET-TOKEN");
+
+    // Lead routing: Instagram leads go to the admin.
+    const meId = (await call("GET", "/me")).json().id;
+    await call("PUT", "/routing", { rules: [{ id: "r-ig", channel: "instagram", ownerId: meId }] });
+
+    const post = (body: object, secret = metaSecret) => {
+      const raw = JSON.stringify(body);
+      const sig = `sha256=${createHmac("sha256", secret).update(raw).digest("hex")}`;
+      return app.inject({ method: "POST", url: "/api/integrations/instagram/webhook", payload: raw, headers: { "content-type": "application/json", "x-hub-signature-256": sig } });
+    };
+    const dm = (mid: string, text: string, echo = false) => ({
+      object: "instagram",
+      entry: [{ id: "17841400000000001", time: 1, messaging: [{ sender: { id: echo ? "17841400000000001" : "IGSID-RIYA" }, recipient: { id: echo ? "IGSID-RIYA" : "17841400000000001" }, timestamp: 1791900000000, message: { mid, text, ...(echo && { is_echo: true }) } }] }],
+    });
+    expect((await post(dm("m1", "Hi! Can you share a quote for a product shoot?"), "c".repeat(32))).statusCode).toBe(401); // forged
+    expect((await post(dm("m1", "Hi! Can you share a quote for a product shoot?"))).json()).toEqual({ stored: 1 });
+    expect((await post(dm("m1", "Hi! Can you share a quote for a product shoot?"))).json()).toEqual({ stored: 0 }); // Meta retried
+    expect((await post(dm("m2", "Sure — sending details now", true), igSecret)).json()).toEqual({ stored: 1 }); // sent from Instagram, signed with the other secret
+
+    const [conv] = (await call("GET", "/conversations")).json();
+    expect(conv).toMatchObject({ channel: "instagram", name: "Riya Mehta", handle: "@riya.m", assigneeId: meId, unread: true });
+    expect(conv.messages.map((m: { direction: string }) => m.direction)).toEqual(["in", "out"]);
+    expect(conv.externalId).toBeUndefined();
+    expect((await call("PATCH", `/conversations/${conv.id}`, { unread: false, dealId: "d-1" })).json()).toMatchObject({ unread: false, dealId: "d-1" });
+    expect((await call("PATCH", `/conversations/${conv.id}`, { dealId: null })).json().dealId).toBeUndefined();
+  });
+
+  it("renews the Instagram token only when it's due", async () => {
+    const col = deps.db.collection<{ _id: string; tokenIssuedAt: string; tokenExpiresAt: string; accessToken: string }>("integrations");
+    const day = 86_400_000, now = new Date("2026-12-01T00:00:00Z");
+    await col.updateOne({ _id: "instagram" }, { $set: { tokenIssuedAt: new Date(+now - 2 * day).toISOString(), tokenExpiresAt: new Date(+now + 50 * day).toISOString() } });
+    expect(await refreshToken(deps.db, fakeInstagram, now)).toBe("not-due"); // 50 days left
+    await col.updateOne({ _id: "instagram" }, { $set: { tokenExpiresAt: new Date(+now + 10 * day).toISOString() } });
+    expect(await refreshToken(deps.db, fakeInstagram, now)).toBe("refreshed");
+    expect((await col.findOne({ _id: "instagram" }))!.tokenIssuedAt).toBe(now.toISOString());
   });
 
   it("never leaves the team without an admin", async () => {

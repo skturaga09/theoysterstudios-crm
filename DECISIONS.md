@@ -138,3 +138,18 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   origin), and fields to paste the Google client and Meta app keys (`setup/keys`). Secrets are write-only: the API
   returns only whether one is saved. The app never shows hosting, billing or cost details — those stay in the
   Google console and docs/OPERATIONS.md.
+
+## Instagram DMs (client's own Meta app, read-only)
+
+- **Instagram API with Instagram Login**, Standard Access (own account only → no App Review). The client pastes the
+  Instagram App ID/secret (sign-in) and the Meta App secret (Integrations → Instagram → Set up); the CRM shows the
+  OAuth redirect URI, webhook URL, its generated verify token, and the privacy/deletion URLs to paste into Meta.
+- **Connect:** `POST /integrations/instagram/start` → Instagram → `GET …/callback` with a one-time `state`
+  (10 min) → long-lived token (60 days, server-only, never returned) + `subscribed_apps?subscribed_fields=messages`.
+  The `daily` scheduled function renews it once it's within 30 days of expiry.
+- **Webhook:** `X-Hub-Signature-256` HMAC over the raw body, accepted if it matches either saved secret (Meta's docs
+  are ambiguous about which signs). Each message stored once (`seenMessages/instagram:<mid>`). A first message
+  opens a conversation (sender's name/username fetched best-effort) owned via `routeLead`; echoes (sent from
+  Instagram itself) are kept as outgoing. Public routes: webhook, callback, `/public/privacy-info`.
+- **Inbox (live):** real conversations, polled every 30 s; replies happen in Instagram ("Reply in Instagram").
+  `/privacy` (with `#delete`) is public, filled from Workspace details.

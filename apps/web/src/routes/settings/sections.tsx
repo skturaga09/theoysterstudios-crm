@@ -4,10 +4,11 @@ import { Button, ChannelChip, cn, Input, Pill, Segmented, Select, toast } from "
 import { ArrowDown, ArrowRight, ArrowUp, Download, Plus, RefreshCw, Trash2, Unplug, Upload } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useSearchParams } from "react-router";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { PROBABILITY } from "../../data/derive";
 import { CHANNEL_STATUS, type ChannelStatus } from "../../data/seed";
 import { IS_DEMO } from "../../lib/demo";
+import { channelsFrom, type IntegrationStatus } from "../../data/sync";
 import { GoogleSetup, MetaSetup, setupProgress, useSetupState } from "./setup";
 import { defaultOwnerId, useCrm, useMe, useWorkspace } from "../../data/store";
 import type { Company, Contact } from "../../data/types";
@@ -178,9 +179,24 @@ export function IntegrationsRoute() {
   const [params] = useSearchParams();
   // Which channel's setup steps are open; ?setup=google|meta opens the first channel that uses it.
   const [open, setOpen] = useState<Channel | undefined>(() => (Object.keys(SETUP_FOR) as Channel[]).find((c) => SETUP_FOR[c] === params.get("setup")));
-  // Live: nothing is connected until the integrations are built. The demo shows sample connections.
-  const [items, setItems] = useState<(ChannelStatus & { connected: boolean })[]>(CHANNEL_STATUS.map((c) => ({ ...c, connected: IS_DEMO })));
-  const update = (ch: Channel, patch: Partial<ChannelStatus & { connected: boolean }>) => setItems((xs) => xs.map((x) => (x.channel === ch ? { ...x, ...patch } : x)));
+  // Demo: sample connections you can click around. Live: the real status of each channel.
+  const [demoItems, setDemoItems] = useState<(ChannelStatus & { connected: boolean })[]>(CHANNEL_STATUS.map((c) => ({ ...c, connected: true })));
+  const update = (ch: Channel, patch: Partial<ChannelStatus & { connected: boolean }>) => setDemoItems((xs) => xs.map((x) => (x.channel === ch ? { ...x, ...patch } : x)));
+  const live = useCrm((s) => s.channels);
+  const items = IS_DEMO
+    ? demoItems
+    : CHANNEL_STATUS.map((c) => {
+        const l = live.find((x) => x.channel === c.channel);
+        return l ? { ...l, connected: true } : { ...c, connected: false };
+      });
+  const [confirmDisconnect, setConfirmDisconnect] = useState<Channel>();
+  // Coming back from Instagram sign-in: say how it went once.
+  useEffect(() => {
+    const result = params.get("instagram");
+    if (result === "connected") toast("Instagram connected — new DMs will appear in Inbox");
+    else if (result === "cancelled") toast("Instagram sign-in was cancelled");
+    else if (result) toast("Couldn't connect Instagram — check the three keys and the redirect URI, then try again");
+  }, [params]);
   return (
     <>
       <SettingsHeader title="Integrations" body="Where leads come from. Each connected channel feeds the Inbox. Gmail, Calendar and Instagram need a one-time setup in your own Google Workspace and Meta accounts — open Set up on each." />
@@ -213,7 +229,18 @@ export function IntegrationsRoute() {
                   {c.connected && c.note && <p className="t-meta m-0 mt-2 rounded-control bg-warn-wash px-3 py-2 text-warn">{c.note}</p>}
                 </div>
                 <div className="flex gap-2">
-                  {c.connected ? (
+                  {c.connected && !IS_DEMO ? (
+                    isAdmin && (
+                      <>
+                        <Button size="sm" variant={c.status === "warn" ? "ink" : "outline"} aria-expanded={expanded} onClick={() => setOpen(expanded ? undefined : c.channel)}>
+                          <RefreshCw strokeWidth={1.5} /> {expanded ? "Hide" : "Reconnect"}
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setConfirmDisconnect(c.channel)}>
+                          <Unplug strokeWidth={1.5} /> Disconnect
+                        </Button>
+                      </>
+                    )
+                  ) : c.connected ? (
                     <>
                       <Button size="sm" variant={c.status === "warn" ? "ink" : "outline"} onClick={() => { update(c.channel, { status: "ok", note: undefined, lastEventMin: 0 }); toast(`${CHANNEL_LABEL[c.channel]} re-authorised`); }}>
                         <RefreshCw strokeWidth={1.5} /> Re-authorise
@@ -234,7 +261,30 @@ export function IntegrationsRoute() {
                 </div>
               </div>
               {expanded && kind === "google" && <GoogleSetup state={setup} />}
-              {expanded && kind === "meta" && <MetaSetup state={setup} />}
+              {expanded && kind === "meta" && <MetaSetup state={setup} connected={c.connected} />}
+              {confirmDisconnect === c.channel && (
+                <div className="mt-3 flex flex-wrap items-center gap-3 rounded-card bg-risk-wash px-4 py-3">
+                  <p className="t-dense m-0 flex-1">Disconnect {CHANNEL_LABEL[c.channel]}? New messages stop arriving. Conversations already in Inbox stay.</p>
+                  <Button size="sm" variant="ghost" onClick={() => setConfirmDisconnect(undefined)}>Keep</Button>
+                  <Button
+                    size="sm"
+                    variant="ink"
+                    className="bg-risk hover:bg-risk/90"
+                    onClick={async () => {
+                      try {
+                        await api("/integrations/instagram/disconnect", { method: "POST" });
+                        useCrm.setState({ channels: channelsFrom(await api<IntegrationStatus>("/integrations")) });
+                        toast(`${CHANNEL_LABEL[c.channel]} disconnected`);
+                      } catch (e) {
+                        toast(`Couldn't disconnect — ${(e as Error).message}`);
+                      }
+                      setConfirmDisconnect(undefined);
+                    }}
+                  >
+                    Disconnect
+                  </Button>
+                </div>
+              )}
               {c.channel === "web" && c.connected && (
                 <pre className="mt-3 overflow-x-auto rounded-card bg-sunken p-3 font-mono text-[11.5px] text-ink-2">{`<script src="https://theoysterstudios.web.app/form.js" data-workspace="pinnacle" async></script>`}</pre>
               )}
