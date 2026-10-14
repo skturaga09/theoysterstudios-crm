@@ -117,3 +117,8 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   The API validates each row with the same schemas, skips duplicates (contacts by email, companies by
   case-insensitive name) and bad rows with a reason, and creates companies named on contact rows. Export now writes
   real CSV (`toCsv`) instead of JSON-escaped fields.
+- **Invoice PDF:** `/invoices/:id/print` is a print-ready A4 GST tax invoice (supplier/recipient GSTIN and state
+  code, place of supply, SAC, CGST/SGST or IGST, amounts with paise, amount in words via `rupeesInWords`); the
+  browser's "Save as PDF" makes the file. No server-side PDF yet — needed only when invoices are emailed from the CRM.
+- **Cancelling:** only unsent drafts can be cancelled, with a reason; they stay listed as "Cancelled" so the number
+  series has no gaps. Sent invoices need a credit note (not built). "Send invoice" is labelled "Mark as sent" — no email.

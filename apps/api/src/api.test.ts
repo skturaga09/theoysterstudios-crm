@@ -219,6 +219,18 @@ describe("api", () => {
     expect((await call("POST", `/invoices/${inv.id}/payments`, { amountPaise: 18000 })).json().payments).toHaveLength(2);
   });
 
+  it("cancels drafts only, keeping them on record", async () => {
+    const inv = { companyId: c1, dueAt: "2026-11-13T00:00:00+05:30", supply: "intra", lines: [{ desc: "x", sac: "998391", qty: 1, ratePaise: 100 }] };
+    const draft = (await call("POST", "/invoices", inv)).json();
+    expect((await call("POST", `/invoices/${draft.id}/cancel`, { reason: "" })).statusCode).toBe(400);
+    expect((await call("POST", `/invoices/${draft.id}/cancel`, { reason: "Wrong client" })).json()).toMatchObject({ cancelled: true, cancelReason: "Wrong client" });
+    expect((await call("POST", `/invoices/${draft.id}/send`)).statusCode).toBe(404); // can't send a cancelled one
+    expect((await call("GET", "/invoices")).json().some((i: { id: string }) => i.id === draft.id)).toBe(true); // still listed
+    const sent = (await call("POST", "/invoices", inv)).json();
+    await call("POST", `/invoices/${sent.id}/send`);
+    expect((await call("POST", `/invoices/${sent.id}/cancel`, { reason: "Changed mind" })).statusCode).toBe(409);
+  });
+
   it("deletes records and keeps a deal's board position", async () => {
     const d = (await call("POST", "/deals", { title: "Film", companyId: "c1", valuePaise: 1, closeAt: "2026-11-30T00:00:00+05:30", ownerId: "sr", channel: "web", position: 3 })).json();
     expect(d.position).toBe(3);

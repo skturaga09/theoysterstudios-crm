@@ -1,8 +1,8 @@
 import { fmtDate, fmtDay, formatCompact, formatFull, lakh } from "@pinnacle/shared";
 import { Button, cn, Input, MoneyText, Pill, Segmented, Sheet, Table, TBody, TD, TH, THead, toast, TR } from "@pinnacle/ui";
-import { FileDown, FileText, Plus, Send } from "lucide-react";
+import { Ban, FileDown, FileText, Plus, Send } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { PageHeader } from "../../components/page-header";
 import { agingBucket, daysOverdue, invoiceStatus, invoiceTotals, sum } from "../../data/derive";
 import { useCrm, useWorkspace } from "../../data/store";
@@ -11,8 +11,8 @@ import { api } from "../../lib/api";
 import { useCreateAction, useListNav } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 
-const TONE = { draft: "mute", sent: "mute", partial: "warn", paid: "ok", overdue: "risk" } as const;
-const LABEL = { draft: "Draft", sent: "Sent", partial: "Partially paid", paid: "Paid", overdue: "Overdue" } as const;
+const TONE = { draft: "mute", sent: "mute", partial: "warn", paid: "ok", overdue: "risk", cancelled: "mute" } as const;
+const LABEL = { draft: "Draft", sent: "Sent", partial: "Partially paid", paid: "Paid", overdue: "Overdue", cancelled: "Cancelled" } as const;
 type Filter = "all" | "draft" | "outstanding" | "overdue" | "paid";
 
 export function InvoicesRoute() {
@@ -28,7 +28,7 @@ export function InvoicesRoute() {
       [...s.invoices]
         .map((i) => ({ i, st: invoiceStatus(i), t: invoiceTotals(i), co: s.companies.find((c) => c.id === i.companyId) }))
         .filter((r) =>
-          filter === "all" ? true : filter === "draft" ? r.st === "draft" : filter === "paid" ? r.st === "paid" : filter === "overdue" ? r.st === "overdue" : r.st !== "paid" && r.st !== "draft",
+          filter === "all" ? true : filter === "draft" ? r.st === "draft" : filter === "paid" ? r.st === "paid" : filter === "overdue" ? r.st === "overdue" : r.st !== "paid" && r.st !== "draft" && r.st !== "cancelled",
         )
         .sort((a, b) => +new Date(a.i.dueAt) - +new Date(b.i.dueAt)),
     [s.invoices, s.companies, filter],
@@ -141,8 +141,13 @@ function InvoiceDetail({ inv }: { inv: Invoice }) {
   return (
     <div className="flex flex-col gap-6">
       <img src="/logo.png" alt={from.legalName} className="h-20 w-auto self-start object-contain" />
+      {inv.cancelled && (
+        <p className="t-dense m-0 rounded-card bg-sunken px-3 py-2 text-ink-2">
+          Cancelled {inv.cancelledAt && fmtDay(inv.cancelledAt)} · {inv.cancelReason}. Kept on record so the invoice numbers stay continuous.
+        </p>
+      )}
       <div className="flex items-baseline gap-2">
-        <span className="font-serif text-[32px] leading-none tnum">{formatFull(t.total)}</span>
+        <span className={cn("font-serif text-[32px] leading-none tnum", inv.cancelled && "text-ink-3 line-through")}>{formatFull(t.total)}</span>
         <Pill tone={TONE[st]} className="ml-auto self-center">{LABEL[st]}</Pill>
       </div>
       <div className="grid grid-cols-2 gap-4 t-dense">
@@ -205,8 +210,11 @@ function InvoiceDetail({ inv }: { inv: Invoice }) {
 function InvoiceActions({ inv }: { inv: Invoice }) {
   const st = invoiceStatus(inv);
   const t = invoiceTotals(inv);
+  const navigate = useNavigate();
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [reason, setReason] = useState("");
   /** Calls the API, then shows the invoice exactly as it was saved. */
   const run = async (path: string, body: object | undefined, done: string) => {
     setBusy(true);
@@ -224,13 +232,31 @@ function InvoiceActions({ inv }: { inv: Invoice }) {
   };
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button variant="ghost" size="sm" onClick={() => toast("PDF is generated server-side — arrives with the API (M6)")}>
+      <Button variant="ghost" size="sm" onClick={() => navigate(`/invoices/${inv.id}/print`)}>
         <FileDown strokeWidth={1.5} /> PDF
       </Button>
-      {st === "draft" ? (
-        <Button variant="ink" size="sm" className="ml-auto" disabled={busy} onClick={() => void run("/send", undefined, `Marked ${inv.number} as sent`)}>
-          <Send strokeWidth={1.5} /> Send invoice
-        </Button>
+      {st === "cancelled" ? null : st === "draft" && cancelling ? (
+        <form
+          className="ml-auto flex flex-1 items-center gap-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!reason.trim()) return toast("Say why it's being cancelled");
+            if (await run("/cancel", { reason: reason.trim() }, `Cancelled ${inv.number}`)) setCancelling(false);
+          }}
+        >
+          <Input aria-label="Reason for cancelling" autoFocus placeholder="Reason, e.g. wrong client" value={reason} onChange={(e) => setReason(e.target.value)} className="h-7 min-w-0 flex-1" />
+          <Button size="sm" variant="ghost" type="button" onClick={() => setCancelling(false)}>Keep</Button>
+          <Button size="sm" variant="ink" type="submit" className="bg-risk hover:bg-risk/90" disabled={busy}>Cancel invoice</Button>
+        </form>
+      ) : st === "draft" ? (
+        <>
+          <Button variant="ghost" size="sm" onClick={() => setCancelling(true)}>
+            <Ban strokeWidth={1.5} /> Cancel draft
+          </Button>
+          <Button variant="ink" size="sm" className="ml-auto" disabled={busy} onClick={() => void run("/send", undefined, `Marked ${inv.number} as sent`)}>
+            <Send strokeWidth={1.5} /> Mark as sent
+          </Button>
+        </>
       ) : st !== "paid" ? (
         <form
           className="ml-auto flex items-center gap-2"

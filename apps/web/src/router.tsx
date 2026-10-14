@@ -6,6 +6,8 @@ import { AppShell } from "./shell/app-shell";
 
 /** Every screen is its own chunk, so charts and drag-and-drop load only where used. */
 const routes: RouteObject[] = [
+  // Printable invoice: full page, outside the app shell (no sidebar), still behind sign-in.
+  { path: "/invoices/:id/print", lazy: async () => ({ Component: (await import("./routes/invoices/print")).InvoicePrintRoute }) },
   {
     path: "/",
     element: <AppShell />,

@@ -266,7 +266,7 @@ export function buildApp({
     return deletedCount ? reply.code(204).send() : reply.code(404).send({ error: "Not found, or not yours to remove" });
   });
 
-  type InvoiceDoc = InvoiceMath & { _id: string; sent: boolean; payments: { at: string; amountPaise: number }[] };
+  type InvoiceDoc = InvoiceMath & { _id: string; sent: boolean; cancelled?: boolean; payments: { at: string; amountPaise: number }[] };
   const invoices = db.collection<InvoiceDoc>("invoices");
   app.get("/invoices", async (req) => {
     const { limit, companyId } = ListQuery.parse(req.query);
@@ -283,8 +283,21 @@ export function buildApp({
     return reply.code(201).send(out(await createInvoice(db, client, { ...input, seller: { legalName, gstin, address } })));
   });
   app.post<{ Params: { id: string } }>("/invoices/:id/send", async (req, reply) => {
-    const doc = await invoices.findOneAndUpdate({ _id: req.params.id }, { $set: { sent: true } }, { returnDocument: "after" });
-    return doc ? out(doc) : reply.code(404).send({ error: "Not found" });
+    const doc = await invoices.findOneAndUpdate({ _id: req.params.id, cancelled: { $ne: true } }, { $set: { sent: true } }, { returnDocument: "after" });
+    return doc ? out(doc) : reply.code(404).send({ error: "Not found, or cancelled" });
+  });
+  /**
+   * Cancels a draft. The invoice stays (marked cancelled) so the number series has no gaps; a sent invoice
+   * needs a credit note instead, so it can't be cancelled here.
+   */
+  app.post<{ Params: { id: string } }>("/invoices/:id/cancel", async (req, reply) => {
+    const { reason } = z.object({ reason: z.string().trim().min(1, "Say why it's being cancelled").max(200) }).parse(req.body);
+    const doc = await invoices.findOneAndUpdate(
+      { _id: req.params.id, sent: false, cancelled: { $ne: true } },
+      { $set: { cancelled: true, cancelledAt: now(), cancelReason: reason, cancelledBy: req.member._id } },
+      { returnDocument: "after" },
+    );
+    return doc ? out(doc) : reply.code(409).send({ error: "Only a draft that hasn't been sent can be cancelled" });
   });
   /** In a transaction so two payments recorded at once can't together exceed the balance. */
   app.post<{ Params: { id: string } }>("/invoices/:id/payments", async (req, reply) => {
@@ -294,6 +307,7 @@ export function buildApp({
       const result = await session.withTransaction(async () => {
         const inv = await invoices.findOne({ _id: req.params.id }, { session });
         if (!inv) return { code: 404, body: { error: "Not found" } };
+        if (inv.cancelled) return { code: 409, body: { error: "This invoice was cancelled" } };
         if (!inv.sent) return { code: 409, body: { error: "Send the invoice before recording a payment" } };
         const { due } = invoiceTotals(inv);
         if (amountPaise > due) return { code: 409, body: { error: `Payment is more than the balance due (${formatFull(due)})` } };

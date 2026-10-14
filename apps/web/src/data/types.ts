@@ -114,7 +114,7 @@ export type Task = {
   remind?: boolean;
 };
 
-export type InvoiceStatus = "draft" | "sent" | "partial" | "paid" | "overdue";
+export type InvoiceStatus = "draft" | "sent" | "partial" | "paid" | "overdue" | "cancelled";
 export type InvoiceLine = { desc: string; sac: string; qty: number; ratePaise: Paise };
 export type Invoice = {
   id: ID;
@@ -130,6 +130,10 @@ export type Invoice = {
   sent: boolean;
   /** Our details as they were when the invoice was created (absent on sample invoices). */
   seller?: { legalName: string; gstin: string; address: string };
+  /** Cancelled drafts stay on record so the number series has no gaps. */
+  cancelled?: boolean;
+  cancelledAt?: ISO;
+  cancelReason?: string;
 };
 
 export type Lead = { id: ID; channel: Channel; stage: Stage; at: ISO };

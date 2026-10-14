@@ -1,5 +1,5 @@
 import { invoiceTotals, STAGES, type Stage } from "@pinnacle/shared";
-import type { Deal, Invoice, Task } from "./types";
+import type { Deal, Invoice, InvoiceStatus, Task } from "./types";
 
 export const PROBABILITY: Record<Stage, number> = { new: 0.1, qualified: 0.25, proposal: 0.5, negotiation: 0.75, won: 1, lost: 0 };
 export const OPEN_STAGES = STAGES.filter((s) => s !== "won") as Stage[];
@@ -58,7 +58,8 @@ export function taskGroup(t: Task): TaskGroup {
 
 /* ---------- invoices ---------- */
 export { invoiceTotals };
-export function invoiceStatus(inv: Invoice): "draft" | "sent" | "partial" | "paid" | "overdue" {
+export function invoiceStatus(inv: Invoice): InvoiceStatus {
+  if (inv.cancelled) return "cancelled";
   const t = invoiceTotals(inv);
   if (!inv.sent) return "draft";
   if (t.due <= 100) return "paid";
