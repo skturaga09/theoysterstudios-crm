@@ -25,7 +25,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify });
@@ -166,7 +166,7 @@ describe("api", () => {
     expect(numbers).toEqual(Array.from({ length: 20 }, (_, i) => `TOS/26-27/${String(i + 1).padStart(3, "0")}`));
     // A new financial year restarts at 001.
     expect((await call("POST", "/invoices", { ...inv, issuedAt: "2027-04-01T00:30:00+05:30" })).json().number).toBe("TOS/27-28/001");
-  });
+  }, 60_000); // 20 contended transactions take several seconds against real Firestore
 
   it("sends invoices and records payments without overpaying", async () => {
     // ₹1,000 + 18% GST = ₹1,180 = 118000 paise
@@ -184,6 +184,25 @@ describe("api", () => {
     expect(d.position).toBe(3);
     expect((await call("DELETE", `/deals/${d.id}`)).statusCode).toBe(204);
     expect((await call("DELETE", `/deals/${d.id}`)).statusCode).toBe(404);
+  });
+
+  it("saves tasks and completes them", async () => {
+    const t = (await call("POST", "/tasks", { title: "Send moodboard", dueAt: "2026-10-20T10:00:00+05:30", assigneeId: "sr" })).json();
+    expect(t).toMatchObject({ title: "Send moodboard", done: false, remind: false });
+    expect((await call("PATCH", `/tasks/${t.id}`, { done: true, doneAt: "2026-10-15T10:00:00+05:30" })).json().done).toBe(true);
+    expect((await call("PATCH", `/tasks/${t.id}`, { done: false, doneAt: null })).json().doneAt).toBeNull();
+    expect((await call("POST", "/tasks", { title: "", dueAt: "2026-10-20T10:00:00+05:30", assigneeId: "sr" })).statusCode).toBe(400);
+  });
+
+  it("logs activity as the signed-in person; only the author can remove it", async () => {
+    const me = (await call("GET", "/me")).json();
+    const a = (await call("POST", "/activities", { type: "note", dealId: "d1", text: "added a note", body: "Prefers Thursday", actorId: "someone-else", at: "2000-01-01T00:00:00Z" })).json();
+    expect(a).toMatchObject({ type: "note", actorId: me.id, body: "Prefers Thursday" });
+    expect(a.at).not.toBe("2000-01-01T00:00:00Z");
+    expect((await call("GET", "/activities?dealId=d1")).json().map((x: { id: string }) => x.id)).toContain(a.id);
+    await call("POST", "/members", { email: "colleague@gmail.com" });
+    expect((await call("DELETE", `/activities/${a.id}`, undefined, "ok:colleague@gmail.com")).statusCode).toBe(404);
+    expect((await call("DELETE", `/activities/${a.id}`)).statusCode).toBe(204);
   });
 
   it("splits financial years at 1 April IST", () => {

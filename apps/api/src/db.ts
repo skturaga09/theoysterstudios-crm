@@ -22,6 +22,8 @@ const INDEXES: Record<string, IndexDescription[]> = {
   contacts: [{ key: { companyId: 1 } }, { key: { ownerId: 1 } }, { key: { email: 1 }, unique: true, sparse: true }],
   deals: [{ key: { stage: 1, position: 1 } }, { key: { companyId: 1 } }, { key: { ownerId: 1 } }],
   members: [{ key: { email: 1 }, unique: true }],
+  tasks: [{ key: { assigneeId: 1, done: 1 } }, { key: { dealId: 1 } }],
+  activities: [{ key: { at: -1 } }, { key: { dealId: 1, at: -1 } }],
   invoices: [{ key: { number: 1 }, unique: true }, { key: { companyId: 1 } }, { key: { dueAt: 1 } }],
 };
 

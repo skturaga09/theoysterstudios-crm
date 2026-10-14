@@ -1,7 +1,7 @@
 /**
  * Client-side store the screens read from. Signed in, it holds the database's team, companies, contacts,
- * deals and invoices (see sync.ts); their mutations update the screen first, then save to the API and roll
- * back if that fails. Tasks, notes, activity and the inbox are still local-only.
+ * deals, invoices, tasks and activity (see sync.ts); mutations update the screen first, then save to the API
+ * and roll back if that fails. The inbox is still local-only until the channels are connected.
  */
 import { formatCompact, STAGE_LABEL, type Stage } from "@pinnacle/shared";
 import { create } from "zustand";
@@ -20,6 +20,7 @@ import {
   TASKS,
   type ChannelStatus,
 } from "./seed";
+import { toast } from "@pinnacle/ui";
 import { api, save } from "../lib/api";
 import { useSession } from "../lib/session";
 import type { Activity, Company, Contact, Conversation, Deal, Invoice, Lead, Member, Task } from "./types";
@@ -63,8 +64,10 @@ interface CrmState {
   /* tasks */
   toggleTask: (id: string) => void;
   addTask: (t: Omit<Task, "id" | "done">) => void;
-  /* notes */
+  updateTask: (id: string, patch: Partial<Task>) => void;
+  /* activity: notes, calls… */
   addNote: (dealId: string, body: string) => void;
+  addActivity: (entry: ActivityEntry) => void;
   /* team & access */
   /* bulk */
   reassignCompanies: (ids: string[], ownerId: string) => void;
@@ -77,6 +80,29 @@ const log = (a: Omit<Activity, "id" | "at" | "actorId"> & { actorId?: string }):
   actorId: a.actorId ?? ME_ID,
   ...a,
 });
+
+type ActivityEntry = Omit<Activity, "id" | "at" | "actorId">;
+
+/**
+ * Builds an activity for the screen and saves it. When the save lands, the saved copy (with its real id)
+ * replaces the temporary one; `remove` deletes it again (for Undo).
+ */
+const record = (entry: ActivityEntry) => {
+  const activity = log(entry);
+  const saved = api<Activity>("/activities", { method: "POST", body: entry }).then(
+    (a) => {
+      useCrm.setState((s) => ({ activities: s.activities.map((x) => (x.id === activity.id ? a : x)) }));
+      return a;
+    },
+    (e: Error) => {
+      useCrm.setState((s) => ({ activities: s.activities.filter((x) => x.id !== activity.id) }));
+      toast(`Couldn't save to the timeline — ${e.message}`);
+      return undefined;
+    },
+  );
+  const remove = () => void saved.then((a) => a && api(`/activities/${a.id}`, { method: "DELETE" }).catch(() => {}));
+  return { activity, remove };
+};
 
 const patch = (path: string, body: object) => api(path, { method: "PATCH", body });
 const del = (path: string) => api(path, { method: "DELETE" });
@@ -122,22 +148,20 @@ export const useCrm = create<CrmState>((set, get) => ({
     column.splice(at, 0, moved);
     const reindexed = new Map(column.map((d, i) => [d.id, i]));
     const deals = [...others.map((d) => (reindexed.has(d.id) ? { ...d, position: reindexed.get(d.id)! } : d)), { ...moved, position: reindexed.get(id)! }];
-    const changed = deal.stage !== stage;
-    set({
-      deals,
-      activities: changed
-        ? [
-            log({
-              type: stage === "won" ? "won" : "stage",
-              dealId: id,
-              companyId: deal.companyId,
-              text: stage === "won" ? `marked ${deal.title} as Won · ${formatCompact(deal.valuePaise)}` : `moved ${deal.title} to ${STAGE_LABEL[stage]}`,
-            }),
-            ...prevActs,
-          ]
-        : prevActs,
-    });
-    const rollback = () => set({ deals: prev, activities: prevActs });
+    const entry =
+      deal.stage !== stage
+        ? record({
+            type: stage === "won" ? "won" : "stage",
+            dealId: id,
+            companyId: deal.companyId,
+            text: stage === "won" ? `marked ${deal.title} as Won · ${formatCompact(deal.valuePaise)}` : `moved ${deal.title} to ${STAGE_LABEL[stage]}`,
+          })
+        : undefined;
+    set({ deals, activities: entry ? [entry.activity, ...prevActs] : prevActs });
+    const rollback = () => {
+      set({ deals: prev, activities: get().activities.filter((a) => a.id !== entry?.activity.id) });
+      entry?.remove();
+    };
     save(saveDealChanges(prev, deals), rollback);
     return () => {
       rollback();
@@ -216,6 +240,7 @@ export const useCrm = create<CrmState>((set, get) => ({
       });
       created.push(`/deals/${deal.id}`);
       const [co, ct, latest] = [company, contact, get()];
+      const entry = record({ type: "lead", dealId: deal.id, companyId: co.id, text: `created ${deal.title} from ${conv.name}'s message` });
       set({
         companies: latest.companies.some((c) => c.id === co.id) ? latest.companies : [co, ...latest.companies],
         contacts: latest.contacts.some((c) => c.id === ct.id) ? latest.contacts : [ct, ...latest.contacts],
@@ -223,12 +248,13 @@ export const useCrm = create<CrmState>((set, get) => ({
         conversations: latest.conversations.map((c) =>
           c.id === id ? { ...c, dealId: deal.id, contactId: ct.id, assigneeId: input.ownerId, unread: false } : c,
         ),
-        activities: [log({ type: "lead", dealId: deal.id, companyId: co.id, text: `created ${deal.title} from ${conv.name}'s message` }), ...latest.activities],
+        activities: [entry.activity, ...latest.activities],
       });
       return {
         deal,
         undo: () => {
           set(snapshot);
+          entry.remove();
           save(removeCreated(), () => {});
         },
       };
@@ -247,14 +273,34 @@ export const useCrm = create<CrmState>((set, get) => ({
     });
   },
 
-  toggleTask: (id) =>
-    set({ tasks: get().tasks.map((t) => (t.id === id ? { ...t, done: !t.done, doneAt: !t.done ? now() : undefined } : t)) }),
-  addTask: (t) => set({ tasks: [{ ...t, id: uid("t"), done: false }, ...get().tasks] }),
+  toggleTask: (id) => {
+    const t = get().tasks.find((x) => x.id === id);
+    if (t) get().updateTask(id, { done: !t.done, doneAt: !t.done ? now() : undefined });
+  },
+  addTask: (t) => {
+    const temp: Task = { ...t, id: uid("t"), done: false };
+    set({ tasks: [temp, ...get().tasks] });
+    api<Task>("/tasks", { method: "POST", body: t }).then(
+      (saved) => set({ tasks: get().tasks.map((x) => (x.id === temp.id ? saved : x)) }),
+      (e: Error) => {
+        set({ tasks: get().tasks.filter((x) => x.id !== temp.id) });
+        toast(`Couldn't save the task — ${e.message}`);
+      },
+    );
+  },
+  updateTask: (id, changes) => {
+    const prev = get().tasks;
+    set({ tasks: prev.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
+    // `doneAt: undefined` means "clear it", which JSON can only say as null.
+    const body = "doneAt" in changes ? { ...changes, doneAt: changes.doneAt ?? null } : changes;
+    save(patch(`/tasks/${id}`, body), () => set({ tasks: prev }));
+  },
 
   addNote: (dealId, body) => {
     const deal = get().deals.find((d) => d.id === dealId);
-    set({ activities: [log({ type: "note", dealId, companyId: deal?.companyId, text: "added a note", body }), ...get().activities] });
+    get().addActivity({ type: "note", dealId, companyId: deal?.companyId, text: "added a note", body });
   },
+  addActivity: (entry) => set({ activities: [record(entry).activity, ...get().activities] }),
 
 
   reassignCompanies: (ids, ownerId) => {

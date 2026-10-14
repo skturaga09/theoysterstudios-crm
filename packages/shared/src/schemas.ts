@@ -113,3 +113,28 @@ export const WorkspaceSchema = z.object({
   whatsappNumber: optionalField(z.string().transform((v) => v.replace(/[\s-]/g, "")).pipe(z.string().regex(/^\+\d{10,15}$/, "Use international format, e.g. +91 98765 43210"))),
 });
 export type Workspace = z.output<typeof WorkspaceSchema>;
+
+/* ---------- Tasks and activity ---------- */
+export const CreateTaskSchema = z.object({
+  title: z.string().trim().min(1, "Add a task title").max(200),
+  dueAt: iso,
+  assigneeId: id,
+  dealId: id.optional(),
+  companyId: id.optional(),
+  /** Create a Google Calendar reminder at the due time (once Calendar is connected). */
+  remind: z.boolean().default(false),
+});
+export const UpdateTaskSchema = CreateTaskSchema.partial().extend({
+  done: z.boolean().optional(),
+  doneAt: iso.nullable().optional(),
+});
+
+export const ACTIVITY_TYPES = ["stage", "email", "call", "meeting", "note", "task", "lead", "won", "invoice"] as const;
+/** Who and when are set by the API from the signed-in person, never taken from the request. */
+export const CreateActivitySchema = z.object({
+  type: z.enum(ACTIVITY_TYPES),
+  dealId: id.optional(),
+  companyId: id.optional(),
+  text: z.string().trim().min(1).max(300),
+  body: optionalText(5000),
+});

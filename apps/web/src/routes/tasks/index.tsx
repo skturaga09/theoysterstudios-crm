@@ -7,6 +7,7 @@ import { taskGroup, type TaskGroup } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
 import { useCrm } from "../../data/store";
 import type { Task } from "../../data/types";
+import { IS_DEMO } from "../../lib/demo";
 import { useCreateAction, usePref } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 
@@ -118,8 +119,8 @@ function RemindToggle({ t }: { t: Task }) {
         aria-label="Calendar reminder"
         onClick={(e) => {
           e.stopPropagation();
-          useCrm.setState((s) => ({ tasks: s.tasks.map((x) => (x.id === t.id ? { ...x, remind: !x.remind } : x)) }));
-          toast(t.remind ? "Reminder removed" : `Reminder set in Google Calendar · ${dueLabel(t)}`);
+          useCrm.getState().updateTask(t.id, { remind: !t.remind });
+          toast(t.remind ? "Reminder removed" : IS_DEMO ? `Reminder set in Google Calendar · ${dueLabel(t)}` : "Reminder saved · it goes to Google Calendar once Calendar is connected");
         }}
         className={cn("grid size-7 place-items-center rounded-control hover:bg-hover", t.remind ? "text-ink" : "text-ink-3")}
       >

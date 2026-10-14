@@ -4,7 +4,6 @@ import { Plus, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { Link } from "react-router";
-import { ME_ID } from "../data/seed";
 import { defaultOwnerId, useCrm } from "../data/store";
 import type { Company, Deal, Invoice } from "../data/types";
 import { api, save } from "../lib/api";
@@ -182,12 +181,7 @@ function LogCallForm({ dealId, onDone }: { dealId?: string; onDone: () => void }
         e.preventDefault();
         const d = s.deals.find((x) => x.id === deal);
         if (!d) return;
-        useCrm.setState((x) => ({
-          activities: [
-            { id: `a-${Date.now()}`, type: "call", dealId: d.id, companyId: d.companyId, actorId: ME_ID, text: `logged a call · ${mins} min`, body: notes.trim() || undefined, at: new Date().toISOString() },
-            ...x.activities,
-          ],
-        }));
+        s.addActivity({ type: "call", dealId: d.id, companyId: d.companyId, text: `logged a call · ${mins} min`, body: notes.trim() || undefined });
         toast("Call logged");
         onDone();
       }}
@@ -266,6 +260,7 @@ function NewInvoiceForm({ dealId, onDone }: { dealId?: string; onDone: () => voi
             },
           });
           useCrm.setState((x) => ({ invoices: [inv, ...x.invoices] }));
+          s.addActivity({ type: "invoice", dealId: inv.dealId, companyId: inv.companyId, text: `raised ${inv.number} · ${formatFull(t.total)}` });
           toast(`Created ${inv.number} as a draft · ${formatFull(t.total)}`);
           onDone();
           navigate(`/invoices?open=${inv.id}`);

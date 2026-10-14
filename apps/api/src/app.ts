@@ -6,12 +6,15 @@ import {
   CreateCompanySchema,
   CreateContactSchema,
   CreateDealSchema,
+  CreateActivitySchema,
   CreateInvoiceSchema,
+  CreateTaskSchema,
   RecordPaymentSchema,
   UpdateCompanySchema,
   UpdateContactSchema,
   UpdateDealSchema,
   UpdateMemberSchema,
+  UpdateTaskSchema,
   WorkspaceSchema,
   type Workspace,
 } from "@pinnacle/shared/schemas";
@@ -176,6 +179,25 @@ export function buildApp({
   records("companies", CreateCompanySchema, UpdateCompanySchema, () => ({ lastActivityAt: now() }));
   records("contacts", CreateContactSchema, UpdateContactSchema, () => ({ lastActivityAt: now() }));
   records("deals", CreateDealSchema, UpdateDealSchema, () => ({ createdAt: now(), position: 0 }));
+  records("tasks", CreateTaskSchema, UpdateTaskSchema, () => ({ done: false }));
+
+  /* ---------- Activity: an append-only log (notes, calls, stage changes…) ---------- */
+  const activities = db.collection<Doc>("activities");
+  app.get("/activities", async (req) => {
+    const { dealId } = z.object({ dealId: z.string().optional() }).parse(req.query);
+    // shortcut: the newest 2000 are loaded at sign-in; page older history when a deal's timeline needs it.
+    return (await activities.find(dealId ? { dealId } : {}).sort({ at: -1 }).limit(2000).toArray()).map(out);
+  });
+  app.post("/activities", async (req, reply) => {
+    const doc: Doc = { _id: new ObjectId().toHexString(), ...CreateActivitySchema.parse(req.body), actorId: req.member._id, at: now() };
+    await activities.insertOne(doc);
+    return reply.code(201).send(out(doc));
+  });
+  /** Only the author can remove an entry — used by Undo (e.g. undoing a stage change). */
+  app.delete<{ Params: { id: string } }>("/activities/:id", async (req, reply) => {
+    const { deletedCount } = await activities.deleteOne({ _id: req.params.id, actorId: req.member._id });
+    return deletedCount ? reply.code(204).send() : reply.code(404).send({ error: "Not found, or not yours to remove" });
+  });
 
   type InvoiceDoc = InvoiceMath & { _id: string; sent: boolean; payments: { at: string; amountPaise: number }[] };
   const invoices = db.collection<InvoiceDoc>("invoices");
