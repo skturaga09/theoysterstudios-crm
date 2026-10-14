@@ -164,7 +164,7 @@ const metaSteps: Step[] = [
     { id: "m-assets", title: "Check your Page and Instagram are in your business portfolio", body: <>business.facebook.com → Settings → Accounts: both your Facebook Page and Instagram account should be listed under The Oyster Studios.</> },
     { id: "m-verify", title: "Verify the business (recommended)", body: <>Meta Business Suite → Settings → Security Center → Start verification. Use the legal name and address exactly as on your GST certificate, PAN, incorporation certificate, bank statement or utility bill (PDF or JPEG under 5 MB). Meta usually reviews within about 7 working days.</> },
     { id: "m-app", title: "Create the Meta app", body: <>developers.facebook.com, signed in as the business admin (register as a developer if asked) → My Apps → Create app → name <em>The Oyster Studios CRM</em>, use case <strong>Manage messaging &amp; content on Instagram</strong>, business portfolio <strong>The Oyster Studios</strong>. Because it serves only your own account, it needs no App Review.</> },
-    { id: "m-keys", title: "Copy the app's keys", body: <>App settings → Basic → copy the <strong>App ID</strong> and <strong>App secret</strong> and paste them below. We'll finish the last technical settings with you when Instagram is switched on.</> },
+    { id: "m-keys", title: "Copy the app's keys", body: <>App settings → Basic → copy the <strong>App ID</strong> and <strong>App secret</strong> and paste them below. Keep the app's roles to your own team — no outside accounts need access. The last two settings will appear here, with the values to copy, when Instagram is switched on.</> },
 ];
 
 export const setupProgress = (state: SetupState, kind: "google" | "meta") => {
