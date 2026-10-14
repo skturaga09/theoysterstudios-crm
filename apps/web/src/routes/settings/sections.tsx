@@ -3,11 +3,12 @@ import type { Workspace } from "@pinnacle/shared/schemas";
 import { Button, ChannelChip, cn, Input, Pill, Segmented, Select, toast } from "@pinnacle/ui";
 import { ArrowDown, ArrowRight, ArrowUp, Download, Plus, RefreshCw, Trash2, Unplug, Upload } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { Link } from "react-router";
+import { useSearchParams } from "react-router";
 import { useState, type ReactNode } from "react";
 import { PROBABILITY } from "../../data/derive";
 import { CHANNEL_STATUS, type ChannelStatus } from "../../data/seed";
 import { IS_DEMO } from "../../lib/demo";
+import { GoogleSetup, MetaSetup, setupProgress, useSetupState } from "./setup";
 import { defaultOwnerId, useCrm, useMe, useWorkspace } from "../../data/store";
 import type { Company, Contact } from "../../data/types";
 import { api, ApiError } from "../../lib/api";
@@ -159,72 +160,89 @@ export function PipelineSettingsRoute() {
 }
 
 /* ---------- Integrations ---------- */
-const SETUP: Record<Channel, string> = {
-  gmail: "Each member signs in with Google. The CRM watches their inbox for lead threads (unknown senders, the Leads label, replies to tracked threads) and sends replies as them.",
-  calendar: "Meetings with known contacts become activities. Bookings from new people on your booking page become leads.",
-  instagram: "DMs to your professional account arrive in Inbox. Replies go back as DMs.",
-  facebook: "New Lead Ads submissions arrive with their form fields. Lead Ads can't be replied to in Messenger.",
-  whatsapp: "WhatsApp Business Cloud API. Free-form replies within 24 hours of the customer's last message, approved templates after.",
-  web: "Embed the form snippet on your site. Protected by reCAPTCHA and rate-limited per IP.",
+const ABOUT: Record<Channel, string> = {
+  gmail: "New emails to enquiry@ and each connected inbox; first-time senders become leads. Read-only: the CRM never sends, deletes or changes mail.",
+  calendar: "Meetings with known contacts appear on their deals. Bookings from new people through your appointment schedules become leads.",
+  instagram: "DMs to your Instagram Business account arrive in Inbox as leads.",
+  facebook: "New Lead Ads submissions arrive with their form fields.",
+  whatsapp: "Messages to your WhatsApp Business number, once the WhatsApp Business API is set up.",
+  web: "Enquiries from a form on your website.",
   referral: "",
 };
+/** Which one-time setup a channel needs. Gmail and Calendar share the Google Workspace setup. */
+const SETUP_FOR: Partial<Record<Channel, "google" | "meta">> = { gmail: "google", calendar: "google", instagram: "meta" };
 
 export function IntegrationsRoute() {
+  const isAdmin = useMe().role === "admin";
+  const setup = useSetupState();
+  const [params] = useSearchParams();
+  // Which channel's setup steps are open; ?setup=google|meta opens the first channel that uses it.
+  const [open, setOpen] = useState<Channel | undefined>(() => (Object.keys(SETUP_FOR) as Channel[]).find((c) => SETUP_FOR[c] === params.get("setup")));
   // Live: nothing is connected until the integrations are built. The demo shows sample connections.
   const [items, setItems] = useState<(ChannelStatus & { connected: boolean })[]>(CHANNEL_STATUS.map((c) => ({ ...c, connected: IS_DEMO })));
   const update = (ch: Channel, patch: Partial<ChannelStatus & { connected: boolean }>) => setItems((xs) => xs.map((x) => (x.channel === ch ? { ...x, ...patch } : x)));
   return (
     <>
-      <SettingsHeader title="Integrations" body="Where leads come from. Each channel lands in one Inbox; replies go back on the same channel." />
-      {!IS_DEMO && (
-        <p className="t-dense -mt-2 mb-6 rounded-card bg-sunken px-4 py-3 text-ink-2">
-          Gmail, Calendar and Instagram need a one-time setup in your Google Workspace and Meta accounts. <Link to="/settings/setup" className="font-medium underline">Follow the step-by-step setup →</Link>
-        </p>
-      )}
+      <SettingsHeader title="Integrations" body="Where leads come from. Each connected channel feeds the Inbox. Gmail, Calendar and Instagram need a one-time setup in your own Google Workspace and Meta accounts — open Set up on each." />
       <ul className="m-0 list-none p-0">
-        {items.map((c) => (
-          <li key={c.channel} className="border-b border-line py-5">
-            <div className="flex flex-wrap items-start gap-4">
-              <ChannelChip channel={c.channel} className="h-9 min-w-9 text-[11px]" />
-              <div className="min-w-0 flex-1 basis-[260px]">
-                <div className="flex items-center gap-2">
-                  <h3 className="t-dense m-0 font-medium">{CHANNEL_LABEL[c.channel]}</h3>
-                  {!c.connected ? <Pill tone="mute">Not connected</Pill> : c.status === "ok" ? <Pill tone="ok" dot>Connected</Pill> : <Pill tone="warn" dot>Needs attention</Pill>}
+        {items.map((c) => {
+          const kind = SETUP_FOR[c.channel];
+          const p = kind && setupProgress(setup, kind);
+          const expanded = open === c.channel;
+          return (
+            <li key={c.channel} className="border-b border-line py-5">
+              <div className="flex flex-wrap items-start gap-4">
+                <ChannelChip channel={c.channel} className="h-9 min-w-9 text-[11px]" />
+                <div className="min-w-0 flex-1 basis-[260px]">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="t-dense m-0 font-medium">{CHANNEL_LABEL[c.channel]}</h3>
+                    {c.connected ? (
+                      c.status === "ok" ? <Pill tone="ok" dot>Connected</Pill> : <Pill tone="warn" dot>Needs attention</Pill>
+                    ) : p && p.done > 0 ? (
+                      <Pill tone="new">Setting up · {p.done} of {p.total}</Pill>
+                    ) : (
+                      <Pill tone="mute">Not connected</Pill>
+                    )}
+                  </div>
+                  <p className="t-meta m-0 mt-1 max-w-[60ch] text-ink-2">{ABOUT[c.channel]}</p>
+                  {c.connected && (
+                    <p className="m-0 mt-2 font-mono text-[11.5px] text-ink-3">
+                      {c.account} · last event {fmtMin(c.lastEventMin)} ago
+                    </p>
+                  )}
+                  {c.connected && c.note && <p className="t-meta m-0 mt-2 rounded-control bg-warn-wash px-3 py-2 text-warn">{c.note}</p>}
                 </div>
-                <p className="t-meta m-0 mt-1 max-w-[60ch] text-ink-2">{SETUP[c.channel]}</p>
-                {c.connected && (
-                  <p className="m-0 mt-2 font-mono text-[11.5px] text-ink-3">
-                    {c.account} · last event {fmtMin(c.lastEventMin)} ago
-                  </p>
-                )}
-                {c.connected && c.note && <p className="t-meta m-0 mt-2 rounded-control bg-warn-wash px-3 py-2 text-warn">{c.note}</p>}
-              </div>
-              <div className="flex gap-2">
-                {c.connected ? (
-                  <>
-                    <Button size="sm" variant={c.status === "warn" ? "ink" : "outline"} onClick={() => { update(c.channel, { status: "ok", note: undefined, lastEventMin: 0 }); toast(`${CHANNEL_LABEL[c.channel]} re-authorised`); }}>
-                      <RefreshCw strokeWidth={1.5} /> Re-authorise
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => { update(c.channel, { connected: false }); toast(`${CHANNEL_LABEL[c.channel]} disconnected`, { action: { label: "Undo", onClick: () => update(c.channel, { connected: true }) } }); }}>
-                      <Unplug strokeWidth={1.5} /> Disconnect
-                    </Button>
-                  </>
-                ) : (
-                  IS_DEMO ? (
+                <div className="flex gap-2">
+                  {c.connected ? (
+                    <>
+                      <Button size="sm" variant={c.status === "warn" ? "ink" : "outline"} onClick={() => { update(c.channel, { status: "ok", note: undefined, lastEventMin: 0 }); toast(`${CHANNEL_LABEL[c.channel]} re-authorised`); }}>
+                        <RefreshCw strokeWidth={1.5} /> Re-authorise
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => { update(c.channel, { connected: false }); toast(`${CHANNEL_LABEL[c.channel]} disconnected`, { action: { label: "Undo", onClick: () => update(c.channel, { connected: true }) } }); }}>
+                        <Unplug strokeWidth={1.5} /> Disconnect
+                      </Button>
+                    </>
+                  ) : IS_DEMO ? (
                     <Button size="sm" variant="ink" onClick={() => { update(c.channel, { connected: true, status: "ok", lastEventMin: 0 }); toast(`${CHANNEL_LABEL[c.channel]} connected`); }}>Connect</Button>
+                  ) : kind && isAdmin ? (
+                    <Button size="sm" variant={expanded ? "ghost" : "ink"} aria-expanded={expanded} onClick={() => setOpen(expanded ? undefined : c.channel)}>
+                      {expanded ? "Hide steps" : "Set up"}
+                    </Button>
                   ) : (
-                    <Button size="sm" disabled title="This integration is being set up">Coming soon</Button>
-                  )
-                )}
+                    <Button size="sm" disabled title={kind ? "Only admins can set this up" : "Planned for later"}>{kind ? "Admins only" : "Later"}</Button>
+                  )}
+                </div>
               </div>
-            </div>
-            {c.channel === "web" && c.connected && (
-              <pre className="mt-3 overflow-x-auto rounded-card bg-sunken p-3 font-mono text-[11.5px] text-ink-2">{`<script src="https://theoysterstudios.web.app/form.js" data-workspace="pinnacle" async></script>`}</pre>
-            )}
-          </li>
-        ))}
+              {expanded && kind === "google" && <GoogleSetup state={setup} />}
+              {expanded && kind === "meta" && <MetaSetup state={setup} />}
+              {c.channel === "web" && c.connected && (
+                <pre className="mt-3 overflow-x-auto rounded-card bg-sunken p-3 font-mono text-[11.5px] text-ink-2">{`<script src="https://theoysterstudios.web.app/form.js" data-workspace="pinnacle" async></script>`}</pre>
+              )}
+            </li>
+          );
+        })}
       </ul>
-      <p className="t-meta mt-4 text-ink-3">Live connections (OAuth, webhooks, signature checks) are wired in Milestones 4–5. Status here is sample data.</p>
+      {IS_DEMO && <p className="t-meta mt-4 text-ink-3">Demo: connection status here is sample data.</p>}
     </>
   );
 }

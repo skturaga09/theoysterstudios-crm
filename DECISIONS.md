@@ -132,7 +132,8 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   Sent invoices are corrected by credit notes: own series `TOS/CN/<FY>/<NNN>`, taxable amount + GST at the
   invoice's rate, capped at what's left to credit, recorded on the invoice (`credits`) so its balance drops;
   printable at `/credit-notes/:id/print`. Fully credited, unpaid invoices show "Credited".
-- **In-app integration setup** (Settings → Integration setup, admins): the Google Workspace and Meta steps as a
+- **In-app integration setup** (Settings → Integrations → Set up on each channel, admins; `/settings/setup`
+  redirects there): the Google Workspace and Meta steps as a
   shared checklist (`setup/progress`), copy boxes for scopes and the redirect URI (built from the site's own
   origin), and fields to paste the Google client and Meta app keys (`setup/keys`). Secrets are write-only: the API
   returns only whether one is saved. The app never shows hosting, billing or cost details — those stay in the

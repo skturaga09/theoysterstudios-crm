@@ -1,15 +1,13 @@
 import { Button, cn, Input, toast } from "@pinnacle/ui";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "react-router";
-import { useMe } from "../../data/store";
 import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
-import { SettingsHeader } from "./layout";
 
 /**
- * Admin-only walkthrough for connecting Gmail, Calendar and Instagram. Covers only the client's own
- * Google Workspace and Meta accounts — hosting, billing and costs are managed outside the app.
+ * Setup panels opened from the Integrations page (admins): the steps for connecting Gmail, Calendar and
+ * Instagram. Covers only the client's own Google Workspace and Meta accounts — hosting, billing and costs
+ * are managed outside the app.
  */
 
 /** A value to type exactly, with a copy button. */
@@ -123,13 +121,8 @@ function KeysForm({ fields, keys, onSaved }: { fields: { key: KeyField; label: s
   );
 }
 
-export function SetupRoute() {
-  const isAdmin = useMe().role === "admin";
-  if (!isAdmin) return <SettingsHeader title="Integration setup" body="Only admins can connect Gmail, Calendar and Instagram. Ask an admin if a channel needs setting up." />;
-  return <SetupGuide />;
-}
-
-function SetupGuide() {
+/** Checklist progress and saved keys, shared by the Google and Meta panels on the Integrations page. */
+export function useSetupState() {
   const [done, setDone] = useState<Set<string>>(new Set());
   const [keys, setKeys] = useState<Keys>();
   useEffect(() => {
@@ -144,9 +137,12 @@ function SetupGuide() {
     setDone(next);
     if (!IS_DEMO) api("/setup/progress", { method: "PUT", body: { done: [...next] } }).catch(() => { setDone(done); toast("Couldn't save that tick — try again"); });
   };
-  const redirect = `${window.location.origin}/api/integrations/google/callback`;
+  return { done, toggle, keys, setKeys };
+}
+export type SetupState = ReturnType<typeof useSetupState>;
 
-  const google: Step[] = [
+const googleSteps = (redirect: string): Step[] => {
+  return [
     { id: "g-console", title: "Open Google Cloud as your Workspace super admin", body: <>Go to console.cloud.google.com, signed in with the theoysterstudios.com super admin account, and accept the terms if asked.</> },
     { id: "g-project", title: "Create a project inside your organisation", body: <>Name it <em>Oyster CRM Integrations</em> and choose <strong>theoysterstudios.com</strong> as the organisation — not "No organisation".</> },
     { id: "g-apis", title: "Turn on the Gmail and Calendar APIs", body: <>APIs &amp; Services → Library → search for and <strong>Enable</strong> both <strong>Gmail API</strong> and <strong>Google Calendar API</strong>.</> },
@@ -160,62 +156,58 @@ function SetupGuide() {
     { id: "g-client", title: "Create the CRM's login client", body: <>Google Auth Platform → Clients → Create client → type <strong>Web application</strong>, name <em>CRM</em>. Under Authorised redirect URIs add exactly: <Copyable value={redirect} />Click Create. Google shows a Client ID and a Client secret — paste both below.</> },
     { id: "g-trust", title: "Let your team connect", body: <>admin.google.com → Security → Access and data control → API controls → Settings → tick <strong>Trust internal, domain-owned apps</strong>.</> },
   ];
+};
 
-  const meta: Step[] = [
+const metaSteps: Step[] = [
     { id: "m-business-account", title: "Check it's an Instagram Business account", body: <>In the Instagram app: Settings → Account type and tools → it should say <strong>Business</strong> (not Creator or Personal).</> },
     { id: "m-allow-messages", title: "Allow apps to read your messages", body: <>Instagram app → Settings → Messages and story replies → Message controls → Connected tools → turn on <strong>Allow access to messages</strong>.</> },
     { id: "m-assets", title: "Check your Page and Instagram are in your business portfolio", body: <>business.facebook.com → Settings → Accounts: both your Facebook Page and Instagram account should be listed under The Oyster Studios.</> },
     { id: "m-verify", title: "Verify the business (recommended)", body: <>Meta Business Suite → Settings → Security Center → Start verification. Use the legal name and address exactly as on your GST certificate, PAN, incorporation certificate, bank statement or utility bill (PDF or JPEG under 5 MB). Meta usually reviews within about 7 working days.</> },
     { id: "m-app", title: "Create the Meta app", body: <>developers.facebook.com, signed in as the business admin (register as a developer if asked) → My Apps → Create app → name <em>The Oyster Studios CRM</em>, use case <strong>Manage messaging &amp; content on Instagram</strong>, business portfolio <strong>The Oyster Studios</strong>. Because it serves only your own account, it needs no App Review.</> },
     { id: "m-keys", title: "Copy the app's keys", body: <>App settings → Basic → copy the <strong>App ID</strong> and <strong>App secret</strong> and paste them below. We'll finish the last technical settings with you when Instagram is switched on.</> },
-  ];
+];
 
-  const progress = (steps: Step[]) => `${steps.filter((s) => done.has(s.id)).length} of ${steps.length} done`;
+export const setupProgress = (state: SetupState, kind: "google" | "meta") => {
+  const steps = kind === "google" ? googleSteps("") : metaSteps;
+  return { done: steps.filter((s) => state.done.has(s.id)).length, total: steps.length };
+};
 
+/** Google Workspace steps + key fields: one setup connects both Gmail and Calendar. */
+export function GoogleSetup({ state }: { state: SetupState }) {
+  const redirect = `${window.location.origin}/api/integrations/google/callback`;
   return (
-    <>
-      <SettingsHeader
-        title="Integration setup"
-        body="Two one-time setups in your own Google Workspace and Meta accounts let enquiries reach the CRM on their own. The CRM only reads messages and calendar events — it never sends, deletes or changes anything."
-      />
-      <p className="t-meta -mt-4 mb-8 text-ink-3">
-        Tick each step as you finish it — progress is saved for everyone. Menu names follow Google's and Meta's current screens; if one differs slightly, pick the closest match. After setup, fill in the accounts under <Link to="/settings/workspace" className="underline hover:text-ink">Workspace → Connections</Link>.
+    <div className="mt-4">
+      <p className="t-meta m-0 mb-3 text-ink-3">For your Google Workspace super admin · about 20 minutes · one setup connects both Gmail and Calendar. Tick each step as you finish it — progress is saved for everyone.</p>
+      <Steps steps={googleSteps(redirect)} done={state.done} toggle={state.toggle} />
+      <p className="t-meta m-0 mt-3 text-ink-2">
+        <strong className="font-medium">About enquiry@:</strong> if it's its own mailbox (it has a password), it can be connected like any inbox. If it's a Google Group that forwards to people, connect the inbox of whoever receives those emails instead.
       </p>
+      <KeysForm
+        keys={state.keys}
+        onSaved={state.setKeys}
+        fields={[
+          { key: "googleClientId", label: "Client ID", placeholder: "…apps.googleusercontent.com" },
+          { key: "googleClientSecret", label: "Client secret", secret: true, placeholder: "Paste the client secret" },
+        ]}
+      />
+    </div>
+  );
+}
 
-      <section className="mb-12" aria-labelledby="setup-google">
-        <header className="mb-3 flex flex-wrap items-baseline gap-3">
-          <h2 id="setup-google" className="t-sheet m-0">Gmail and Calendar</h2>
-          <span className="t-meta text-ink-3">Google Workspace super admin · about 20 minutes · {progress(google)}</span>
-        </header>
-        <Steps steps={google} done={done} toggle={toggle} />
-        <p className="t-meta m-0 mt-3 text-ink-2">
-          <strong className="font-medium">About enquiry@:</strong> if it's its own mailbox (it has a password), it can be connected like any inbox. If it's a Google Group that forwards to people, connect the inbox of whoever receives those emails instead.
-        </p>
-        <KeysForm
-          keys={keys}
-          onSaved={setKeys}
-          fields={[
-            { key: "googleClientId", label: "Client ID", placeholder: "…apps.googleusercontent.com" },
-            { key: "googleClientSecret", label: "Client secret", secret: true, placeholder: "Paste the client secret" },
-          ]}
-        />
-      </section>
-
-      <section aria-labelledby="setup-meta">
-        <header className="mb-3 flex flex-wrap items-baseline gap-3">
-          <h2 id="setup-meta" className="t-sheet m-0">Instagram DMs</h2>
-          <span className="t-meta text-ink-3">Meta Business portfolio admin · about 30 minutes · {progress(meta)}</span>
-        </header>
-        <Steps steps={meta} done={done} toggle={toggle} />
-        <KeysForm
-          keys={keys}
-          onSaved={setKeys}
-          fields={[
-            { key: "metaAppId", label: "App ID", placeholder: "e.g. 1234567890123456" },
-            { key: "metaAppSecret", label: "App secret", secret: true, placeholder: "Paste the app secret" },
-          ]}
-        />
-      </section>
-    </>
+/** Meta steps + key fields for Instagram DMs. */
+export function MetaSetup({ state }: { state: SetupState }) {
+  return (
+    <div className="mt-4">
+      <p className="t-meta m-0 mb-3 text-ink-3">For your Meta Business portfolio admin · about 30 minutes. Tick each step as you finish it — progress is saved for everyone.</p>
+      <Steps steps={metaSteps} done={state.done} toggle={state.toggle} />
+      <KeysForm
+        keys={state.keys}
+        onSaved={state.setKeys}
+        fields={[
+          { key: "metaAppId", label: "App ID", placeholder: "e.g. 1234567890123456" },
+          { key: "metaAppSecret", label: "App secret", secret: true, placeholder: "Paste the app secret" },
+        ]}
+      />
+    </div>
   );
 }

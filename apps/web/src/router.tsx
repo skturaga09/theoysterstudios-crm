@@ -31,7 +31,8 @@ const routes: RouteObject[] = [
           { path: "workspace", lazy: async () => ({ Component: (await import("./routes/settings/sections")).WorkspaceRoute }) },
           { path: "team", lazy: async () => ({ Component: (await import("./routes/settings/team")).TeamRoute }) },
           { path: "pipeline", lazy: async () => ({ Component: (await import("./routes/settings/sections")).PipelineSettingsRoute }) },
-          { path: "setup", lazy: async () => ({ Component: (await import("./routes/settings/setup")).SetupRoute }) },
+          // The setup guide now lives on each channel's card under Integrations.
+          { path: "setup", element: <Navigate to="/settings/integrations" replace /> },
           { path: "integrations", lazy: async () => ({ Component: (await import("./routes/settings/sections")).IntegrationsRoute }) },
           { path: "routing", lazy: async () => ({ Component: (await import("./routes/settings/sections")).RoutingRoute }) },
           { path: "notifications", lazy: async () => ({ Component: (await import("./routes/settings/sections")).NotificationsRoute }) },
