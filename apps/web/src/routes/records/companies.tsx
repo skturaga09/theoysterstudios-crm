@@ -9,7 +9,7 @@ import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
 import { isOpen } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
-import { useCrm } from "../../data/store";
+import { useCanEdit, useCrm, useIsManager } from "../../data/store";
 import type { Company, Deal } from "../../data/types";
 import { changeStage } from "../../lib/actions";
 import { api, ApiError } from "../../lib/api";
@@ -25,6 +25,7 @@ export const Monogram = ({ name }: { name: string }) => (
 );
 
 export function CompaniesRoute() {
+  const isManager = useIsManager();
   const s = useCrm();
   const [openId, setOpenId] = useState<string>();
   useCreateAction(() => useUi.getState().openComposer("company"));
@@ -101,7 +102,7 @@ export function CompaniesRoute() {
         initialSort={[{ id: "value", desc: true }]}
         onRowClick={(r) => setOpenId(r.id)}
         empty={<EmptyState icon={Building2} title="No companies match" body="Companies are created when you convert a lead or add a deal. Try a different search." />}
-        bulkActions={(ids, clear) => (
+        bulkActions={!isManager ? undefined : (ids, clear) => (
           <>
             <Menu>
               <MenuTrigger asChild><BulkButton>Assign <ChevronDown size={13} strokeWidth={1.5} /></BulkButton></MenuTrigger>
@@ -160,6 +161,7 @@ type EditableKey = (typeof EDITABLE)[number]["key"];
 
 function CompanyDetail({ c }: { c: Row }) {
   const s = useCrm();
+  const canEdit = useCanEdit(c.ownerId);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<EditableKey, string>>({ name: "", domain: "", industry: "", city: "", gstin: "", address: "" });
   const [error, setError] = useState<string>();
@@ -222,7 +224,7 @@ function CompanyDetail({ c }: { c: Row }) {
         <dt className="text-ink-3">Billing address</dt><dd className="m-0 whitespace-pre-line">{c.address || <span className="text-ink-3">Not added yet</span>}</dd>
         <dt className="text-ink-3">Owner</dt><dd className="m-0">{c.ownerName}</dd>
       </dl>
-      <Button size="sm" className="-mt-3 self-start" onClick={startEditing}>Edit details</Button>
+      {canEdit && <Button size="sm" className="-mt-3 self-start" onClick={startEditing}>Edit details</Button>}
       <section>
         <h3 className="t-eyebrow m-0 mb-2 text-ink-3">Deals · {deals.length}</h3>
         <ul className="m-0 list-none p-0">

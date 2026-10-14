@@ -8,7 +8,7 @@ import { BulkButton, DataTable } from "../../components/data-table";
 import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
 import { ME_ID } from "../../data/seed";
-import { useCrm } from "../../data/store";
+import { useCrm, useIsManager } from "../../data/store";
 import type { Contact } from "../../data/types";
 import { api, save } from "../../lib/api";
 import { useCreateAction } from "../../lib/hooks";
@@ -17,6 +17,7 @@ import { useUi } from "../../lib/ui-store";
 type Row = Contact & { company: string; ownerName: string; reach: string; last: number };
 
 export function ContactsRoute() {
+  const isManager = useIsManager();
   const s = useCrm();
   const navigate = useNavigate();
   const [openId, setOpenId] = useState<string>();
@@ -82,7 +83,7 @@ export function ContactsRoute() {
         initialSort={[{ id: "last", desc: true }]}
         onRowClick={(r) => setOpenId(r.id)}
         empty={<EmptyState icon={Users} title="No one matches" body="People are added when a lead is converted or a deal names a contact." />}
-        bulkActions={(ids, clear) => (
+        bulkActions={!isManager ? undefined : (ids, clear) => (
           <>
             <Menu>
               <MenuTrigger asChild><BulkButton>Assign <ChevronDown size={13} strokeWidth={1.5} /></BulkButton></MenuTrigger>

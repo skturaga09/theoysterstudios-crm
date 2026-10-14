@@ -122,3 +122,8 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   browser's "Save as PDF" makes the file. No server-side PDF yet — needed only when invoices are emailed from the CRM.
 - **Cancelling:** only unsent drafts can be cancelled, with a reason; they stay listed as "Cancelled" so the number
   series has no gaps. Sent invoices need a credit note (not built). "Send invoice" is labelled "Mark as sent" — no email.
+- **Permissions (enforced by the API, mirrored in the UI):** Admin — everything. Manager — all records and
+  invoices, can reassign, no settings. Member — creates and changes only deals/companies/contacts they own,
+  can't assign to others, invoices view-only. Workspace "Members see all deals" (default on, pending the
+  client's answer): off limits a Member's deals, tasks, activity and invoices to their own deals.
+- **Billing address** on companies; invoices snapshot the buyer (name, GSTIN, address, city) like the seller.

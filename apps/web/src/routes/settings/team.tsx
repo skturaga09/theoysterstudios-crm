@@ -10,9 +10,9 @@ import { SettingsHeader } from "./layout";
 
 const ROLE_LABEL: Record<Role, string> = { admin: "Admin", manager: "Manager", member: "Member" };
 const ROLE_HELP: Record<Role, string> = {
-  admin: "Everything, including team, integrations and data export.",
-  manager: "All deals and reports. Can reassign work. No team or integration settings.",
-  member: "Their own deals and conversations, plus anything shared with them.",
+  admin: "Everything, including team, workspace, lead routing, integrations and import / export.",
+  manager: "All deals, companies, contacts and invoices. Can reassign work. No settings.",
+  member: "Works on the deals, companies and contacts they own; can't reassign them. Sees others' deals unless Workspace turns that off. Invoices are view-only.",
 };
 const SIGN_IN_URL = window.location.origin;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

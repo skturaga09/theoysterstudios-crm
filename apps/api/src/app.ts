@@ -1,5 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
-import { MongoServerError, ObjectId, type Db, type MongoClient } from "mongodb";
+import { MongoServerError, ObjectId, type Db, type Filter, type MongoClient } from "mongodb";
 import { z, ZodError, type ZodType } from "zod";
 import {
   AddMemberSchema,
@@ -95,6 +95,20 @@ export function buildApp({
   const adminOnly = async (req: FastifyRequest, reply: FastifyReply) => {
     if (req.member.role !== "admin") return reply.code(403).send({ error: "Admins only" });
   };
+  /*
+   * Roles, as described in Settings → Team & access. Admin: everything. Manager: all records, no settings.
+   * Member: works on records they own; can't reassign to others; invoices are view-only; and with
+   * "Members see all deals" off, sees only their own deals and what hangs off them.
+   */
+  const isMember = (req: FastifyRequest) => req.member.role === "member";
+  const notMember = async (req: FastifyRequest, reply: FastifyReply) => {
+    if (isMember(req)) return reply.code(403).send({ error: "Members can view invoices but only admins and managers can change them" });
+  };
+  /** For a Member who can't see others' deals: the ids of the deals they own. Otherwise undefined (no limit). */
+  const ownDealIds = async (req: FastifyRequest): Promise<string[] | undefined> => {
+    if (!isMember(req) || (await getWorkspace()).membersSeeAllDeals) return undefined;
+    return (await db.collection<Doc>("deals").find({ ownerId: req.member._id }, { projection: { _id: 1 } }).toArray()).map((d) => d._id);
+  };
   const isLastAdmin = async (m: Member) => m.role === "admin" && (await members.countDocuments({ role: "admin", status: { $ne: "removed" } })) <= 1;
 
   app.setErrorHandler((err, _req, reply) => {
@@ -112,7 +126,7 @@ export function buildApp({
     const doc = await workspaceCol.findOne({ _id: "studio" });
     if (!doc) return WorkspaceSchema.parse({ studioName: "The Oyster Studios" });
     const { _id, ...w } = doc;
-    return w;
+    return WorkspaceSchema.parse(w); // fills settings added after the document was saved
   };
   app.get("/workspace", getWorkspace);
   app.put("/workspace", { preHandler: adminOnly }, async (req) => {
@@ -164,37 +178,70 @@ export function buildApp({
     return reply.code(204).send();
   });
 
-  /** List / get / create / patch / delete for a plain collection. */
-  function records(name: string, create: ZodType<Record<string, unknown>>, update: ZodType<Record<string, unknown>>, defaults: () => Record<string, unknown> = () => ({})) {
+  /**
+   * List / get / create / patch / delete for a plain collection. `owned` collections (deals, companies,
+   * contacts) apply the Member rules: create and change only records they own, never hand them to someone else.
+   * `scope` narrows what a Member may see when "Members see all deals" is off (given their own deals' ids).
+   */
+  function records(
+    name: string,
+    create: ZodType<Record<string, unknown>>,
+    update: ZodType<Record<string, unknown>>,
+    defaults: () => Record<string, unknown> = () => ({}),
+    { owned = false, scope }: { owned?: boolean; scope?: (req: FastifyRequest, ownDeals: string[]) => Filter<Doc> } = {},
+  ) {
     const col = db.collection<Doc>(name);
+    const visible = async (req: FastifyRequest): Promise<Filter<Doc>> => {
+      const own = scope && (await ownDealIds(req));
+      return own ? scope(req, own) : {};
+    };
+    const memberError = (req: FastifyRequest, ownerId: unknown, existingOwner?: unknown) => {
+      if (!owned || !isMember(req)) return undefined;
+      if (existingOwner !== undefined && existingOwner !== req.member._id) return "Members can only change records they own";
+      if (ownerId !== undefined && ownerId !== req.member._id) return "Only admins and managers can assign records to someone else";
+      return undefined;
+    };
     app.get(`/${name}`, async (req) => {
       const { limit, ...filter } = ListQuery.parse(req.query);
-      return (await col.find(filter).sort({ _id: -1 }).limit(limit).toArray()).map(out);
+      return (await col.find({ ...filter, ...(await visible(req)) }).sort({ _id: -1 }).limit(limit).toArray()).map(out);
     });
     app.get<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
-      const doc = await col.findOne({ _id: req.params.id });
+      const doc = await col.findOne({ _id: req.params.id, ...(await visible(req)) });
       return doc ? out(doc) : reply.code(404).send({ error: "Not found" });
     });
     app.post(`/${name}`, async (req, reply) => {
-      const doc: Doc = { _id: new ObjectId().toHexString(), ...defaults(), ...create.parse(req.body) };
+      const body = create.parse(req.body);
+      const denied = memberError(req, body.ownerId);
+      if (denied) return reply.code(403).send({ error: denied });
+      const doc: Doc = { _id: new ObjectId().toHexString(), ...defaults(), ...body };
       await col.insertOne(doc);
       return reply.code(201).send(out(doc));
     });
     app.patch<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
-      const doc = await col.findOneAndUpdate({ _id: req.params.id }, { $set: update.parse(req.body) }, { returnDocument: "after" });
-      return doc ? out(doc) : reply.code(404).send({ error: "Not found" });
+      const changes = update.parse(req.body);
+      const existing = await col.findOne({ _id: req.params.id });
+      if (!existing) return reply.code(404).send({ error: "Not found" });
+      const denied = memberError(req, changes.ownerId, existing.ownerId);
+      if (denied) return reply.code(403).send({ error: denied });
+      return out((await col.findOneAndUpdate({ _id: existing._id }, { $set: changes }, { returnDocument: "after" }))!);
     });
     app.delete<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
-      const { deletedCount } = await col.deleteOne({ _id: req.params.id });
-      return deletedCount ? reply.code(204).send() : reply.code(404).send({ error: "Not found" });
+      const existing = await col.findOne({ _id: req.params.id });
+      if (!existing) return reply.code(404).send({ error: "Not found" });
+      const denied = memberError(req, undefined, existing.ownerId);
+      if (denied) return reply.code(403).send({ error: denied });
+      await col.deleteOne({ _id: existing._id });
+      return reply.code(204).send();
     });
   }
 
   const now = () => new Date().toISOString();
-  records("companies", CreateCompanySchema, UpdateCompanySchema, () => ({ lastActivityAt: now() }));
-  records("contacts", CreateContactSchema, UpdateContactSchema, () => ({ lastActivityAt: now() }));
-  records("deals", CreateDealSchema, UpdateDealSchema, () => ({ createdAt: now(), position: 0 }));
-  records("tasks", CreateTaskSchema, UpdateTaskSchema, () => ({ done: false }));
+  records("companies", CreateCompanySchema, UpdateCompanySchema, () => ({ lastActivityAt: now() }), { owned: true });
+  records("contacts", CreateContactSchema, UpdateContactSchema, () => ({ lastActivityAt: now() }), { owned: true });
+  records("deals", CreateDealSchema, UpdateDealSchema, () => ({ createdAt: now(), position: 0 }), { owned: true, scope: (req) => ({ ownerId: req.member._id }) });
+  records("tasks", CreateTaskSchema, UpdateTaskSchema, () => ({ done: false }), {
+    scope: (req, own) => ({ $or: [{ assigneeId: req.member._id }, { dealId: { $in: own } }] }),
+  });
 
   /* ---------- Import (admins): CSV rows already mapped to field names ---------- */
   type Skipped = { row: number; reason: string };
@@ -252,8 +299,11 @@ export function buildApp({
   const activities = db.collection<Doc>("activities");
   app.get("/activities", async (req) => {
     const { dealId } = z.object({ dealId: z.string().optional() }).parse(req.query);
+    const own = await ownDealIds(req);
+    // A Member limited to their own deals sees those deals' activity, plus their own entries without a deal.
+    const scope = own ? { $or: [{ dealId: { $in: own } }, { dealId: { $exists: false }, actorId: req.member._id }] } : {};
     // shortcut: the newest 2000 are loaded at sign-in; page older history when a deal's timeline needs it.
-    return (await activities.find(dealId ? { dealId } : {}).sort({ at: -1 }).limit(2000).toArray()).map(out);
+    return (await activities.find({ ...(dealId ? { dealId } : {}), ...scope }).sort({ at: -1 }).limit(2000).toArray()).map(out);
   });
   app.post("/activities", async (req, reply) => {
     const doc: Doc = { _id: new ObjectId().toHexString(), ...CreateActivitySchema.parse(req.body), actorId: req.member._id, at: now() };
@@ -270,9 +320,10 @@ export function buildApp({
   const invoices = db.collection<InvoiceDoc>("invoices");
   app.get("/invoices", async (req) => {
     const { limit, companyId } = ListQuery.parse(req.query);
-    return (await invoices.find(companyId ? { companyId } : {}).sort({ issuedAt: -1 }).limit(limit).toArray()).map(out);
+    const own = await ownDealIds(req);
+    return (await invoices.find({ ...(companyId ? { companyId } : {}), ...(own ? { dealId: { $in: own } } : {}) }).sort({ issuedAt: -1 }).limit(limit).toArray()).map(out);
   });
-  app.post("/invoices", async (req, reply) => {
+  app.post("/invoices", { preHandler: notMember }, async (req, reply) => {
     const input = CreateInvoiceSchema.parse(req.body);
     const { legalName, gstin, address } = await getWorkspace();
     if (!legalName || !gstin) return reply.code(422).send({ error: "Add the studio's legal name and GSTIN in Settings → Workspace first" });
@@ -286,7 +337,7 @@ export function buildApp({
     const buyer = { name: str(company.name), gstin: str(company.gstin), address: str(company.address), city: str(company.city) };
     return reply.code(201).send(out(await createInvoice(db, client, { ...input, seller: { legalName, gstin, address }, buyer })));
   });
-  app.post<{ Params: { id: string } }>("/invoices/:id/send", async (req, reply) => {
+  app.post<{ Params: { id: string } }>("/invoices/:id/send", { preHandler: notMember }, async (req, reply) => {
     const doc = await invoices.findOneAndUpdate({ _id: req.params.id, cancelled: { $ne: true } }, { $set: { sent: true } }, { returnDocument: "after" });
     return doc ? out(doc) : reply.code(404).send({ error: "Not found, or cancelled" });
   });
@@ -294,7 +345,7 @@ export function buildApp({
    * Cancels a draft. The invoice stays (marked cancelled) so the number series has no gaps; a sent invoice
    * needs a credit note instead, so it can't be cancelled here.
    */
-  app.post<{ Params: { id: string } }>("/invoices/:id/cancel", async (req, reply) => {
+  app.post<{ Params: { id: string } }>("/invoices/:id/cancel", { preHandler: notMember }, async (req, reply) => {
     const { reason } = z.object({ reason: z.string().trim().min(1, "Say why it's being cancelled").max(200) }).parse(req.body);
     const doc = await invoices.findOneAndUpdate(
       { _id: req.params.id, sent: false, cancelled: { $ne: true } },
@@ -304,7 +355,7 @@ export function buildApp({
     return doc ? out(doc) : reply.code(409).send({ error: "Only a draft that hasn't been sent can be cancelled" });
   });
   /** In a transaction so two payments recorded at once can't together exceed the balance. */
-  app.post<{ Params: { id: string } }>("/invoices/:id/payments", async (req, reply) => {
+  app.post<{ Params: { id: string } }>("/invoices/:id/payments", { preHandler: notMember }, async (req, reply) => {
     const { amountPaise, at = now() } = RecordPaymentSchema.parse(req.body);
     const session = client.startSession();
     try {

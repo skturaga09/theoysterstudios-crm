@@ -4,7 +4,7 @@ import { Plus, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { Link } from "react-router";
-import { defaultOwnerId, useCrm } from "../data/store";
+import { defaultOwnerId, useCrm, useIsManager } from "../data/store";
 import type { Company, Contact, Deal, Invoice } from "../data/types";
 import { api, save } from "../lib/api";
 import { useUi } from "../lib/ui-store";
@@ -26,6 +26,7 @@ const plusDays = (n: number) => {
 };
 
 function NewDealForm({ stage, onDone }: { stage?: string; onDone: () => void }) {
+  const isManager = useIsManager();
   const s = useCrm();
   const [company, setCompany] = useState("");
   const [title, setTitle] = useState("");
@@ -107,7 +108,7 @@ function NewDealForm({ stage, onDone }: { stage?: string; onDone: () => void }) 
           </Select>
         </Field>
         <Field label="Owner">
-          <Select value={owner} onChange={(e) => setOwner(e.target.value)}>
+          <Select value={owner} onChange={(e) => setOwner(e.target.value)} disabled={!isManager} title={isManager ? undefined : "Only admins and managers can assign to someone else"}>
             {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </Select>
         </Field>
@@ -355,6 +356,7 @@ function NewInvoiceForm({ dealId, onDone }: { dealId?: string; onDone: () => voi
 const compact = (o: Record<string, string | undefined>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v?.trim()]).filter(([, v]) => v));
 
 function NewCompanyForm({ onDone }: { onDone: () => void }) {
+  const isManager = useIsManager();
   const s = useCrm();
   const [f, setF] = useState({ name: "", domain: "", industry: "", city: "", gstin: "", address: "" });
   const [owner, setOwner] = useState(defaultOwnerId);
@@ -389,7 +391,7 @@ function NewCompanyForm({ onDone }: { onDone: () => void }) {
         <Field label="City"><Input value={f.city} onChange={set("city")} placeholder="Goa" /></Field>
         <Field label="Industry"><Input value={f.industry} onChange={set("industry")} placeholder="Hospitality" /></Field>
         <Field label="Owner">
-          <Select value={owner} onChange={(e) => setOwner(e.target.value)}>
+          <Select value={owner} onChange={(e) => setOwner(e.target.value)} disabled={!isManager} title={isManager ? undefined : "Only admins and managers can assign to someone else"}>
             {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </Select>
         </Field>
@@ -406,6 +408,7 @@ function NewCompanyForm({ onDone }: { onDone: () => void }) {
 }
 
 function NewContactForm({ onDone }: { onDone: () => void }) {
+  const isManager = useIsManager();
   const s = useCrm();
   const [f, setF] = useState({ name: "", company: "", title: "", email: "", phone: "", handle: "", city: "" });
   const [source, setSource] = useState<Channel>("referral");
@@ -459,7 +462,7 @@ function NewContactForm({ onDone }: { onDone: () => void }) {
         </Field>
       </div>
       <Field label="Owner">
-        <Select value={owner} onChange={(e) => setOwner(e.target.value)}>
+        <Select value={owner} onChange={(e) => setOwner(e.target.value)} disabled={!isManager} title={isManager ? undefined : "Only admins and managers can assign to someone else"}>
           {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </Select>
       </Field>

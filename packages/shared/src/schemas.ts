@@ -114,6 +114,8 @@ export const WorkspaceSchema = z.object({
   enquiryEmail: optionalField(z.string().toLowerCase().pipe(z.email("Enter a full email address"))),
   instagramHandle: optionalField(z.string().regex(/^@?[A-Za-z0-9._]{1,30}$/, "Instagram usernames use letters, numbers, . and _").transform((v) => (v.startsWith("@") ? v : `@${v}`))),
   whatsappNumber: optionalField(z.string().transform((v) => v.replace(/[\s-]/g, "")).pipe(z.string().regex(/^\+\d{10,15}$/, "Use international format, e.g. +91 98765 43210"))),
+  /** Off: Members see only their own deals (and those deals' tasks, activity and invoices). Admins and Managers always see everything. */
+  membersSeeAllDeals: z.boolean().default(true),
 });
 export type Workspace = z.output<typeof WorkspaceSchema>;
 

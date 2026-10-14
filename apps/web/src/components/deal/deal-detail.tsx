@@ -19,7 +19,7 @@ import { motion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { invoiceStatus, invoiceTotals, PROBABILITY } from "../../data/derive";
-import { useCrm } from "../../data/store";
+import { useCanEdit, useCrm, useIsManager } from "../../data/store";
 import type { Deal } from "../../data/types";
 import { changeStage } from "../../lib/actions";
 import { useUi } from "../../lib/ui-store";
@@ -61,6 +61,7 @@ export function DealHeading({ deal, size = "sheet" }: { deal: Deal; size?: "shee
 
 export function NextStep({ deal }: { deal: Deal }) {
   const update = useCrm((s) => s.updateDeal);
+  const canEdit = useCanEdit(deal.ownerId);
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(deal.nextStep ?? "");
   if (deal.stage === "won" || deal.stage === "lost") return null;
@@ -68,7 +69,7 @@ export function NextStep({ deal }: { deal: Deal }) {
     <div className="rounded-card border border-signal p-4">
       <div className="mb-1.5 flex items-center">
         <span className="t-eyebrow text-signal">Next step</span>
-        {!editing && (
+        {!editing && canEdit && (
           <button className="ml-auto text-[12px] text-ink-3 hover:text-ink" onClick={() => setEditing(true)}>
             Edit
           </button>
@@ -108,7 +109,10 @@ function Prop({ label, children }: { label: string; children: ReactNode }) {
 export function DealProperties({ deal }: { deal: Deal }) {
   const s = useCrm();
   const company = s.companies.find((c) => c.id === deal.companyId);
+  const canEdit = useCanEdit(deal.ownerId);
   return (
+    // A disabled fieldset disables every control inside: Members can't change other people's deals.
+    <fieldset disabled={!canEdit} className="m-0 min-w-0 border-0 p-0" title={canEdit ? undefined : "Only the deal's owner or a manager can change it"}>
     <dl className="m-0 grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 t-dense">
       <Prop label="Owner">
         <Select
@@ -171,6 +175,7 @@ export function DealProperties({ deal }: { deal: Deal }) {
       <Prop label="Created"><span className="font-mono text-[12.5px]">{fmtDate(deal.createdAt)}</span></Prop>
       {deal.lostReason && <Prop label="Lost reason">{deal.lostReason}</Prop>}
     </dl>
+    </fieldset>
   );
 }
 
@@ -211,6 +216,7 @@ export function DealActivity({ deal }: { deal: Deal }) {
 }
 
 export function DealSide({ deal }: { deal: Deal }) {
+  const isManager = useIsManager();
   const s = useCrm();
   const contacts = s.contacts.filter((c) => c.companyId === deal.companyId);
   const invoices = s.invoices.filter((i) => i.dealId === deal.id);
@@ -250,7 +256,7 @@ export function DealSide({ deal }: { deal: Deal }) {
         ) : (
           <p className="t-meta m-0 text-ink-3">None yet.{deal.stage !== "won" && " Raise one once the deal is won."}</p>
         )}
-        {deal.stage === "won" && (
+        {deal.stage === "won" && isManager && (
           <Button size="sm" className="mt-2" onClick={() => useUi.getState().openComposer("invoice", { dealId: deal.id })}>
             <FileText strokeWidth={1.5} /> Raise invoice
           </Button>

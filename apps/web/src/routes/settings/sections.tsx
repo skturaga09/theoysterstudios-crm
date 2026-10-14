@@ -44,7 +44,7 @@ function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 }
 
 /* ---------- Workspace ---------- */
-type WsField = keyof Workspace;
+type WsField = Exclude<keyof Workspace, "membersSeeAllDeals">;
 const WS_FIELDS: { key: WsField; label: string; hint: string; placeholder?: string; mono?: boolean; group: "studio" | "connections" }[] = [
   { key: "studioName", label: "Studio name", hint: "Shown in the sidebar and to your team.", group: "studio" },
   { key: "legalName", label: "Legal name", hint: "Printed on tax invoices.", placeholder: "The Oyster Studios LLP", group: "studio" },
@@ -108,6 +108,14 @@ export function WorkspaceRoute() {
         {WS_FIELDS.filter((f) => f.group === "studio").map(field)}
         <Row label="Currency"><span className="t-dense font-mono">INR · ₹ · lakh / crore</span></Row>
         <Row label="Time zone"><span className="t-dense font-mono">Asia/Kolkata (IST, UTC+5:30)</span></Row>
+
+        <h2 className="t-eyebrow m-0 mt-10 mb-1 text-ink-2">Access</h2>
+        <Row label="Members see all deals" hint="Off: someone with the Member role sees only the deals they own, with those deals' tasks, activity and invoices. Admins and Managers always see everything.">
+          <label className="t-dense inline-flex cursor-pointer items-center gap-2">
+            <input type="checkbox" checked={form.membersSeeAllDeals} disabled={!canEdit} onChange={(e) => setForm({ ...form, membersSeeAllDeals: e.target.checked })} className="size-4 accent-[var(--ink)]" />
+            {form.membersSeeAllDeals ? "Yes — everyone can see every deal" : "No — Members see only their own deals"}
+          </label>
+        </Row>
 
         <h2 className="t-eyebrow m-0 mt-10 mb-1 text-ink-2">Connections</h2>
         <p className="t-dense m-0 mb-2 text-ink-3">The integrations read these. Changing one here doesn't connect anything yet.</p>

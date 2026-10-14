@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { PageHeader } from "../../components/page-header";
 import { agingBucket, daysOverdue, invoiceStatus, invoiceTotals, sum } from "../../data/derive";
-import { useCrm, useWorkspace } from "../../data/store";
+import { useCrm, useIsManager, useWorkspace } from "../../data/store";
 import type { Invoice } from "../../data/types";
 import { api } from "../../lib/api";
 import { useCreateAction, useListNav } from "../../lib/hooks";
@@ -21,7 +21,8 @@ export function InvoicesRoute() {
   const [params] = useSearchParams();
   const [filter, setFilter] = useState<Filter>(params.get("open") ? "all" : "outstanding");
   const [openId, setOpenId] = useState(params.get("open") ?? undefined);
-  useCreateAction(() => useUi.getState().openComposer("invoice"));
+  const isManager = useIsManager();
+  useCreateAction(isManager ? () => useUi.getState().openComposer("invoice") : undefined);
 
   const rows = useMemo(
     () =>
@@ -63,9 +64,11 @@ export function InvoicesRoute() {
                 { value: "all", label: "All" },
               ]}
             />
-            <Button variant="ink" size="sm" onClick={() => useUi.getState().openComposer("invoice")}>
-              <Plus strokeWidth={1.5} /> New invoice
-            </Button>
+            {isManager && (
+              <Button variant="ink" size="sm" onClick={() => useUi.getState().openComposer("invoice")}>
+                <Plus strokeWidth={1.5} /> New invoice
+              </Button>
+            )}
           </>
         }
       />
@@ -211,6 +214,7 @@ function InvoiceDetail({ inv }: { inv: Invoice }) {
 }
 
 function InvoiceActions({ inv }: { inv: Invoice }) {
+  const isManager = useIsManager();
   const st = invoiceStatus(inv);
   const t = invoiceTotals(inv);
   const navigate = useNavigate();
@@ -238,7 +242,7 @@ function InvoiceActions({ inv }: { inv: Invoice }) {
       <Button variant="ghost" size="sm" onClick={() => navigate(`/invoices/${inv.id}/print`)}>
         <FileDown strokeWidth={1.5} /> PDF
       </Button>
-      {st === "cancelled" ? null : st === "draft" && cancelling ? (
+      {!isManager || st === "cancelled" ? null : st === "draft" && cancelling ? (
         <form
           className="ml-auto flex flex-1 items-center gap-2"
           onSubmit={async (e) => {

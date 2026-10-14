@@ -31,13 +31,15 @@ export function useListNav(length: number, onOpen: (i: number) => void, enabled 
 }
 
 /** Registers what `c` creates on this screen. */
-export function useCreateAction(fn: () => void) {
+/** The screen's "create" action (C, and the top bar's New). Pass undefined when this person can't create here. */
+export function useCreateAction(fn: (() => void) | undefined) {
   const ref = useRef(fn);
   ref.current = fn;
+  const enabled = !!fn;
   useEffect(() => {
-    useUi.getState().setCreate(() => ref.current());
+    useUi.getState().setCreate(enabled ? () => ref.current?.() : undefined);
     return () => useUi.getState().setCreate(undefined);
-  }, []);
+  }, [enabled]);
 }
 
 /** Persisted per-viewer preference (view toggles). Storage may be unavailable. */

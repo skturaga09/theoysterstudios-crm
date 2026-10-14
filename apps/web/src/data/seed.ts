@@ -253,6 +253,7 @@ export const SAMPLE_WORKSPACE: Workspace = {
   enquiryEmail: "",
   instagramHandle: "",
   whatsappNumber: "",
+  membersSeeAllDeals: true,
 };
 
 export const INVOICES: Invoice[] = [

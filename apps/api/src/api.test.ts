@@ -117,6 +117,40 @@ describe("auth", () => {
     expect((await call("POST", "/import/companies", { rows: [{ name: "X", ownerId: "sr" }] }, "ok:importer@gmail.com")).statusCode).toBe(403);
   });
 
+  it("enforces roles: members work on their own records; invoices are view-only for them", async () => {
+    const add = async (email: string, role: string) => (await call("POST", "/members", { email, role })).json().id as string;
+    const meera = await add("meera@gmail.com", "member");
+    const kabir = await add("kabir@gmail.com", "member");
+    await add("manager@gmail.com", "manager");
+    const as = (who: string) => `ok:${who}@gmail.com`;
+    const deal = (ownerId: string) => ({ title: "Shoot", companyId: "c1", valuePaise: 100, closeAt: "2026-12-01T00:00:00+05:30", ownerId, channel: "instagram" });
+
+    const mine = (await call("POST", "/deals", deal(meera), as("meera"))).json();
+    expect((await call("POST", "/deals", deal(kabir), as("meera"))).statusCode).toBe(403); // can't create for someone else
+    const kabirs = (await call("POST", "/deals", deal(kabir), as("kabir"))).json();
+    expect((await call("PATCH", `/deals/${mine.id}`, { stage: "proposal" }, as("meera"))).statusCode).toBe(200);
+    expect((await call("PATCH", `/deals/${kabirs.id}`, { stage: "proposal" }, as("meera"))).statusCode).toBe(403); // not hers
+    expect((await call("PATCH", `/deals/${mine.id}`, { ownerId: kabir }, as("meera"))).statusCode).toBe(403); // can't reassign
+    expect((await call("PATCH", `/deals/${mine.id}`, { ownerId: kabir }, as("manager"))).statusCode).toBe(200); // managers can
+    expect((await call("DELETE", `/deals/${kabirs.id}`, undefined, as("meera"))).statusCode).toBe(403);
+
+    // Invoices: members may look, not touch.
+    expect((await call("GET", "/invoices", undefined, as("meera"))).statusCode).toBe(200);
+    expect((await call("POST", "/invoices", { companyId: "c1", dueAt: "2026-12-01T00:00:00+05:30", supply: "intra", lines: [{ desc: "x", sac: "998391", qty: 1, ratePaise: 1 }] }, as("meera"))).statusCode).toBe(403);
+
+    // With "members see all deals" off, Meera sees only her own deals and their tasks.
+    expect((await call("GET", "/deals", undefined, as("meera"))).json().some((d: { id: string }) => d.id === kabirs.id)).toBe(true);
+    const ws = (await call("GET", "/workspace")).json();
+    await call("PUT", "/workspace", { ...ws, membersSeeAllDeals: false });
+    await call("POST", "/tasks", { title: "Kabir's follow-up", dueAt: "2026-12-01T00:00:00+05:30", assigneeId: kabir, dealId: kabirs.id }, as("kabir"));
+    const seen = (await call("GET", "/deals", undefined, as("meera"))).json().map((d: { id: string }) => d.id);
+    expect(seen).not.toContain(kabirs.id);
+    expect((await call("GET", `/deals/${kabirs.id}`, undefined, as("meera"))).statusCode).toBe(404);
+    expect((await call("GET", "/tasks", undefined, as("meera"))).json().some((t: { title: string }) => t.title === "Kabir's follow-up")).toBe(false);
+    expect((await call("GET", "/deals", undefined, as("manager"))).json().map((d: { id: string }) => d.id)).toContain(kabirs.id); // managers see all
+    await call("PUT", "/workspace", { ...ws, membersSeeAllDeals: true });
+  });
+
   it("never leaves the team without an admin", async () => {
     const adminId = (await call("GET", "/me")).json().id;
     expect((await call("DELETE", `/members/${adminId}`)).statusCode).toBe(409);

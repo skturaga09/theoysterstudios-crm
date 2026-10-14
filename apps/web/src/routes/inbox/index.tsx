@@ -20,7 +20,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ME_ID } from "../../data/seed";
-import { defaultOwnerId, useCrm } from "../../data/store";
+import { defaultOwnerId, useCrm, useIsManager } from "../../data/store";
 import type { Conversation } from "../../data/types";
 import { useCreateAction, useListNav } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
@@ -185,6 +185,7 @@ function ConvRow({ c, index, selected, active, onOpen }: { c: Conversation; inde
 /* ---------------------------------------------------------------- */
 
 function Thread({ c }: { c: Conversation }) {
+  const isManager = useIsManager();
   const navigate = useNavigate();
   const s = useCrm();
   const assignee = s.members.find((m) => m.id === c.assigneeId);
@@ -192,8 +193,8 @@ function Thread({ c }: { c: Conversation }) {
     service: c.extracted?.service ?? "",
     value: c.extracted ? (c.extracted.estValuePaise / 1e7).toFixed(1) : "",
     city: c.extracted?.city ?? c.city,
-    // Lead routing decides first; then the suggested owner if they're on the team; then the default.
-    ownerId:
+    // A Member converts leads to themselves. Otherwise lead routing decides first; then the suggested owner; then the default.
+    ownerId: !isManager ? ME_ID :
       routeLead(s.routing, { channel: c.channel, city: c.extracted?.city ?? c.city, valuePaise: c.extracted?.estValuePaise }, (id) => s.members.some((m) => m.id === id)) ??
       (s.members.some((m) => m.id === c.extracted?.suggestedOwnerId) ? c.extracted!.suggestedOwnerId : defaultOwnerId()),
   });
@@ -283,7 +284,7 @@ function Thread({ c }: { c: Conversation }) {
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[11.5px] text-ink-3">Owner</span>
-              <Select value={draft.ownerId} onChange={(e) => setDraft({ ...draft, ownerId: e.target.value })} className="[&_select]:h-8">
+              <Select value={draft.ownerId} disabled={!isManager} onChange={(e) => setDraft({ ...draft, ownerId: e.target.value })} className="[&_select]:h-8">
                 {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </Select>
             </label>

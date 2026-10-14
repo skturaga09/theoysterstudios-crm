@@ -1,12 +1,13 @@
 import { formatCompact, STAGE_LABEL, type Stage } from "@pinnacle/shared";
 import { toast } from "@pinnacle/ui";
-import { useCrm } from "../data/store";
+import { canEditNow, useCrm } from "../data/store";
 import { useUi } from "./ui-store";
 
 /** Stage change from anywhere: writes an activity, undoable for 3.2s, Won pulses once. */
 export function changeStage(dealId: string, stage: Stage, index?: number) {
   const deal = useCrm.getState().deals.find((d) => d.id === dealId);
   if (!deal) return;
+  if (!canEditNow(deal.ownerId)) return void toast("Only the deal's owner or a manager can move it");
   const same = deal.stage === stage;
   const undo = useCrm.getState().moveDeal(dealId, stage, index);
   if (same) return;

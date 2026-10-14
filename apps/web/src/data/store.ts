@@ -336,6 +336,17 @@ export const useMe = () => {
   const session = useSession((s) => s.me);
   return (member ?? session)!;
 };
+/** Admins and Managers can change anything and reassign work; Members only what they own (enforced by the API too). */
+export const useIsManager = () => useMe().role !== "member";
+export const useCanEdit = (ownerId?: string) => {
+  const me = useMe();
+  return me.role !== "member" || ownerId === me.id;
+};
+/** Same check outside React (e.g. a drag on the board). */
+export const canEditNow = (ownerId?: string) => {
+  const me = useCrm.getState().members.find((m) => m.id === ME_ID) ?? useSession.getState().me;
+  return !!me && (me.role !== "member" || ownerId === me.id);
+};
 /** Default owner for new work: me, unless I'm the support login — then the first teammate. */
 export const defaultOwnerId = () => {
   const { members } = useCrm.getState();
