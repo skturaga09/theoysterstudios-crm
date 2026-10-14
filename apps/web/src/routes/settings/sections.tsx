@@ -9,7 +9,7 @@ import { PROBABILITY } from "../../data/derive";
 import { CHANNEL_STATUS, type ChannelStatus } from "../../data/seed";
 import { IS_DEMO } from "../../lib/demo";
 import { channelsFrom, type IntegrationStatus } from "../../data/sync";
-import { GoogleSetup, MetaSetup, setupProgress, useSetupState } from "./setup";
+import { GoogleAccounts, GoogleSetup, MetaSetup, setupProgress, useSetupState } from "./setup";
 import { defaultOwnerId, useCrm, useMe, useWorkspace } from "../../data/store";
 import type { Company, Contact } from "../../data/types";
 import { api, ApiError } from "../../lib/api";
@@ -190,12 +190,26 @@ export function IntegrationsRoute() {
         return l ? { ...l, connected: true } : { ...c, connected: false };
       });
   const [confirmDisconnect, setConfirmDisconnect] = useState<Channel>();
+  // Full status (connected Google accounts etc.); the sidebar's summary in the store is refreshed with it.
+  const [status, setStatus] = useState<IntegrationStatus>();
+  const refresh = async () => {
+    if (IS_DEMO) return;
+    const s = await api<IntegrationStatus>("/integrations").catch(() => undefined);
+    if (!s) return;
+    setStatus(s);
+    useCrm.setState({ channels: channelsFrom(s) });
+  };
+  useEffect(() => void refresh(), [setup.keys]);
   // Coming back from Instagram sign-in: say how it went once.
   useEffect(() => {
     const result = params.get("instagram");
     if (result === "connected") toast("Instagram connected — new DMs will appear in Inbox");
     else if (result === "cancelled") toast("Instagram sign-in was cancelled");
     else if (result) toast("Couldn't connect Instagram — check the three keys and the redirect URI, then try again");
+    const google = params.get("google");
+    if (google === "connected") toast(`Connected ${params.get("detail") ?? "Google"} — new emails and bookings will appear in Inbox`);
+    else if (google === "cancelled") toast("Google sign-in was cancelled");
+    else if (google) toast(`Couldn't connect Google — ${params.get("detail") ?? "check the setup steps and try again"}`);
   }, [params]);
   return (
     <>
@@ -229,7 +243,11 @@ export function IntegrationsRoute() {
                   {c.connected && c.note && <p className="t-meta m-0 mt-2 rounded-control bg-warn-wash px-3 py-2 text-warn">{c.note}</p>}
                 </div>
                 <div className="flex gap-2">
-                  {c.connected && !IS_DEMO ? (
+                  {c.connected && !IS_DEMO && kind === "google" ? (
+                    <Button size="sm" variant={c.status === "warn" ? "ink" : "outline"} aria-expanded={expanded} onClick={() => setOpen(expanded ? undefined : c.channel)}>
+                      {expanded ? "Hide" : "Manage accounts"}
+                    </Button>
+                  ) : c.connected && !IS_DEMO ? (
                     isAdmin && (
                       <>
                         <Button size="sm" variant={c.status === "warn" ? "ink" : "outline"} aria-expanded={expanded} onClick={() => setOpen(expanded ? undefined : c.channel)}>
@@ -251,16 +269,16 @@ export function IntegrationsRoute() {
                     </>
                   ) : IS_DEMO ? (
                     <Button size="sm" variant="ink" onClick={() => { update(c.channel, { connected: true, status: "ok", lastEventMin: 0 }); toast(`${CHANNEL_LABEL[c.channel]} connected`); }}>Connect</Button>
-                  ) : kind && isAdmin ? (
+                  ) : kind && (isAdmin || (kind === "google" && status?.google.ready)) ? (
                     <Button size="sm" variant={expanded ? "ghost" : "ink"} aria-expanded={expanded} onClick={() => setOpen(expanded ? undefined : c.channel)}>
-                      {expanded ? "Hide steps" : "Set up"}
+                      {expanded ? "Hide" : isAdmin ? "Set up" : "Connect my account"}
                     </Button>
                   ) : (
                     <Button size="sm" disabled title={kind ? "Only admins can set this up" : "Planned for later"}>{kind ? "Admins only" : "Later"}</Button>
                   )}
                 </div>
               </div>
-              {expanded && kind === "google" && <GoogleSetup state={setup} />}
+              {expanded && kind === "google" && (isAdmin ? <GoogleSetup state={setup} status={status} onChanged={() => void refresh()} /> : <GoogleAccounts status={status} onChanged={() => void refresh()} />)}
               {expanded && kind === "meta" && <MetaSetup state={setup} connected={c.connected} />}
               {confirmDisconnect === c.channel && (
                 <div className="mt-3 flex flex-wrap items-center gap-3 rounded-card bg-risk-wash px-4 py-3">

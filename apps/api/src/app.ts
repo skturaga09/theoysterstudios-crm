@@ -30,6 +30,7 @@ import { formatFull, invoiceTotals, type InvoiceMath } from "@pinnacle/shared";
 import { nameFromEmail, SUPPORT_MEMBER, type Member, type Verify } from "./auth";
 import type { Doc } from "./db";
 import { createCreditNote, createInvoice } from "./invoices";
+import { exchangeGoogleCode, googleAuthorizeUrl, revokeGoogle, syncGoogle, type GoogleAccount } from "./google";
 import { authorizeUrl, exchangeCode, handleWebhook, newVerifyToken, subscribeMessages, validSignature, type Fetch, type InstagramIntegration, type SetupKeys } from "./instagram";
 
 /** `_id` → `id`, matching the web app's types. */
@@ -88,7 +89,7 @@ export function buildApp({
     });
   }
   /** Called by Meta or by a browser coming back from Instagram sign-in — no CRM login; each checks its own proof. */
-  const PUBLIC = new Set(["/healthz", "/integrations/instagram/webhook", "/integrations/instagram/callback", "/public/privacy-info"]);
+  const PUBLIC = new Set(["/healthz", "/integrations/instagram/webhook", "/integrations/instagram/callback", "/integrations/google/callback", "/public/privacy-info"]);
 
   /**
    * Every route except /healthz needs a Google sign-in (Firebase ID token) whose verified email is on
@@ -191,11 +192,59 @@ export function buildApp({
   const integrations = db.collection<InstagramIntegration>("integrations");
   const origin = z.string().regex(/^(https:\/\/[a-z0-9.-]+|http:\/\/localhost:\d+)$/i, "Unexpected site address");
 
+  const googleAccounts = db.collection<GoogleAccount>("googleAccounts");
   /** Status of each channel, for the Integrations page and the sidebar. Never includes tokens. */
   app.get("/integrations", async () => {
     const ig = await integrations.findOne({ _id: "instagram" });
-    return { instagram: ig ? { connected: true, username: ig.username, lastEventAt: ig.lastEventAt, tokenExpiresAt: ig.tokenExpiresAt, connectedAt: ig.connectedAt } : { connected: false } };
+    const keys = await getKeys();
+    const accounts = await googleAccounts.find({}, { projection: { email: 1, connectedBy: 1, connectedAt: 1, lastSyncAt: 1, error: 1 } }).sort({ email: 1 }).toArray();
+    return {
+      instagram: ig ? { connected: true, username: ig.username, lastEventAt: ig.lastEventAt, tokenExpiresAt: ig.tokenExpiresAt, connectedAt: ig.connectedAt } : { connected: false },
+      google: { ready: !!(keys as { googleClientId?: string }).googleClientId && !!(keys as { googleClientSecret?: string }).googleClientSecret, accounts: accounts.map(({ _id: _, ...a }) => a) },
+    };
   });
+
+  /* ---------- Google (Gmail + Calendar), the client's own Google Cloud project ---------- */
+  /** Anyone on the team connects their own Google account; whoever signs in to enquiry@ connects that one. */
+  app.post("/integrations/google/start", async (req, reply) => {
+    const site = origin.parse((req.body as { origin?: unknown } | undefined)?.origin);
+    const keys = (await getKeys()) as { googleClientId?: string; googleClientSecret?: string };
+    if (!keys.googleClientId || !keys.googleClientSecret) return reply.code(409).send({ error: "An admin needs to finish the Google setup first" });
+    const state = newVerifyToken();
+    await setupCol.insertOne({ _id: `goauth:${state}`, site, memberId: req.member._id, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString() });
+    return { url: googleAuthorizeUrl(keys.googleClientId, `${site}/api/integrations/google/callback`, state) };
+  });
+  app.get("/integrations/google/callback", async (req, reply) => {
+    const q = z.object({ code: z.string().optional(), state: z.string().optional(), error: z.string().optional() }).parse(req.query);
+    const pending = q.state ? await setupCol.findOneAndDelete({ _id: `goauth:${q.state}` }) : null;
+    if (!pending || String(pending.expiresAt) < now()) return reply.code(400).type("text/plain").send("This sign-in link has expired. Go back to the CRM and click Connect again.");
+    const back = (status: string, detail?: string) => reply.redirect(`${pending.site}/settings/integrations?google=${encodeURIComponent(status)}${detail ? `&detail=${encodeURIComponent(detail)}` : ""}`);
+    if (!q.code) return back(q.error === "access_denied" ? "cancelled" : "error");
+    try {
+      const keys = (await getKeys()) as { googleClientId: string; googleClientSecret: string };
+      const got = await exchangeGoogleCode(f, keys, `${pending.site}/api/integrations/google/callback`, q.code);
+      await googleAccounts.replaceOne(
+        { _id: got.email },
+        { email: got.email, refreshToken: got.refreshToken, accessToken: got.accessToken, accessTokenExpiresAt: got.accessTokenExpiresAt, historyId: got.historyId, connectedBy: String(pending.memberId), connectedAt: now() },
+        { upsert: true },
+      );
+      return back("connected", got.email);
+    } catch (e) {
+      app.log.error(e);
+      return back("error", (e as Error).message.slice(0, 160));
+    }
+  });
+  /** Admins can disconnect any account; anyone can disconnect one they connected. Also withdraws Google access. */
+  app.delete<{ Params: { email: string } }>("/integrations/google/:email", async (req, reply) => {
+    const acct = await googleAccounts.findOne({ _id: req.params.email.toLowerCase() });
+    if (!acct) return reply.code(404).send({ error: "Not connected" });
+    if (req.member.role !== "admin" && acct.connectedBy !== req.member._id) return reply.code(403).send({ error: "Only an admin or the person who connected it can disconnect it" });
+    await revokeGoogle(f, acct.refreshToken);
+    await googleAccounts.deleteOne({ _id: acct._id });
+    return reply.code(204).send();
+  });
+  /** Admins: check every connected account now instead of waiting for the next minute. */
+  app.post("/integrations/google/sync", { preHandler: adminOnly }, async () => syncGoogle(db, f));
   app.post("/integrations/instagram/start", { preHandler: adminOnly }, async (req, reply) => {
     const site = origin.parse((req.body as { origin?: unknown } | undefined)?.origin);
     const keys = await getKeys();

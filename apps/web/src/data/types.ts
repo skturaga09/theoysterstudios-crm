@@ -86,6 +86,8 @@ export type Conversation = {
     suggestedOwnerId: ID;
     confidence: number;
   };
+  /** Gmail: the mailbox and thread it came in on, for "Reply in Gmail". */
+  gmailThread?: { account: string; threadId: string };
   /** WhatsApp: free-form replies allowed until this time. */
   windowExpiresAt?: ISO;
   messages: Message[];

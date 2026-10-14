@@ -1,6 +1,9 @@
 import { Button, cn, Input, toast } from "@pinnacle/ui";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { fmtAgo } from "@pinnacle/shared";
+import { useCrm, useMe } from "../../data/store";
+import type { IntegrationStatus } from "../../data/sync";
 import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
 
@@ -199,8 +202,93 @@ export const setupProgress = (state: SetupState, kind: "google" | "meta") => {
   return { done: steps.filter((s) => state.done.has(s.id)).length, total: steps.length };
 };
 
+/** Connected Google accounts, and the button that connects one. Used inside the Gmail and Calendar cards. */
+export function GoogleAccounts({ status, onChanged }: { status?: IntegrationStatus; onChanged: () => void }) {
+  const me = useMe();
+  const members = useCrm((s) => s.members);
+  const [busy, setBusy] = useState(false);
+  const accounts = status?.google.accounts ?? [];
+  const ready = !!status?.google.ready;
+  const ago = (iso?: string) => (iso ? fmtAgo(iso) : "not yet");
+  return (
+    <div className="mt-4 rounded-panel border border-line p-4">
+      <h4 className="t-eyebrow m-0 mb-2 text-ink-3">Connected Google accounts</h4>
+      {accounts.length ? (
+        <ul className="m-0 mb-3 list-none p-0">
+          {accounts.map((a) => (
+            <li key={a.email} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line py-2 last:border-0">
+              <span className="t-dense min-w-0 flex-1 font-mono text-[12.5px]">{a.email}</span>
+              <span className="t-meta text-ink-3">
+                {a.error ? <span className="text-risk">{a.error}</span> : `checked ${ago(a.lastSyncAt)}`} · by {members.find((m) => m.id === a.connectedBy)?.name ?? (a.connectedBy === "support" ? "Support" : "a teammate")}
+              </span>
+              {(me.role === "admin" || a.connectedBy === me.id) && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={async () => {
+                    try {
+                      await api(`/integrations/google/${encodeURIComponent(a.email)}`, { method: "DELETE" });
+                      toast(`Disconnected ${a.email}`);
+                      onChanged();
+                    } catch (e) {
+                      toast(`Couldn't disconnect — ${(e as Error).message}`);
+                    }
+                  }}
+                >
+                  Disconnect
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="t-dense m-0 mb-3 text-ink-3">None yet. Each person connects their own account; whoever has the enquiry@ login connects that one too.</p>
+      )}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="ink"
+          size="sm"
+          disabled={!ready || busy || IS_DEMO}
+          title={ready ? undefined : "An admin needs to finish the Google setup steps first"}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const { url } = await api<{ url: string }>("/integrations/google/start", { method: "POST", body: { origin: window.location.origin } });
+              window.location.href = url;
+            } catch (e) {
+              toast(`Couldn't start — ${(e as Error).message}`);
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "Opening Google…" : accounts.length ? "Connect another account" : "Connect a Google account"}
+        </Button>
+        {me.role === "admin" && accounts.length > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={async () => {
+              try {
+                const r = await api<{ stored: number }>("/integrations/google/sync", { method: "POST" });
+                toast(r.stored ? `${r.stored} new ${r.stored === 1 ? "item" : "items"} — see Inbox` : "Nothing new");
+                onChanged();
+              } catch (e) {
+                toast(`Couldn't check — ${(e as Error).message}`);
+              }
+            }}
+          >
+            Check now
+          </Button>
+        )}
+        {!ready && <span className="t-meta text-ink-3">Available once the setup steps above are done and the keys saved.</span>}
+      </div>
+      <p className="t-meta m-0 mt-3 text-ink-3">Checked every minute. New emails from outside the company and new meetings with people you don't know yet become leads in Inbox; newsletters and automated mail are skipped.</p>
+    </div>
+  );
+}
+
 /** Google Workspace steps + key fields: one setup connects both Gmail and Calendar. */
-export function GoogleSetup({ state }: { state: SetupState }) {
+export function GoogleSetup({ state, status, onChanged }: { state: SetupState; status?: IntegrationStatus; onChanged: () => void }) {
   const redirect = `${window.location.origin}/api/integrations/google/callback`;
   return (
     <div className="mt-4">
@@ -217,6 +305,7 @@ export function GoogleSetup({ state }: { state: SetupState }) {
           { key: "googleClientSecret", label: "Client secret", secret: true, placeholder: "Paste the client secret" },
         ]}
       />
+      <GoogleAccounts status={status} onChanged={onChanged} />
     </div>
   );
 }

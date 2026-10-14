@@ -344,10 +344,22 @@ function Composer({ c }: { c: Conversation }) {
   if (!IS_DEMO)
     return (
       <div className="flex flex-wrap items-center gap-3 rounded-card bg-sunken p-4 t-dense text-ink-2">
-        <span className="min-w-0 flex-1">Replies are sent from {CHANNEL_LABEL[c.channel]} itself; they appear here when they're sent.</span>
+        <span className="min-w-0 flex-1">
+          {c.channel === "calendar" ? "Booked through your calendar. Reply by email; your replies appear here." : `Replies are sent from ${CHANNEL_LABEL[c.channel]} itself; they appear here when they're sent.`}
+        </span>
         {c.channel === "instagram" && c.handle && (
           <Button asChild size="sm" variant="ink">
             <a href={`https://ig.me/m/${c.handle.replace(/^@/, "")}`} target="_blank" rel="noreferrer">Reply in Instagram</a>
+          </Button>
+        )}
+        {c.channel === "gmail" && c.gmailThread && (
+          <Button asChild size="sm" variant="ink">
+            <a href={`https://mail.google.com/mail/?authuser=${encodeURIComponent(c.gmailThread.account)}#all/${c.gmailThread.threadId}`} target="_blank" rel="noreferrer">Reply in Gmail</a>
+          </Button>
+        )}
+        {c.channel === "calendar" && c.handle.includes("@") && (
+          <Button asChild size="sm" variant="ink">
+            <a href={`mailto:${c.handle}`}>Email them</a>
           </Button>
         )}
       </div>

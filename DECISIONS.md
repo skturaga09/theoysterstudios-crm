@@ -153,3 +153,18 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   Instagram itself) are kept as outgoing. Public routes: webhook, callback, `/public/privacy-info`.
 - **Inbox (live):** real conversations, polled every 30 s; replies happen in Instagram ("Reply in Instagram").
   `/privacy` (with `#delete`) is public, filled from Workspace details.
+
+## Gmail and Calendar (client's own Google project, read-only)
+
+- **Scopes:** `gmail.readonly` + `calendar.readonly` only; the account's address comes from Gmail's profile, so no
+  `openid/email` scope. `access_type=offline` + `prompt=consent` for a refresh token (server-only, never returned).
+- **Who connects:** any teammate connects their own account (Integrations → Gmail → Connect); whoever has the
+  enquiry@ login connects that one. Admins can disconnect any account; others only theirs. Disconnect revokes at Google.
+- **Sync:** the `everyMinute` scheduled function (lock in `setup/lock:google`) — polling, not Pub/Sub push, so the
+  client's project needs no Pub/Sub topic. Gmail: `history.list` from the stored `historyId` (404 → restart from now);
+  inbox mail from outside our domains, not automated (List-Unsubscribe, no-reply, Auto-Submitted), opens or joins a
+  conversation (`channel: gmail`, `externalId` = sender email), routed by `routeLead`; our SENT mail joins existing
+  conversations only. Deduped across mailboxes by the Message-ID header. Calendar: `events.list` with a sync token
+  (first run only starts tracking; 410 → restart); a new meeting with an outside guest who isn't a contact opens a
+  `calendar` conversation, with a known contact it becomes a "meeting" activity on their open deal. Appointment-
+  schedule bookings can't be told apart reliably, so every new meeting with an outside guest counts.

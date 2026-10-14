@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHmac } from "node:crypto";
 import { buildApp } from "./app";
 import { ensureAdmin, type Verify } from "./auth";
+import { syncGoogle } from "./google";
 import { refreshToken } from "./instagram";
 import { connect } from "./db";
 import { financialYear } from "./invoices";
@@ -27,6 +28,36 @@ const fakeInstagram: typeof fetch = async (input, init) => {
   return new Response("{}", { status: 404 });
 };
 
+/** Stand-in for Google: one mailbox's history and messages, a calendar, and the token endpoints. */
+const g = {
+  calls: [] as string[],
+  scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly",
+  history: [] as { id: string; labelIds: string[] }[],
+  messages: {} as Record<string, object>,
+  events: [] as object[],
+};
+const b64 = (s: string) => Buffer.from(s).toString("base64url");
+const gmailMsg = (id: string, from: string, opts: { to?: string; label?: string; subject?: string; body?: string; mid?: string; extra?: { name: string; value: string }[] } = {}) => ({
+  id, threadId: `t-${id}`, labelIds: [opts.label ?? "INBOX"], internalDate: String(Date.parse("2026-10-14T10:00:00Z")), snippet: "snippet",
+  payload: { mimeType: "multipart/alternative", headers: [{ name: "From", value: from }, { name: "To", value: opts.to ?? "studio@theoysterstudios.com" }, { name: "Subject", value: opts.subject ?? "Enquiry" }, { name: "Message-ID", value: opts.mid ?? `<${id}@mail>` }, ...(opts.extra ?? [])],
+    parts: [{ mimeType: "text/plain", body: { data: b64(opts.body ?? "Hello") } }, { mimeType: "text/html", body: { data: b64("<p>Hello</p>") } }] },
+});
+const fakeGoogle: typeof fetch = async (input, init) => {
+  const url = String(input);
+  g.calls.push(`${init?.method ?? "GET"} ${url.split("?")[0]}`);
+  const ok = (body: object, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  const form = new URLSearchParams(String(init?.body ?? ""));
+  if (url === "https://oauth2.googleapis.com/token" && form.get("grant_type") === "authorization_code") return ok({ access_token: "G-ACCESS", refresh_token: "G-REFRESH-SECRET", expires_in: 3599, scope: g.scope });
+  if (url === "https://oauth2.googleapis.com/token" && form.get("grant_type") === "refresh_token") return ok({ access_token: "G-ACCESS-2", expires_in: 3599 });
+  if (url.startsWith("https://oauth2.googleapis.com/revoke")) return ok({});
+  if (url.startsWith("https://gmail.googleapis.com/gmail/v1/users/me/profile")) return ok({ emailAddress: "studio@theoysterstudios.com", historyId: "100" });
+  if (url.startsWith("https://gmail.googleapis.com/gmail/v1/users/me/history")) return ok({ historyId: "200", history: g.history.map((m) => ({ messagesAdded: [{ message: m }] })) });
+  const msg = url.match(/users\/me\/messages\/([^?]+)/);
+  if (msg) return g.messages[msg[1]!] ? ok(g.messages[msg[1]!]!) : ok({}, 404);
+  if (url.startsWith("https://www.googleapis.com/calendar/v3/calendars/primary/events")) return ok({ items: g.events, nextSyncToken: "sync-2" });
+  return fakeInstagram(input, init);
+};
+
 const verify: Verify = async (t) => {
   const [kind, email] = t.split(":");
   if (kind === "ok") return { email, email_verified: true, name: "Name From Google", picture: "https://p/x.png" };
@@ -42,10 +73,10 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
-  app = buildApp({ ...deps, verify, fetch: fakeInstagram });
+  app = buildApp({ ...deps, verify, fetch: fakeGoogle });
   close = async () => { await app.close(); await client.close(); await rs?.stop(); };
 }, 600_000); // first run against Firestore builds indexes (~75s each, in parallel)
 afterAll(() => close?.());
@@ -243,6 +274,71 @@ describe("auth", () => {
     expect(await refreshToken(deps.db, fakeInstagram, now)).toBe("refreshed");
     expect((await col.findOne({ _id: "instagram" }))!.tokenIssuedAt).toBe(now.toISOString());
   });
+
+  it("connects Google accounts and turns outside emails and new bookings into routed leads", async () => {
+    const meId = (await call("GET", "/me")).json().id;
+    await call("PUT", "/routing", { rules: [{ id: "r-mail", channel: "gmail", ownerId: meId }] });
+    await call("POST", "/members", { email: "teammate@gmail.com" });
+
+    // Any teammate can start; Google returns to a one-time link.
+    const { url } = (await call("POST", "/integrations/google/start", { origin: "https://crm.example.com" }, "ok:teammate@gmail.com")).json();
+    const u = new URL(url);
+    expect(u.searchParams.get("scope")).toBe("https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly");
+    expect(u.searchParams.get("access_type")).toBe("offline");
+    const back = await app.inject({ url: `/api/integrations/google/callback?code=c1&state=${u.searchParams.get("state")}` });
+    expect(back.headers.location).toBe("https://crm.example.com/settings/integrations?google=connected&detail=studio%40theoysterstudios.com");
+    const status = (await call("GET", "/integrations")).json().google;
+    expect(status).toMatchObject({ ready: true, accounts: [{ email: "studio@theoysterstudios.com" }] });
+    expect(JSON.stringify(status)).not.toMatch(/G-REFRESH|G-ACCESS/);
+
+    // Unticking a permission on Google's screen is caught.
+    g.scope = "https://www.googleapis.com/auth/gmail.readonly";
+    const { url: url2 } = (await call("POST", "/integrations/google/start", { origin: "https://crm.example.com" })).json();
+    const back2 = await app.inject({ url: `/api/integrations/google/callback?code=c2&state=${new URL(url2).searchParams.get("state")}` });
+    expect(back2.headers.location).toContain("google=error");
+    g.scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly";
+
+    // Mail since the last check: a new lead, a newsletter, a colleague, and our reply.
+    await call("POST", "/contacts", { name: "Asha Rao", email: "asha@client.in", ownerId: meId, source: "referral" });
+    g.messages = {
+      a: gmailMsg("a", "Riya Mehta <riya@halcyon.in>", { subject: "Shoot for our hotel", body: "Hi, can you quote a 2-day shoot?\n\nOn Mon, someone wrote:\n> old" }),
+      b: gmailMsg("b", "News <news@brand.com>", { extra: [{ name: "List-Unsubscribe", value: "<mailto:x>" }] }),
+      c: gmailMsg("c", "Kabir <kabir@theoysterstudios.com>"),
+      d: gmailMsg("d", "studio@theoysterstudios.com", { label: "SENT", to: "Riya Mehta <riya@halcyon.in>", body: "Sure, sending a quote today." }),
+    };
+    g.history = ["a", "b", "c", "d"].map((id) => ({ id, labelIds: [id === "d" ? "SENT" : "INBOX"] }));
+    g.events = [];
+    expect(await syncGoogle(deps.db, fakeGoogle)).toEqual({ accounts: 1, stored: 2 }); // lead + our reply
+    let convs = (await call("GET", "/conversations")).json();
+    const riya = convs.find((c: { handle: string }) => c.handle === "riya@halcyon.in");
+    expect(riya).toMatchObject({ channel: "gmail", name: "Riya Mehta", subject: "Shoot for our hotel", assigneeId: meId, unread: true, gmailThread: { account: "studio@theoysterstudios.com", threadId: "t-a" } });
+    expect(riya.messages.map((m: { direction: string; body: string }) => [m.direction, m.body])).toEqual([["in", "Hi, can you quote a 2-day shoot?"], ["out", "Sure, sending a quote today."]]);
+    expect(convs.some((c: { handle: string }) => /brand|kabir/.test(c.handle))).toBe(false);
+    expect(await syncGoogle(deps.db, fakeGoogle)).toEqual({ accounts: 1, stored: 0 }); // same mail again → nothing new
+
+    // Calendar: the first check only starts tracking; then a booking from someone new, and a meeting with a contact.
+    g.history = [];
+    g.events = [
+      { id: "e1", status: "confirmed", summary: "Discovery call", created: "2026-10-14T09:00:00Z", start: { dateTime: "2099-01-10T10:00:00+05:30" }, attendees: [{ email: "studio@theoysterstudios.com", self: true }, { email: "New.Person@startup.io", displayName: "Neel" }] },
+      { id: "e2", status: "confirmed", summary: "Review", start: { dateTime: "2099-01-11T10:00:00+05:30" }, attendees: [{ email: "asha@client.in" }] },
+    ];
+    expect((await syncGoogle(deps.db, fakeGoogle)).stored).toBe(2);
+    convs = (await call("GET", "/conversations")).json();
+    expect(convs.find((c: { handle: string }) => c.handle === "new.person@startup.io")).toMatchObject({ channel: "calendar", name: "Neel", subject: "Discovery call" });
+    expect((await call("GET", "/activities")).json().some((a: { type: string; text: string }) => a.type === "meeting" && a.text.includes("Asha Rao"))).toBe(true);
+
+    // An expired access token is renewed with the refresh token.
+    await deps.db.collection("googleAccounts").updateOne({ _id: "studio@theoysterstudios.com" } as never, { $set: { accessTokenExpiresAt: "2000-01-01T00:00:00Z" } });
+    g.calls.length = 0;
+    await syncGoogle(deps.db, fakeGoogle);
+    expect(g.calls).toContain("POST https://oauth2.googleapis.com/token");
+
+    // Disconnect: not by someone else's teammate; yes by an admin, and Google access is withdrawn.
+    await call("POST", "/members", { email: "other@gmail.com" });
+    expect((await call("DELETE", "/integrations/google/studio@theoysterstudios.com", undefined, "ok:other@gmail.com")).statusCode).toBe(403);
+    expect((await call("DELETE", "/integrations/google/studio@theoysterstudios.com")).statusCode).toBe(204);
+    expect(g.calls).toContain("POST https://oauth2.googleapis.com/revoke");
+  }, 60_000); // many round trips against real Firestore
 
   it("never leaves the team without an admin", async () => {
     const adminId = (await call("GET", "/me")).json().id;

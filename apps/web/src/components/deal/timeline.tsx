@@ -33,7 +33,7 @@ export function Timeline({ items, showSubject = false }: { items: Activity[]; sh
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
               <p className="t-dense m-0 text-ink-2">
-                <span className="font-medium text-ink">{who?.name ?? (a.actorId === "support" ? "Support" : "Someone")}</span> {a.text}
+                <span className="font-medium text-ink">{who?.name ?? (a.actorId === "support" ? "Support" : a.actorId === "calendar" ? "Calendar" : "Someone")}</span> {a.text}
                 {deal && <span className="text-ink-3"> · {deal.title}</span>}
               </p>
               <p className="m-0 mt-0.5 flex items-center gap-1.5 font-mono text-[11px] text-ink-3">{fmtAgo(a.at)}</p>

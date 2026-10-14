@@ -10,6 +10,7 @@ import type { Db } from "mongodb";
 import { buildApp } from "./app";
 import { ensureAdmin, firebaseVerifier } from "./auth";
 import { connect } from "./db";
+import { syncGoogle } from "./google";
 import { refreshToken } from "./instagram";
 
 const MONGODB_URI = defineSecret("MONGODB_URI");
@@ -56,5 +57,29 @@ export const daily = onSchedule(
   async () => {
     const { db }: { db: Db } = await getDb();
     console.log("instagram token:", await refreshToken(db, fetch));
+  },
+);
+
+/**
+ * Every minute: check each connected Google account for new outside emails and new meetings.
+ * A lock stops two runs overlapping if one is slow.
+ */
+export const everyMinute = onSchedule(
+  { schedule: "every 1 minutes", timeZone: "Asia/Kolkata", region: "asia-south1", secrets: [MONGODB_URI], memory: "256MiB", timeoutSeconds: 55, maxInstances: 1 },
+  async () => {
+    const { db }: { db: Db } = await getDb();
+    const locks = db.collection<{ _id: string; until: number }>("setup");
+    try {
+      // Matches only an expired lock; when another run holds it, the upsert collides on _id and throws.
+      await locks.findOneAndUpdate({ _id: "lock:google", until: { $lt: Date.now() } }, { $set: { until: Date.now() + 50_000 } }, { upsert: true });
+    } catch {
+      return; // another run holds the lock
+    }
+    try {
+      const r = await syncGoogle(db, fetch);
+      if (r.stored) console.log("google sync:", r);
+    } finally {
+      await locks.updateOne({ _id: "lock:google" }, { $set: { until: 0 } });
+    }
   },
 );
