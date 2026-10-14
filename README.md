@@ -41,7 +41,7 @@ See `DECISIONS.md` for choices made against the brief.
 Live at https://theoysterstudios-crm-staging.web.app. To publish the current code (website + API):
 
 ```bash
-firebase deploy --only functions:api,hosting
+firebase deploy --only functions,hosting
 ```
 
 Secrets (database connection, admin and support emails) are in Google Secret Manager — see DECISIONS.md → Hosting.

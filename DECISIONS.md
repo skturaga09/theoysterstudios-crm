@@ -99,7 +99,7 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   concurrency 40, max 3 instances, scales to zero (first request after idle takes a few seconds).
 - **Secrets** live in Secret Manager: `MONGODB_URI`, `ADMIN_EMAIL`, `SUPPORT_EMAILS`. Change one with
   `firebase functions:secrets:set NAME` and redeploy the function.
-- **Deploy:** `firebase deploy --only functions:api,hosting` (builds both first).
+- **Deploy:** `firebase deploy --only functions,hosting` (builds both first).
 - **Workspace settings** are one document (`workspace/studio`): studio name, legal name, GSTIN, address, plus
   "Connections" the integrations will read (Google Workspace domain, enquiry inbox, Instagram handle, WhatsApp
   number). Admins edit them in Settings → Workspace; validated by `WorkspaceSchema` (GSTIN format + known state
