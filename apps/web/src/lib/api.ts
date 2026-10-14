@@ -1,4 +1,5 @@
 import { toast } from "@pinnacle/ui";
+import { IS_DEMO } from "./demo";
 import { auth } from "./firebase";
 
 export class ApiError extends Error {
@@ -25,6 +26,8 @@ export async function api<T>(path: string, { method = "GET", body }: { method?: 
 
 /** Saves in the background after an optimistic update; if the save fails, undoes the change and says so. */
 export function save(request: Promise<unknown>, rollback: () => void) {
+  // The demo has no sign-in, so its saves are refused; keep the change on screen instead.
+  if (IS_DEMO) return void request.catch(() => {});
   request.catch((e: Error) => {
     rollback();
     toast(`Couldn't save — ${e.message}. Your change was undone.`);

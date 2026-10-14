@@ -3,7 +3,7 @@
  * screen opens in a realistic working state. Dates are relative to today so the data
  * never goes stale. Mockup "Delivery" stage → Won (see DECISIONS.md).
  */
-import { CHANNELS, lakh, type Channel, type Stage } from "@pinnacle/shared";
+import { CHANNELS, lakh, type Channel, type RoutingRule, type Stage } from "@pinnacle/shared";
 import type { Workspace } from "@pinnacle/shared/schemas";
 import type {
   Activity,
@@ -235,6 +235,14 @@ const inv = (
   lines: lines.map(([desc, l]) => ({ desc, sac: SAC, qty: 1, ratePaise: lakh(l) })),
   payments: payments.map(([d, l]) => ({ at: at(d), amountPaise: lakh(l) })),
 });
+/** Sample lead routing for the demo build. Signed in, the rules come from Settings → Lead routing. */
+export const SAMPLE_ROUTING: RoutingRule[] = [
+  { id: "r1", minPaise: lakh(10), ownerId: "sr" },
+  { id: "r2", channel: "instagram", ownerId: "ak" },
+  { id: "r3", city: "Goa", ownerId: "rv" },
+  { id: "r4", channel: "web", ownerId: "dp" },
+];
+
 /** Sample studio details for the demo build. Signed in, the real ones come from Settings → Workspace. */
 export const SAMPLE_WORKSPACE: Workspace = {
   studioName: "The Oyster Studios",

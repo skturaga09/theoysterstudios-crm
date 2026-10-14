@@ -1,5 +1,6 @@
 import { api } from "../lib/api";
 import { useCrm } from "./store";
+import type { RoutingRule } from "@pinnacle/shared";
 import type { Workspace } from "@pinnacle/shared/schemas";
 import type { Activity, Company, Contact, Deal, Invoice, Member, Task } from "./types";
 
@@ -8,7 +9,7 @@ import type { Activity, Company, Contact, Deal, Invoice, Member, Task } from "./
  * invoices, tasks and activity. Not stored yet (inbox, lead history, channels): starts empty.
  */
 export async function loadCrm() {
-  const [workspace, members, companies, contacts, deals, invoices, tasks, activities] = await Promise.all([
+  const [workspace, members, companies, contacts, deals, invoices, tasks, activities, routing] = await Promise.all([
     api<Workspace>("/workspace"),
     api<Member[]>("/members"),
     api<Company[]>("/companies"),
@@ -17,6 +18,7 @@ export async function loadCrm() {
     api<Invoice[]>("/invoices"),
     api<Task[]>("/tasks"),
     api<Activity[]>("/activities"),
+    api<{ rules: RoutingRule[] }>("/routing"),
   ]);
   useCrm.setState(() => ({
     workspace,
@@ -27,6 +29,7 @@ export async function loadCrm() {
     invoices,
     tasks,
     activities,
+    routing: routing.rules,
     conversations: [],
     leads: [],
     channels: [],

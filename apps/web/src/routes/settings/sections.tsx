@@ -1,7 +1,7 @@
-import { CHANNEL_LABEL, CHANNELS, formatCompact, gstState, lakh, STAGE_LABEL, STAGES, type Channel } from "@pinnacle/shared";
+import { CHANNEL_LABEL, CHANNELS, formatCompact, gstState, lakh, STAGE_LABEL, STAGES, type Channel, type RoutingRule } from "@pinnacle/shared";
 import type { Workspace } from "@pinnacle/shared/schemas";
 import { Button, ChannelChip, cn, Input, Pill, Select, toast } from "@pinnacle/ui";
-import { ArrowRight, Download, Plus, RefreshCw, Trash2, Unplug } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, Download, Plus, RefreshCw, Trash2, Unplug } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { PROBABILITY } from "../../data/derive";
@@ -215,66 +215,96 @@ export function IntegrationsRoute() {
 }
 
 /* ---------- Lead routing ---------- */
-type Rule = { id: string; channel?: Channel; city?: string; minLakh?: number; ownerId: string };
 export function RoutingRoute() {
   const members = useCrm((s) => s.members);
-  const [rules, setRules] = useState<Rule[]>([
-    { id: "r1", minLakh: 10, ownerId: "sr" },
-    { id: "r2", channel: "instagram", ownerId: "ak" },
-    { id: "r3", city: "Goa", ownerId: "rv" },
-    { id: "r4", channel: "web", ownerId: "dp" },
-  ]);
-  const [draft, setDraft] = useState<{ channel: string; city: string; min: string; ownerId: string }>({ channel: "", city: "", min: "", ownerId: members[0]!.id });
-  const name = (id: string) => members.find((m) => m.id === id)?.name ?? "—";
-  const describe = (r: Rule) =>
-    [r.channel && `channel is ${CHANNEL_LABEL[r.channel]}`, r.city && `city is ${r.city}`, r.minLakh && `estimated value ≥ ${formatCompact(lakh(r.minLakh))}`].filter(Boolean).join(" and ");
+  const rules = useCrm((s) => s.routing);
+  const setRouting = useCrm((s) => s.setRouting);
+  const canEdit = useMe().role === "admin";
+  const [draft, setDraft] = useState<{ channel: string; city: string; min: string; ownerId: string }>({ channel: "", city: "", min: "", ownerId: members[0]?.id ?? "" });
+  const owner = (id: string) => members.find((m) => m.id === id);
+  const describe = (r: RoutingRule) =>
+    [r.channel && `channel is ${CHANNEL_LABEL[r.channel]}`, r.city && `city is ${r.city}`, r.minPaise && `estimated value ≥ ${formatCompact(r.minPaise)}`].filter(Boolean).join(" and ");
+  const move = (i: number, by: -1 | 1) => {
+    const next = [...rules];
+    [next[i], next[i + by]] = [next[i + by]!, next[i]!];
+    setRouting(next);
+  };
   return (
     <>
       <SettingsHeader title="Lead routing" body="New leads get an owner from the first rule that matches, top to bottom. If none match, they stay unassigned in Inbox." />
+      {!canEdit && <p className="t-dense mb-6 rounded-card bg-sunken px-4 py-3 text-ink-2">Only admins can change the rules.</p>}
+      {!rules.length && <p className="t-dense m-0 border-b border-line py-4 text-ink-3">No rules yet, so every new lead starts unassigned. For example: when channel is Instagram → your salesperson.</p>}
       <ol className="m-0 list-none p-0">
         <AnimatePresence initial={false}>
-          {rules.map((r, i) => (
-            <motion.li key={r.id} layout exit={{ opacity: 0, height: 0 }} className="flex items-center gap-3 overflow-hidden border-b border-line py-3">
-              <span className="w-6 font-mono text-[11px] text-ink-3">{i + 1}</span>
-              <span className="t-dense min-w-0 flex-1">When {describe(r)}</span>
-              <ArrowRight size={14} strokeWidth={1.5} className="text-ink-3" />
-              <span className="t-dense w-28 font-medium">{name(r.ownerId)}</span>
-              <Button size="icon-sm" variant="ghost" aria-label="Delete rule" onClick={() => setRules((xs) => xs.filter((x) => x.id !== r.id))}>
-                <Trash2 strokeWidth={1.5} />
-              </Button>
-            </motion.li>
-          ))}
+          {rules.map((r, i) => {
+            const who = owner(r.ownerId);
+            return (
+              <motion.li key={r.id} layout exit={{ opacity: 0, height: 0 }} className="flex items-center gap-3 overflow-hidden border-b border-line py-3">
+                <span className="w-6 font-mono text-[11px] text-ink-3">{i + 1}</span>
+                <span className="t-dense min-w-0 flex-1">When {describe(r)}</span>
+                <ArrowRight size={14} strokeWidth={1.5} className="text-ink-3" />
+                <span className={cn("t-dense w-36 font-medium", !who && "text-risk")} title={who ? undefined : "No longer on the team — this rule is skipped"}>
+                  {who?.name ?? "Removed teammate"}
+                </span>
+                {canEdit && (
+                  <span className="flex">
+                    <Button size="icon-sm" variant="ghost" aria-label={`Move rule ${i + 1} up`} disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp strokeWidth={1.5} /></Button>
+                    <Button size="icon-sm" variant="ghost" aria-label={`Move rule ${i + 1} down`} disabled={i === rules.length - 1} onClick={() => move(i, 1)}><ArrowDown strokeWidth={1.5} /></Button>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={`Delete rule ${i + 1}`}
+                      onClick={() => {
+                        setRouting(rules.filter((x) => x.id !== r.id));
+                        toast("Rule deleted", { action: { label: "Undo", onClick: () => setRouting(rules) } });
+                      }}
+                    >
+                      <Trash2 strokeWidth={1.5} />
+                    </Button>
+                  </span>
+                )}
+              </motion.li>
+            );
+          })}
         </AnimatePresence>
       </ol>
-      <form
-        className="mt-6 grid grid-cols-2 gap-3 rounded-panel border border-line bg-surface p-4 md:grid-cols-[1fr_1fr_110px_1fr_auto] md:items-end"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!draft.channel && !draft.city && !draft.min) return toast("Pick at least one condition");
-          setRules((xs) => [...xs, { id: `r${Date.now()}`, channel: (draft.channel || undefined) as Channel | undefined, city: draft.city || undefined, minLakh: draft.min ? parseFloat(draft.min) : undefined, ownerId: draft.ownerId }]);
-          setDraft({ channel: "", city: "", min: "", ownerId: draft.ownerId });
-          toast("Rule added");
-        }}
-      >
-        <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">Channel</span>
-          <Select value={draft.channel} onChange={(e) => setDraft({ ...draft, channel: e.target.value })}>
-            <option value="">Any</option>
-            {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}
-          </Select>
-        </label>
-        <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">City</span>
-          <Input value={draft.city} onChange={(e) => setDraft({ ...draft, city: e.target.value })} placeholder="Any" />
-        </label>
-        <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">Min value (₹ L)</span>
-          <Input inputMode="decimal" value={draft.min} onChange={(e) => setDraft({ ...draft, min: e.target.value })} placeholder="—" className="font-mono" />
-        </label>
-        <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">Assign to</span>
-          <Select value={draft.ownerId} onChange={(e) => setDraft({ ...draft, ownerId: e.target.value })}>
-            {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </Select>
-        </label>
-        <Button type="submit" variant="ink" className="col-span-2 md:col-span-1"><Plus strokeWidth={1.5} /> Add rule</Button>
-      </form>
+      {canEdit && (
+        <form
+          className="mt-6 grid grid-cols-2 gap-3 rounded-panel border border-line bg-surface p-4 md:grid-cols-[1fr_1fr_110px_1fr_auto] md:items-end"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const min = draft.min.trim() ? parseFloat(draft.min) : undefined;
+            if (!draft.channel && !draft.city.trim() && min === undefined) return toast("Pick at least one condition");
+            if (min !== undefined && !(min > 0)) return toast("Enter the minimum value in lakh, for example 5");
+            if (!owner(draft.ownerId)) return toast("Choose who gets these leads");
+            setRouting([
+              ...rules,
+              { id: `r${Date.now()}`, channel: (draft.channel || undefined) as Channel | undefined, city: draft.city.trim() || undefined, minPaise: min === undefined ? undefined : lakh(min), ownerId: draft.ownerId },
+            ]);
+            setDraft({ channel: "", city: "", min: "", ownerId: draft.ownerId });
+            toast("Rule added");
+          }}
+        >
+          <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">Channel</span>
+            <Select value={draft.channel} onChange={(e) => setDraft({ ...draft, channel: e.target.value })}>
+              <option value="">Any</option>
+              {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}
+            </Select>
+          </label>
+          <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">City</span>
+            <Input value={draft.city} onChange={(e) => setDraft({ ...draft, city: e.target.value })} placeholder="Any" />
+          </label>
+          <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">Min value (₹ L)</span>
+            <Input inputMode="decimal" value={draft.min} onChange={(e) => setDraft({ ...draft, min: e.target.value })} placeholder="—" className="font-mono" />
+          </label>
+          <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">Assign to</span>
+            <Select value={draft.ownerId} onChange={(e) => setDraft({ ...draft, ownerId: e.target.value })}>
+              {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </Select>
+          </label>
+          <Button type="submit" variant="ink" className="col-span-2 md:col-span-1"><Plus strokeWidth={1.5} /> Add rule</Button>
+        </form>
+      )}
     </>
   );
 }

@@ -10,6 +10,7 @@ import {
   CreateInvoiceSchema,
   CreateTaskSchema,
   RecordPaymentSchema,
+  RoutingSchema,
   UpdateCompanySchema,
   UpdateContactSchema,
   UpdateDealSchema,
@@ -116,6 +117,18 @@ export function buildApp({
     const w = WorkspaceSchema.parse(req.body);
     await workspaceCol.replaceOne({ _id: "studio" }, w, { upsert: true });
     return w;
+  });
+
+  /* ---------- Lead routing (one ordered list of rules) ---------- */
+  const routingCol = db.collection<{ _id: string } & z.infer<typeof RoutingSchema>>("routing");
+  app.get("/routing", async () => ({ rules: (await routingCol.findOne({ _id: "rules" }))?.rules ?? [] }));
+  app.put("/routing", { preHandler: adminOnly }, async (req, reply) => {
+    const { rules } = RoutingSchema.parse(req.body);
+    const owners = new Set((await members.find({ status: { $ne: "removed" } }, { projection: { _id: 1 } }).toArray()).map((m) => m._id));
+    const bad = rules.findIndex((r) => !owners.has(r.ownerId));
+    if (bad >= 0) return reply.code(422).send({ error: `Rule ${bad + 1} assigns leads to someone who isn't on the team` });
+    await routingCol.replaceOne({ _id: "rules" }, { rules }, { upsert: true });
+    return { rules };
   });
 
   /* ---------- Team & access ---------- */

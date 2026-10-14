@@ -138,3 +138,15 @@ export const CreateActivitySchema = z.object({
   text: z.string().trim().min(1).max(300),
   body: optionalText(5000),
 });
+
+/* ---------- Lead routing ---------- */
+export const RoutingRuleSchema = z
+  .object({
+    id: id,
+    channel: ChannelSchema.optional(),
+    city: z.string().trim().min(1).max(80).optional(),
+    minPaise: z.number().int().positive().optional(),
+    ownerId: id,
+  })
+  .refine((r) => r.channel || r.city || r.minPaise, "A rule needs at least one condition");
+export const RoutingSchema = z.object({ rules: z.array(RoutingRuleSchema).max(50) });

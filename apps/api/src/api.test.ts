@@ -25,7 +25,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify });
@@ -75,6 +75,18 @@ describe("auth", () => {
     expect(JSON.stringify((await call("GET", "/members", undefined, `ok:${SUPPORT}`)).json())).not.toContain(SUPPORT);
     expect((await call("POST", "/members", { email: "new@gmail.com" }, `ok:${SUPPORT}`)).statusCode).toBe(201);
     expect((await call("DELETE", "/members/support")).statusCode).toBe(404);
+  });
+
+  it("saves lead routing rules; admins only; owners must be on the team", async () => {
+    expect((await call("GET", "/routing")).json()).toEqual({ rules: [] });
+    const meId = (await call("GET", "/me")).json().id;
+    const rules = [{ id: "r1", channel: "instagram", ownerId: meId }, { id: "r2", city: "Goa", minPaise: 100000000, ownerId: meId }];
+    expect((await call("PUT", "/routing", { rules })).json().rules).toHaveLength(2);
+    expect((await call("GET", "/routing")).json().rules[1]).toMatchObject({ city: "Goa", minPaise: 100000000 });
+    expect((await call("PUT", "/routing", { rules: [{ id: "x", ownerId: meId }] })).statusCode).toBe(400); // no condition
+    expect((await call("PUT", "/routing", { rules: [{ id: "x", channel: "web", ownerId: "ghost" }] })).statusCode).toBe(422);
+    await call("POST", "/members", { email: "seller@gmail.com" });
+    expect((await call("PUT", "/routing", { rules }, "ok:seller@gmail.com")).statusCode).toBe(403);
   });
 
   it("never leaves the team without an admin", async () => {

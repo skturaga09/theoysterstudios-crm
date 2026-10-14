@@ -3,7 +3,7 @@
  * deals, invoices, tasks and activity (see sync.ts); mutations update the screen first, then save to the API
  * and roll back if that fails. The inbox is still local-only until the channels are connected.
  */
-import { formatCompact, STAGE_LABEL, type Stage } from "@pinnacle/shared";
+import { formatCompact, STAGE_LABEL, type RoutingRule, type Stage } from "@pinnacle/shared";
 import { create } from "zustand";
 import {
   ACTIVITIES,
@@ -16,6 +16,7 @@ import {
   CHANNEL_STATUS,
   ME_ID,
   MEMBERS,
+  SAMPLE_ROUTING,
   SAMPLE_WORKSPACE,
   TASKS,
   type ChannelStatus,
@@ -40,6 +41,9 @@ interface CrmState {
   workspace: Workspace;
   /** Connected lead channels and their health. Sample statuses in the demo; none until integrations exist. */
   channels: ChannelStatus[];
+  /** Lead routing rules, in priority order. */
+  routing: RoutingRule[];
+  setRouting: (rules: RoutingRule[]) => void;
   members: Member[];
   companies: Company[];
   contacts: Contact[];
@@ -121,6 +125,12 @@ const saveDealChanges = (from: Deal[], to: Deal[]) =>
 export const useCrm = create<CrmState>((set, get) => ({
   workspace: SAMPLE_WORKSPACE,
   channels: CHANNEL_STATUS,
+  routing: SAMPLE_ROUTING,
+  setRouting: (rules) => {
+    const prev = get().routing;
+    set({ routing: rules });
+    save(api("/routing", { method: "PUT", body: { rules } }), () => set({ routing: prev }));
+  },
   members: MEMBERS,
   companies: COMPANIES,
   contacts: CONTACTS,

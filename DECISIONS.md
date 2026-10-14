@@ -106,3 +106,7 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   code). Invoices can't be created until legal name and GSTIN are set, and each invoice keeps a `seller` copy.
 - **Backups (oyster-crm):** deletion protection on; point-in-time recovery on (7 days); daily backup kept 14 days
   (`firebase firestore:backups:schedules:list --database oyster-crm`). The test database has none of these.
+- **Lead routing:** one ordered rule list (`routing/rules`), edited by admins in Settings → Lead routing; every
+  change saves. `routeLead()` in `@pinnacle/shared` picks the owner — first rule whose conditions all match
+  (channel, city case-insensitive, min value in paise; an unknown value never matches a value rule) and whose
+  owner is still on the team. Inbox → Create deal uses it now; the channel integrations will call the same function.

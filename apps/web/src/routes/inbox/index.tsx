@@ -1,4 +1,4 @@
-import { CHANNEL_LABEL, CHANNEL_MONOGRAM, fmtAgo, fmtTime, formatCompact, lakh, type Channel } from "@pinnacle/shared";
+import { type Channel, CHANNEL_LABEL, CHANNEL_MONOGRAM, fmtAgo, fmtTime, formatCompact, lakh, routeLead } from "@pinnacle/shared";
 import {
   Avatar,
   Button,
@@ -192,8 +192,10 @@ function Thread({ c }: { c: Conversation }) {
     service: c.extracted?.service ?? "",
     value: c.extracted ? (c.extracted.estValuePaise / 1e7).toFixed(1) : "",
     city: c.extracted?.city ?? c.city,
-    // The sample inbox suggests sample teammates; fall back to me if that person isn't on the team.
-    ownerId: s.members.some((m) => m.id === c.extracted?.suggestedOwnerId) ? c.extracted!.suggestedOwnerId : defaultOwnerId(),
+    // Lead routing decides first; then the suggested owner if they're on the team; then the default.
+    ownerId:
+      routeLead(s.routing, { channel: c.channel, city: c.extracted?.city ?? c.city, valuePaise: c.extracted?.estValuePaise }, (id) => s.members.some((m) => m.id === id)) ??
+      (s.members.some((m) => m.id === c.extracted?.suggestedOwnerId) ? c.extracted!.suggestedOwnerId : defaultOwnerId()),
   });
   const [converting, setConverting] = useState(false);
 
