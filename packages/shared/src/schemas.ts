@@ -168,3 +168,13 @@ export const RoutingSchema = z.object({ rules: z.array(RoutingRuleSchema).max(50
 export const ImportRequestSchema = z.object({ rows: z.array(z.record(z.string(), z.unknown())).min(1).max(2000) });
 /** A contact row may name its company instead of pointing at an id; the API finds or creates it. */
 export const ImportContactRowSchema = CreateContactSchema.omit({ companyId: true }).extend({ companyName: z.string().trim().max(120).optional() });
+
+/* ---------- Integration setup (Settings → Integration setup, admins) ---------- */
+export const SetupProgressSchema = z.object({ done: z.array(z.string().trim().min(1).max(40)).max(100) });
+/** Keys the client pastes in. Blank = leave as is; secrets are write-only (the API never returns them). */
+export const IntegrationKeysSchema = z.object({
+  googleClientId: optionalField(z.string().regex(/^[\w.-]+\.apps\.googleusercontent\.com$/, "A Google Client ID ends in .apps.googleusercontent.com")),
+  googleClientSecret: z.string().trim().max(200).default(""),
+  metaAppId: optionalField(z.string().regex(/^\d{6,25}$/, "A Meta App ID is a long number")),
+  metaAppSecret: optionalField(z.string().regex(/^[a-f0-9]{32}$/i, "A Meta App secret is 32 letters and numbers")),
+});

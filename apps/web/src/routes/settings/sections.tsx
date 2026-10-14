@@ -3,6 +3,7 @@ import type { Workspace } from "@pinnacle/shared/schemas";
 import { Button, ChannelChip, cn, Input, Pill, Segmented, Select, toast } from "@pinnacle/ui";
 import { ArrowDown, ArrowRight, ArrowUp, Download, Plus, RefreshCw, Trash2, Unplug, Upload } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { Link } from "react-router";
 import { useState, type ReactNode } from "react";
 import { PROBABILITY } from "../../data/derive";
 import { CHANNEL_STATUS, type ChannelStatus } from "../../data/seed";
@@ -175,6 +176,11 @@ export function IntegrationsRoute() {
   return (
     <>
       <SettingsHeader title="Integrations" body="Where leads come from. Each channel lands in one Inbox; replies go back on the same channel." />
+      {!IS_DEMO && (
+        <p className="t-dense -mt-2 mb-6 rounded-card bg-sunken px-4 py-3 text-ink-2">
+          Gmail, Calendar and Instagram need a one-time setup in your Google Workspace and Meta accounts. <Link to="/settings/setup" className="font-medium underline">Follow the step-by-step setup →</Link>
+        </p>
+      )}
       <ul className="m-0 list-none p-0">
         {items.map((c) => (
           <li key={c.channel} className="border-b border-line py-5">

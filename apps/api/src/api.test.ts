@@ -25,7 +25,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify });
@@ -149,6 +149,19 @@ describe("auth", () => {
     expect((await call("GET", "/tasks", undefined, as("meera"))).json().some((t: { title: string }) => t.title === "Kabir's follow-up")).toBe(false);
     expect((await call("GET", "/deals", undefined, as("manager"))).json().map((d: { id: string }) => d.id)).toContain(kabirs.id); // managers see all
     await call("PUT", "/workspace", { ...ws, membersSeeAllDeals: true });
+  });
+
+  it("saves setup progress and keeps integration secrets write-only, admins only", async () => {
+    expect((await call("PUT", "/setup/progress", { done: ["g-project", "g-project", "m-business"] })).json().done).toEqual(["g-project", "m-business"]);
+    expect((await call("GET", "/setup/progress")).json().done).toHaveLength(2);
+    const secret = "GOCSPX-abcdefghijklmnopqrstuvwx";
+    const saved = (await call("PUT", "/setup/keys", { googleClientId: "123-abc.apps.googleusercontent.com", googleClientSecret: secret })).json();
+    expect(saved).toEqual({ googleClientId: "123-abc.apps.googleusercontent.com", googleClientSecretSaved: true, metaAppId: "", metaAppSecretSaved: false });
+    expect(JSON.stringify((await call("GET", "/setup/keys")).json())).not.toContain(secret); // never read back
+    expect((await call("PUT", "/setup/keys", { googleClientId: "" })).json().googleClientId).toBe("123-abc.apps.googleusercontent.com"); // blank keeps it
+    expect((await call("PUT", "/setup/keys", { metaAppSecret: "nope" })).statusCode).toBe(400);
+    await call("POST", "/members", { email: "setup-member@gmail.com" });
+    expect((await call("GET", "/setup/keys", undefined, "ok:setup-member@gmail.com")).statusCode).toBe(403);
   });
 
   it("never leaves the team without an admin", async () => {

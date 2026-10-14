@@ -20,6 +20,8 @@ import {
   UpdateDealSchema,
   UpdateMemberSchema,
   UpdateTaskSchema,
+  IntegrationKeysSchema,
+  SetupProgressSchema,
   WorkspaceSchema,
   type Workspace,
 } from "@pinnacle/shared/schemas";
@@ -135,6 +137,29 @@ export function buildApp({
     const w = WorkspaceSchema.parse(req.body);
     await workspaceCol.replaceOne({ _id: "studio" }, w, { upsert: true });
     return w;
+  });
+
+  /* ---------- Integration setup: checklist progress + the keys the client pastes in ---------- */
+  const setupCol = db.collection<{ _id: string; done?: string[] } & Record<string, unknown>>("setup");
+  app.get("/setup/progress", { preHandler: adminOnly }, async () => ({ done: (await setupCol.findOne({ _id: "progress" }))?.done ?? [] }));
+  app.put("/setup/progress", { preHandler: adminOnly }, async (req) => {
+    const { done } = SetupProgressSchema.parse(req.body);
+    await setupCol.replaceOne({ _id: "progress" }, { done: [...new Set(done)] }, { upsert: true });
+    return { done: [...new Set(done)] };
+  });
+  /** IDs come back so the page can show them; secrets never leave the server — only whether one is saved. */
+  const keysView = (k: Record<string, unknown> | null) => ({
+    googleClientId: String(k?.googleClientId ?? ""),
+    googleClientSecretSaved: !!k?.googleClientSecret,
+    metaAppId: String(k?.metaAppId ?? ""),
+    metaAppSecretSaved: !!k?.metaAppSecret,
+  });
+  app.get("/setup/keys", { preHandler: adminOnly }, async () => keysView(await setupCol.findOne({ _id: "keys" })));
+  app.put("/setup/keys", { preHandler: adminOnly }, async (req) => {
+    // Only the fields typed in change; a blank field keeps what's saved.
+    const changes = Object.fromEntries(Object.entries(IntegrationKeysSchema.parse(req.body)).filter(([, v]) => v !== ""));
+    if (Object.keys(changes).length) await setupCol.updateOne({ _id: "keys" }, { $set: { ...changes, updatedAt: now(), updatedBy: req.member._id } }, { upsert: true });
+    return keysView(await setupCol.findOne({ _id: "keys" }));
   });
 
   /* ---------- Lead routing (one ordered list of rules) ---------- */
