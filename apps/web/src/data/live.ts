@@ -1,10 +1,11 @@
 /**
- * Simulated live arrivals until SSE lands in M3. A few believable leads trickle in
- * while the app is open, exercising the feed flash, nav count and Lead Flow burst.
+ * Demo build only: a few believable sample leads trickle in while the app is open, exercising the
+ * feed flash, nav count and Lead Flow burst. Real leads will arrive from the channel integrations.
  */
 import { lakh } from "@pinnacle/shared";
 import { useEffect } from "react";
 import { useCrm } from "./store";
+import { IS_DEMO } from "../lib/demo";
 import type { Conversation } from "./types";
 
 type Seed = Omit<Conversation, "lastMessageAt" | "messages" | "id"> & { body: string };
@@ -28,6 +29,7 @@ const POOL: Seed[] = [
 
 export function useLiveArrivals() {
   useEffect(() => {
+    if (!IS_DEMO) return;
     let i = 0;
     const tick = () => {
       if (i >= POOL.length) return;

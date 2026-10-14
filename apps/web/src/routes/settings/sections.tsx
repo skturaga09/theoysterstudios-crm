@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { PROBABILITY } from "../../data/derive";
 import { CHANNEL_STATUS, type ChannelStatus } from "../../data/seed";
+import { IS_DEMO } from "../../lib/demo";
 import { useCrm, useMe, useWorkspace } from "../../data/store";
 import { api, ApiError } from "../../lib/api";
 import { fmtMin } from "../../shell/sidebar";
@@ -159,7 +160,8 @@ const SETUP: Record<Channel, string> = {
 };
 
 export function IntegrationsRoute() {
-  const [items, setItems] = useState<(ChannelStatus & { connected: boolean })[]>(CHANNEL_STATUS.map((c) => ({ ...c, connected: true })));
+  // Live: nothing is connected until the integrations are built. The demo shows sample connections.
+  const [items, setItems] = useState<(ChannelStatus & { connected: boolean })[]>(CHANNEL_STATUS.map((c) => ({ ...c, connected: IS_DEMO })));
   const update = (ch: Channel, patch: Partial<ChannelStatus & { connected: boolean }>) => setItems((xs) => xs.map((x) => (x.channel === ch ? { ...x, ...patch } : x)));
   return (
     <>
@@ -193,7 +195,11 @@ export function IntegrationsRoute() {
                     </Button>
                   </>
                 ) : (
-                  <Button size="sm" variant="ink" onClick={() => { update(c.channel, { connected: true, status: "ok", lastEventMin: 0 }); toast(`${CHANNEL_LABEL[c.channel]} connected`); }}>Connect</Button>
+                  IS_DEMO ? (
+                    <Button size="sm" variant="ink" onClick={() => { update(c.channel, { connected: true, status: "ok", lastEventMin: 0 }); toast(`${CHANNEL_LABEL[c.channel]} connected`); }}>Connect</Button>
+                  ) : (
+                    <Button size="sm" disabled title="This integration is being set up">Coming soon</Button>
+                  )
                 )}
               </div>
             </div>

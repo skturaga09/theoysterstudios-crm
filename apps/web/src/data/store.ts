@@ -13,10 +13,12 @@ import {
   DEALS,
   INVOICES,
   LEADS,
+  CHANNEL_STATUS,
   ME_ID,
   MEMBERS,
   SAMPLE_WORKSPACE,
   TASKS,
+  type ChannelStatus,
 } from "./seed";
 import { api, save } from "../lib/api";
 import { useSession } from "../lib/session";
@@ -35,6 +37,8 @@ export type ConvertInput = {
 
 interface CrmState {
   workspace: Workspace;
+  /** Connected lead channels and their health. Sample statuses in the demo; none until integrations exist. */
+  channels: ChannelStatus[];
   members: Member[];
   companies: Company[];
   contacts: Contact[];
@@ -90,6 +94,7 @@ const saveDealChanges = (from: Deal[], to: Deal[]) =>
 
 export const useCrm = create<CrmState>((set, get) => ({
   workspace: SAMPLE_WORKSPACE,
+  channels: CHANNEL_STATUS,
   members: MEMBERS,
   companies: COMPANIES,
   contacts: CONTACTS,

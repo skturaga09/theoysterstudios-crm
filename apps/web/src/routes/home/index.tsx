@@ -20,14 +20,16 @@ import {
   TR,
   type LedgerCell,
 } from "@pinnacle/ui";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Waypoints } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router";
-import { closingThisMonth, countWord, pipelineMetrics, plural, taskGroup } from "../../data/derive";
+import { EmptyState } from "../../components/empty-state";
+import { closingThisMonth, countWord, invoiceStatus, invoiceTotals, pipelineMetrics, plural, sum, taskGroup } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
 import { useCrm, useMe } from "../../data/store";
 import type { Conversation } from "../../data/types";
+import { IS_DEMO } from "../../lib/demo";
 import { useOncePerSession } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 import { LeadFlow } from "./lead-flow";
@@ -66,13 +68,24 @@ export function HomeRoute() {
   const summary = useSummary();
   const firstView = useOncePerSession("pinnacle.home.countup");
   const m = pipelineMetrics(deals);
+  const leads = useCrm((s) => s.leads);
+  const openInvoices = useCrm((s) => s.invoices).filter((i) => ["sent", "partial", "overdue"].includes(invoiceStatus(i)));
+  const openInvoicePaise = sum(openInvoices.map((i) => invoiceTotals(i).due));
 
-  const ledger: LedgerCell[] = [
-    { label: "Open pipeline", paise: m.openPaise, delta: `${m.openCount} open deals`, deltaTone: "mute", spark: trend(m.openPaise, [0.82, 0.86, 0.84, 0.9, 0.93, 0.91, 0.97]) },
-    { label: "Weighted forecast", paise: m.weightedPaise, delta: "goal ₹70.0 L", deltaTone: "mute", spark: trend(m.weightedPaise, [0.78, 0.8, 0.86, 0.83, 0.9, 0.94, 0.96]) },
-    { label: "Won this month", paise: m.wonPaise, delta: `${m.wonCount} ${plural(m.wonCount, "deal")} · +18% vs Sep`, deltaTone: "ok", spark: trend(m.wonPaise, [0.2, 0.32, 0.3, 0.48, 0.55, 0.7, 0.84]) },
-    { label: "Median first reply", value: 38, unit: "min", delta: "+6 min vs Sep", deltaTone: "risk", spark: [52, 48, 41, 36, 33, 35, 31, 38] },
-  ];
+  // The demo's comparisons, goal and trend lines are illustrative; the live app shows only what the data supports.
+  const ledger: LedgerCell[] = IS_DEMO
+    ? [
+        { label: "Open pipeline", paise: m.openPaise, delta: `${m.openCount} open deals`, deltaTone: "mute", spark: trend(m.openPaise, [0.82, 0.86, 0.84, 0.9, 0.93, 0.91, 0.97]) },
+        { label: "Weighted forecast", paise: m.weightedPaise, delta: "goal ₹70.0 L", deltaTone: "mute", spark: trend(m.weightedPaise, [0.78, 0.8, 0.86, 0.83, 0.9, 0.94, 0.96]) },
+        { label: "Won this month", paise: m.wonPaise, delta: `${m.wonCount} ${plural(m.wonCount, "deal")} · +18% vs Sep`, deltaTone: "ok", spark: trend(m.wonPaise, [0.2, 0.32, 0.3, 0.48, 0.55, 0.7, 0.84]) },
+        { label: "Median first reply", value: 38, unit: "min", delta: "+6 min vs Sep", deltaTone: "risk", spark: [52, 48, 41, 36, 33, 35, 31, 38] },
+      ]
+    : [
+        { label: "Open pipeline", paise: m.openPaise, delta: `${m.openCount} open ${plural(m.openCount, "deal")}`, deltaTone: "mute" },
+        { label: "Weighted forecast", paise: m.weightedPaise, delta: "open deals × stage likelihood", deltaTone: "mute" },
+        { label: "Won this month", paise: m.wonPaise, delta: `${m.wonCount} ${plural(m.wonCount, "deal")}`, deltaTone: "mute" },
+        { label: "Open invoices", paise: openInvoicePaise, delta: `${openInvoices.length} awaiting payment`, deltaTone: openInvoices.some((i) => invoiceStatus(i) === "overdue") ? "risk" : "mute" },
+      ];
 
   let i = 0;
   const r = () => ({ variants: rise, initial: "hidden", animate: "show", custom: i++ }) as const;
@@ -92,7 +105,11 @@ export function HomeRoute() {
       </motion.div>
 
       <motion.div {...r()} className="grid grid-cols-1 gap-x-10 gap-y-10 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <LeadFlow />
+        {IS_DEMO || leads.length ? (
+          <LeadFlow />
+        ) : (
+          <EmptyState icon={Waypoints} title="Lead flow" body="Shows where leads come from and how far they get, once Instagram, Gmail and the other channels are connected." />
+        )}
         <ArrivingNow />
       </motion.div>
 

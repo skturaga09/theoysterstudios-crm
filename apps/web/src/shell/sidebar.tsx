@@ -5,7 +5,6 @@ import { LogOut, Moon, Sun } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { NavLink } from "react-router";
 import { invoiceStatus, isOpen, taskGroup } from "../data/derive";
-import { CHANNEL_STATUS } from "../data/seed";
 import { useCrm, useMe } from "../data/store";
 import { auth } from "../lib/firebase";
 import { NAV, SIGNAL_COUNT, type CountKey } from "./nav";
@@ -29,6 +28,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const toggle = useTheme((s) => s.toggle);
   const me = useMe();
   const studioName = useCrm((s) => s.workspace.studioName);
+  const channels = useCrm((s) => s.channels);
   const counts = useCounts();
   return (
     <div className="flex h-full flex-col bg-bg">
@@ -95,7 +95,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             Channels
           </NavLink>
           <ul className="m-0 flex list-none flex-col p-0">
-            {CHANNEL_STATUS.map((c) => (
+            {!channels.length && (
+              <li className="px-2.5 py-1 text-[12px] text-ink-3">
+                <NavLink to="/settings/integrations" onClick={onNavigate} className="hover:text-ink-2">None connected yet</NavLink>
+              </li>
+            )}
+            {channels.map((c) => (
               <li key={c.channel} className="flex h-7 items-center gap-2.5 px-2.5 text-[12.5px] text-ink-2">
                 <Tooltip content={c.note ?? `${HEALTH_LABEL[c.status]} · last event ${fmtMin(c.lastEventMin)} ago`} side="right">
                   <span tabIndex={0} aria-label={`${c.label}: ${HEALTH_LABEL[c.status]}`} className={cn("size-1.5 shrink-0 rounded-full", dot[c.status])} />

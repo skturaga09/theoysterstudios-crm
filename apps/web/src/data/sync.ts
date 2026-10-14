@@ -4,9 +4,8 @@ import type { Workspace } from "@pinnacle/shared/schemas";
 import type { Company, Contact, Deal, Invoice, Member } from "./types";
 
 /**
- * Replaces the sample team, companies, contacts, deals and invoices with the database's.
- * Tasks and activity history aren't stored yet; their samples point at sample deals, so they start empty.
- * The inbox and Lead Flow stay as samples until the channels are connected.
+ * Replaces every sample with real data: the database's workspace, team, companies, contacts, deals and
+ * invoices; everything not stored yet (tasks, activity, inbox, lead history, channels) starts empty.
  */
 export async function loadCrm() {
   const [workspace, members, companies, contacts, deals, invoices] = await Promise.all([
@@ -17,7 +16,7 @@ export async function loadCrm() {
     api<Deal[]>("/deals"),
     api<Invoice[]>("/invoices"),
   ]);
-  useCrm.setState((s) => ({
+  useCrm.setState(() => ({
     workspace,
     members,
     companies,
@@ -26,6 +25,8 @@ export async function loadCrm() {
     invoices,
     tasks: [],
     activities: [],
-    conversations: s.conversations.map((c) => ({ ...c, contactId: undefined, dealId: undefined, assigneeId: undefined })),
+    conversations: [],
+    leads: [],
+    channels: [],
   }));
 }

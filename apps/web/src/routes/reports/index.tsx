@@ -7,6 +7,8 @@ import { PageHeader } from "../../components/page-header";
 import { isOpen, PROBABILITY, sum } from "../../data/derive";
 import { ME_ID, REVENUE } from "../../data/seed";
 import { useCrm } from "../../data/store";
+import type { Invoice } from "../../data/types";
+import { IS_DEMO } from "../../lib/demo";
 
 type Range = "month" | "quarter" | "year";
 const DAYS: Record<Range, number> = { month: 30, quarter: 90, year: 365 };
@@ -37,6 +39,17 @@ function ChartHead({ title, meta, onExport }: { title: string; meta?: string; on
   );
 }
 
+/** Payments received per calendar month (IST), oldest first, in lakh — the shape the revenue chart uses. */
+function collectedByMonth(invoices: Invoice[], months: number) {
+  const key = (d: Date) => d.toLocaleString("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit" });
+  const now = new Date();
+  return Array.from({ length: months }, (_, k) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (months - 1 - k), 15);
+    const paise = sum(invoices.flatMap((i) => i.payments).filter((p) => key(new Date(p.at)) === key(d)).map((p) => p.amountPaise));
+    return { month: d.toLocaleString("en-IN", { month: "short" }), collected: paise / 1e7, target: 0 };
+  });
+}
+
 export function ReportsRoute() {
   const s = useCrm();
   const [range, setRange] = useState<Range>("quarter");
@@ -52,14 +65,22 @@ export function ReportsRoute() {
   const cycle = basis.length ? Math.round(sum(basis.map((d) => (+new Date(d.wonAt!) - +new Date(d.createdAt)) / 86_400_000)) / basis.length) : 0;
   const forecast = Math.round(sum(s.deals.filter(isOpen).map((d) => d.valuePaise * PROBABILITY[d.stage])));
 
-  const ledger: LedgerCell[] = [
-    { label: "Win rate", value: winRate, unit: "%", delta: "+4 pts vs last period", deltaTone: "ok", spark: [26, 28, 27, 30, 31, 29, 33, winRate] },
-    { label: "Avg deal size", paise: avgDeal, delta: `${basis.length} won ${basis.length === 1 ? "deal" : "deals"}`, deltaTone: "mute", spark: [4.8, 5.1, 5.0, 5.4, 5.2, 5.6, 5.9, avgDeal / 1e7] },
-    { label: "Sales cycle", value: cycle, unit: "days", delta: "−3 days", deltaTone: "ok", spark: [31, 29, 30, 27, 26, 24, 24, cycle] },
-    { label: "Forecast vs goal", paise: forecast, delta: `goal ₹70.0 L · ${Math.round((forecast / lakh(70)) * 100)}%`, deltaTone: forecast >= lakh(70) ? "ok" : "risk", spark: [40, 42, 46, 45, 50, 53, 55, forecast / 1e7] },
-  ];
+  // The demo's comparisons, goal and trend lines are illustrative; the live app shows only what the data supports.
+  const ledger: LedgerCell[] = IS_DEMO
+    ? [
+        { label: "Win rate", value: winRate, unit: "%", delta: "+4 pts vs last period", deltaTone: "ok", spark: [26, 28, 27, 30, 31, 29, 33, winRate] },
+        { label: "Avg deal size", paise: avgDeal, delta: `${basis.length} won ${basis.length === 1 ? "deal" : "deals"}`, deltaTone: "mute", spark: [4.8, 5.1, 5.0, 5.4, 5.2, 5.6, 5.9, avgDeal / 1e7] },
+        { label: "Sales cycle", value: cycle, unit: "days", delta: "−3 days", deltaTone: "ok", spark: [31, 29, 30, 27, 26, 24, 24, cycle] },
+        { label: "Forecast vs goal", paise: forecast, delta: `goal ₹70.0 L · ${Math.round((forecast / lakh(70)) * 100)}%`, deltaTone: forecast >= lakh(70) ? "ok" : "risk", spark: [40, 42, 46, 45, 50, 53, 55, forecast / 1e7] },
+      ]
+    : [
+        { label: "Win rate", value: winRate, unit: "%", delta: `${closedLeads.length} closed ${closedLeads.length === 1 ? "lead" : "leads"}`, deltaTone: "mute" },
+        { label: "Avg deal size", paise: avgDeal, delta: `${basis.length} won ${basis.length === 1 ? "deal" : "deals"}`, deltaTone: "mute" },
+        { label: "Sales cycle", value: cycle, unit: "days", delta: "created → won, average", deltaTone: "mute" },
+        { label: "Weighted forecast", paise: forecast, delta: "open deals × stage likelihood", deltaTone: "mute" },
+      ];
 
-  const revenue = REVENUE.slice(-MONTHS[range]);
+  const revenue = IS_DEMO ? REVENUE.slice(-MONTHS[range]) : collectedByMonth(s.invoices, MONTHS[range]);
   const collected = sum(revenue.map((r) => r.collected));
   const target = sum(revenue.map((r) => r.target));
 
@@ -114,13 +135,13 @@ export function ReportsRoute() {
 
       <section>
         <ChartHead
-          title="Revenue collected vs target"
-          meta={`${formatCompact(lakh(collected))} of ${formatCompact(lakh(target))} · ${Math.round((collected / target) * 100)}%`}
+          title={IS_DEMO ? "Revenue collected vs target" : "Revenue collected"}
+          meta={IS_DEMO ? `${formatCompact(lakh(collected))} of ${formatCompact(lakh(target))} · ${Math.round((collected / target) * 100)}%` : `${formatCompact(lakh(collected))} received from invoice payments`}
           onExport={() => downloadCsv("revenue", [["Month", "Collected (₹)", "Target (₹)"], ...revenue.map((r) => [r.month, r.collected * 1e5, r.target * 1e5])])}
         />
         <div className="flex items-center gap-5 pb-3 text-[12px] text-ink-2">
           <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-[2px] bg-ink" /> Collected</span>
-          <span className="flex items-center gap-2"><span className="h-0 w-4 border-t-2 border-dashed border-ink-3" /> Target</span>
+          {IS_DEMO && <span className="flex items-center gap-2"><span className="h-0 w-4 border-t-2 border-dashed border-ink-3" /> Target</span>}
         </div>
         <div className="h-[280px] w-full">
           <ResponsiveContainer width="100%" height="100%">
@@ -141,13 +162,13 @@ export function ReportsRoute() {
                     <div className="rounded-control bg-ink px-3 py-2 text-[12px] text-on-ink shadow-pop">
                       <div className="mb-1 font-medium">{label}</div>
                       <div className="font-mono tnum">Collected {formatFull(lakh(Number(payload[0]?.payload.collected)))}</div>
-                      <div className="font-mono text-on-ink/70 tnum">Target {formatFull(lakh(Number(payload[0]?.payload.target)))}</div>
+                      {IS_DEMO && <div className="font-mono text-on-ink/70 tnum">Target {formatFull(lakh(Number(payload[0]?.payload.target)))}</div>}
                     </div>
                   ) : null
                 }
               />
               <Bar dataKey="collected" fill="var(--ink)" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={false} />
-              <Line dataKey="target" stroke="var(--ink-3)" strokeWidth={2} strokeDasharray="4 4" dot={false} type="linear" isAnimationActive={false} />
+              {IS_DEMO && <Line dataKey="target" stroke="var(--ink-3)" strokeWidth={2} strokeDasharray="4 4" dot={false} type="linear" isAnimationActive={false} />}
             </ComposedChart>
           </ResponsiveContainer>
         </div>
