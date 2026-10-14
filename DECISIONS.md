@@ -127,3 +127,8 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   can't assign to others, invoices view-only. Workspace "Members see all deals" (default on, pending the
   client's answer): off limits a Member's deals, tasks, activity and invoices to their own deals.
 - **Billing address** on companies; invoices snapshot the buyer (name, GSTIN, address, city) like the seller.
+- **Draft edits and credit notes:** drafts can change deal, due date, tax type and lines (not company or issue
+  date — the number belongs to that year). Seller/buyer details are re-captured when an invoice is marked sent.
+  Sent invoices are corrected by credit notes: own series `TOS/CN/<FY>/<NNN>`, taxable amount + GST at the
+  invoice's rate, capped at what's left to credit, recorded on the invoice (`credits`) so its balance drops;
+  printable at `/credit-notes/:id/print`. Fully credited, unpaid invoices show "Credited".

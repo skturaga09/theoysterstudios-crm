@@ -208,20 +208,27 @@ type LineDraft = { desc: string; sac: string; qty: string; rate: string };
 const blankLine = (): LineDraft => ({ desc: "", sac: DEFAULT_SAC, qty: "1", rate: "" });
 const num = (v: string) => (v.trim() === "" ? NaN : Number(v.replace(/,/g, "")));
 
-function NewInvoiceForm({ dealId, onDone }: { dealId?: string; onDone: () => void }) {
+const istDate = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
+function NewInvoiceForm({ dealId, invoiceId, onDone }: { dealId?: string; invoiceId?: string; onDone: () => void }) {
   const s = useCrm();
   const ws = s.workspace;
   const ourState = gstState(ws.gstin);
   const navigate = useNavigate();
   const fromDeal = s.deals.find((d) => d.id === dealId);
-  const [companyId, setCompanyId] = useState(fromDeal?.companyId ?? "");
-  const [deal, setDeal] = useState(fromDeal?.id ?? "");
-  const [issued, setIssued] = useState(plusDays(0));
-  const [due, setDue] = useState(plusDays(30));
+  const editing = s.invoices.find((i) => i.id === invoiceId);
+  const [companyId, setCompanyId] = useState(editing?.companyId ?? fromDeal?.companyId ?? "");
+  const [deal, setDeal] = useState(editing ? (editing.dealId ?? "") : (fromDeal?.id ?? ""));
+  const [issued, setIssued] = useState(editing ? istDate(editing.issuedAt) : plusDays(0));
+  const [due, setDue] = useState(editing ? istDate(editing.dueAt) : plusDays(30));
   const [lines, setLines] = useState<LineDraft[]>(() =>
-    fromDeal ? [{ desc: fromDeal.title, sac: DEFAULT_SAC, qty: "1", rate: String(fromDeal.valuePaise / 100) }] : [blankLine()],
+    editing
+      ? editing.lines.map((l) => ({ desc: l.desc, sac: l.sac, qty: String(l.qty), rate: String(l.ratePaise / 100) }))
+      : fromDeal
+        ? [{ desc: fromDeal.title, sac: DEFAULT_SAC, qty: "1", rate: String(fromDeal.valuePaise / 100) }]
+        : [blankLine()],
   );
-  const [supplyChoice, setSupplyChoice] = useState<"intra" | "inter">();
+  const [supplyChoice, setSupplyChoice] = useState<"intra" | "inter" | undefined>(editing?.supply);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
@@ -249,6 +256,12 @@ function NewInvoiceForm({ dealId, onDone }: { dealId?: string; onDone: () => voi
         setBusy(true);
         setError(undefined);
         try {
+          if (editing) {
+            const saved = await api<Invoice>(`/invoices/${editing.id}`, { method: "PATCH", body: { dealId: deal || undefined, dueAt: `${due}T00:00:00+05:30`, supply, lines: parsed } });
+            useCrm.setState((x) => ({ invoices: x.invoices.map((i) => (i.id === saved.id ? saved : i)) }));
+            toast(`Saved ${saved.number} · ${formatFull(t.total)}`);
+            return onDone();
+          }
           const inv = await api<Invoice>("/invoices", {
             method: "POST",
             body: {
@@ -286,7 +299,7 @@ function NewInvoiceForm({ dealId, onDone }: { dealId?: string; onDone: () => voi
             : "Add the company first (Companies → New company) if it isn't listed."
         }
       >
-        <Select value={companyId} onChange={(e) => { setCompanyId(e.target.value); setDeal(""); setSupplyChoice(undefined); }} autoFocus={!fromDeal}>
+        <Select value={companyId} disabled={!!editing} onChange={(e) => { setCompanyId(e.target.value); setDeal(""); setSupplyChoice(undefined); }} autoFocus={!fromDeal && !editing}>
           <option value="">Choose a company…</option>
           {[...s.companies].sort((a, b) => a.name.localeCompare(b.name)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </Select>
@@ -299,7 +312,7 @@ function NewInvoiceForm({ dealId, onDone }: { dealId?: string; onDone: () => voi
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Issue date">
-          <Input type="date" value={issued} onChange={(e) => setIssued(e.target.value)} className="font-mono" />
+          <Input type="date" value={issued} disabled={!!editing} title={editing ? "The number belongs to this date's financial year" : undefined} onChange={(e) => setIssued(e.target.value)} className="font-mono" />
         </Field>
         <Field label="Due date">
           <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="font-mono" />
@@ -481,12 +494,12 @@ export function Composers() {
     <Sheet
       open={!!c}
       onOpenChange={(o) => !o && close()}
-      title={c ? TITLES[c.kind] : ""}
+      title={c ? (c.invoiceId ? "Edit draft invoice" : TITLES[c.kind]) : ""}
       footer={
         c && (
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={close}>Cancel</Button>
-            <Button variant="ink" type="submit" form="composer-form">{SUBMIT[c.kind]}</Button>
+            <Button variant="ink" type="submit" form="composer-form">{c.invoiceId ? "Save draft" : SUBMIT[c.kind]}</Button>
           </div>
         )
       }
@@ -494,7 +507,7 @@ export function Composers() {
       {c?.kind === "deal" && <NewDealForm stage={c.stage} onDone={close} />}
       {c?.kind === "task" && <NewTaskForm dealId={c.dealId} onDone={close} />}
       {c?.kind === "call" && <LogCallForm dealId={c.dealId} onDone={close} />}
-      {c?.kind === "invoice" && <NewInvoiceForm dealId={c.dealId} onDone={close} />}
+      {c?.kind === "invoice" && <NewInvoiceForm key={c.invoiceId ?? "new"} dealId={c.dealId} invoiceId={c.invoiceId} onDone={close} />}
       {c?.kind === "company" && <NewCompanyForm onDone={close} />}
       {c?.kind === "contact" && <NewContactForm onDone={close} />}
     </Sheet>

@@ -6,6 +6,7 @@ import { useNavigate, useParams } from "react-router";
 import { EmptyState } from "../../components/empty-state";
 import { invoiceStatus } from "../../data/derive";
 import { useCrm, useWorkspace } from "../../data/store";
+import type { Invoice } from "../../data/types";
 
 /** ₹ amounts on a tax invoice keep their paise: 1,18,000.00 */
 const inr = (paise: number) => (paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -22,8 +23,22 @@ const PRINT_CSS = `
 /** Printable GST tax invoice: the browser's "Save as PDF" turns it into the PDF. */
 export function InvoicePrintRoute() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const inv = useCrm((s) => s.invoices.find((i) => i.id === id));
+  return <TaxDocument doc={inv} />;
+}
+
+/** Printable GST credit note, laid out like the invoice it corrects. */
+export function CreditNotePrintRoute() {
+  const { id } = useParams();
+  const note = useCrm((s) => s.creditNotes.find((c) => c.id === id));
+  // A credit note prints as a document with no due date and no payments, plus a reference to its invoice.
+  return <TaxDocument doc={note && { ...note, payments: [], sent: true }} credit={note && { invoiceNumber: note.invoiceNumber, invoiceIssuedAt: note.invoiceIssuedAt, reason: note.reason }} />;
+}
+
+type PrintableDoc = Pick<Invoice, "id" | "number" | "issuedAt" | "companyId" | "supply" | "lines" | "payments" | "sent" | "seller" | "buyer" | "cancelled" | "credits"> & { dueAt?: string };
+
+function TaxDocument({ doc: inv, credit }: { doc?: PrintableDoc; credit?: { invoiceNumber: string; invoiceIssuedAt: string; reason: string } }) {
+  const navigate = useNavigate();
   const co = useCrm((s) => s.companies.find((c) => c.id === inv?.companyId));
   const workspace = useWorkspace();
 
@@ -34,12 +49,12 @@ export function InvoicePrintRoute() {
     return () => void (document.title = before);
   }, [inv, co]);
 
-  if (!inv) return <div className="p-8"><EmptyState icon={Printer} title="Invoice not found" body="It may have been removed, or the link is old." /></div>;
+  if (!inv) return <div className="p-8"><EmptyState icon={Printer} title="Not found" body="It may have been removed, or the link is old." /></div>;
 
   const seller = inv.seller ?? workspace;
   const buyer = inv.buyer ?? { name: co?.name ?? "—", gstin: co?.gstin ?? "", address: co?.address ?? "", city: co?.city ?? "" };
   const t = invoiceTotals(inv);
-  const st = invoiceStatus(inv);
+  const st = credit ? "sent" : invoiceStatus(inv as Invoice);
   const stamp = st === "draft" ? "DRAFT — NOT ISSUED" : st === "cancelled" ? "CANCELLED" : undefined;
   // Place of supply is where the client is: their GSTIN's state, or ours for an intra-state supply.
   const placeOfSupply = stateWithCode(buyer.gstin) ?? (inv.supply === "intra" ? stateWithCode(seller.gstin) : undefined) ?? (buyer.city || "—");
@@ -53,18 +68,22 @@ export function InvoicePrintRoute() {
         <Button variant="ink" size="sm" className="ml-auto" onClick={() => window.print()}><Printer strokeWidth={1.5} /> Print / Save as PDF</Button>
       </div>
 
-      <article className="inv relative mx-auto w-[210mm] max-w-full p-[14mm] text-[11.5px] leading-relaxed shadow-pop" aria-label={`Tax invoice ${inv.number}`}>
+      <article className="inv relative mx-auto w-[210mm] max-w-full p-[14mm] text-[11.5px] leading-relaxed shadow-pop" aria-label={`${credit ? "Credit note" : "Tax invoice"} ${inv.number}`}>
         {stamp && <div className="absolute top-[14mm] left-1/2 -translate-x-1/2 rounded border-2 border-current px-3 py-1 text-[13px] font-semibold tracking-wider text-[#b42318]">{stamp}</div>}
 
         <header className="bl flex items-start gap-6 border-b pb-5">
           <img src="/logo.png" alt="" className="h-20 w-auto object-contain" />
           <div className="ml-auto text-right">
-            <h1 className="m-0 text-[20px] font-semibold tracking-wide">TAX INVOICE</h1>
+            <h1 className="m-0 text-[20px] font-semibold tracking-wide">{credit ? "CREDIT NOTE" : "TAX INVOICE"}</h1>
             <p className="i3 m-0 text-[10px]">Original for recipient</p>
             <dl className="m-0 mt-2 grid grid-cols-[auto_auto] justify-end gap-x-3 font-mono text-[11px]">
-              <dt className="i3">Invoice no.</dt><dd className="m-0 font-semibold">{inv.number}</dd>
+              <dt className="i3">{credit ? "Credit note no." : "Invoice no."}</dt><dd className="m-0 font-semibold">{inv.number}</dd>
               <dt className="i3">Date</dt><dd className="m-0">{fmtDate(inv.issuedAt)}</dd>
-              <dt className="i3">Due</dt><dd className="m-0">{fmtDate(inv.dueAt)}</dd>
+              {credit ? (
+                <><dt className="i3">Against invoice</dt><dd className="m-0">{credit.invoiceNumber} · {fmtDate(credit.invoiceIssuedAt)}</dd></>
+              ) : (
+                inv.dueAt && <><dt className="i3">Due</dt><dd className="m-0">{fmtDate(inv.dueAt)}</dd></>
+              )}
             </dl>
           </div>
         </header>
@@ -86,6 +105,7 @@ export function InvoicePrintRoute() {
           </div>
         </section>
 
+        {credit && <p className="m-0 pt-3">Reason for credit: <span className="i2">{credit.reason}</span></p>}
         <p className="i2 m-0 py-3">Place of supply: <span className="text-[var(--i-ink)]">{placeOfSupply}</span> · {inv.supply === "intra" ? "Intra-state supply (CGST + SGST)" : "Inter-state supply (IGST)"}</p>
 
         <table className="w-full border-collapse">
@@ -128,11 +148,14 @@ export function InvoicePrintRoute() {
             ) : (
               <><dt className="i2">IGST @ 18%</dt><dd className="m-0 text-right">{inr(t.igst)}</dd></>
             )}
-            <dt className="bl border-t pt-1 font-sans font-semibold">Total (₹)</dt><dd className="bl m-0 border-t pt-1 text-right font-semibold">{inr(t.total)}</dd>
+            <dt className="bl border-t pt-1 font-sans font-semibold">{credit ? "Total credit (₹)" : "Total (₹)"}</dt><dd className="bl m-0 border-t pt-1 text-right font-semibold">{inr(t.total)}</dd>
             {inv.payments.map((p, k) => (
               <div key={k} className="contents"><dt className="i2">Received {fmtDate(p.at)}</dt><dd className="m-0 text-right">−{inr(p.amountPaise)}</dd></div>
             ))}
-            {t.paid > 0 && <><dt className="font-sans font-semibold">Balance due (₹)</dt><dd className="m-0 text-right font-semibold">{inr(t.due)}</dd></>}
+            {inv.credits?.map((c) => (
+              <div key={c.creditNoteId} className="contents"><dt className="i2">Credit note {c.number}</dt><dd className="m-0 text-right">−{inr(c.totalPaise)}</dd></div>
+            ))}
+            {(t.paid > 0 || t.credited > 0) && <><dt className="font-sans font-semibold">Balance due (₹)</dt><dd className="m-0 text-right font-semibold">{inr(t.due)}</dd></>}
           </dl>
         </section>
 

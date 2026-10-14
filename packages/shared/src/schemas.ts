@@ -83,6 +83,12 @@ export const UpdateDealSchema = CreateDealSchema.partial().extend({
 });
 
 /** Issued invoices are immutable — corrections go through a credit note, so there is no update schema. */
+export const CreditNoteSchema = z.object({
+  /** Taxable value to credit, before GST; GST is added at the invoice's rate. */
+  amountPaise: z.number().int().positive("Enter an amount above ₹0"),
+  reason: z.string().trim().min(1, "Say why the credit is being given").max(200),
+});
+
 export const CreateInvoiceSchema = z.object({
   companyId: id,
   dealId: id.optional(),
@@ -94,6 +100,8 @@ export const CreateInvoiceSchema = z.object({
     .min(1)
     .max(100),
 });
+/** A draft can change everything except who it's for and when it was issued (its number belongs to that year). */
+export const UpdateDraftInvoiceSchema = CreateInvoiceSchema.pick({ dealId: true, dueAt: true, supply: true, lines: true }).partial();
 
 export const RecordPaymentSchema = z.object({ amountPaise: paise.refine((v) => v > 0, "Amount must be positive"), at: iso.optional() });
 

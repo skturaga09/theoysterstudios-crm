@@ -1,18 +1,18 @@
-import { fmtDate, fmtDay, formatCompact, formatFull, lakh } from "@pinnacle/shared";
+import { fmtDate, fmtDay, formatCompact, formatFull, lakh, rupees } from "@pinnacle/shared";
 import { Button, cn, Input, MoneyText, Pill, Segmented, Sheet, Table, TBody, TD, TH, THead, toast, TR } from "@pinnacle/ui";
-import { Ban, FileDown, FileText, Plus, Send } from "lucide-react";
+import { Ban, FileDown, FileText, Pencil, Plus, ReceiptText, Send } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { PageHeader } from "../../components/page-header";
 import { agingBucket, daysOverdue, invoiceStatus, invoiceTotals, sum } from "../../data/derive";
 import { useCrm, useIsManager, useWorkspace } from "../../data/store";
-import type { Invoice } from "../../data/types";
+import type { CreditNote, Invoice } from "../../data/types";
 import { api } from "../../lib/api";
 import { useCreateAction, useListNav } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 
-const TONE = { draft: "mute", sent: "mute", partial: "warn", paid: "ok", overdue: "risk", cancelled: "mute" } as const;
-const LABEL = { draft: "Draft", sent: "Sent", partial: "Partially paid", paid: "Paid", overdue: "Overdue", cancelled: "Cancelled" } as const;
+const TONE = { draft: "mute", sent: "mute", partial: "warn", paid: "ok", overdue: "risk", cancelled: "mute", credited: "mute" } as const;
+const LABEL = { draft: "Draft", sent: "Sent", partial: "Partially paid", paid: "Paid", overdue: "Overdue", cancelled: "Cancelled", credited: "Credited" } as const;
 type Filter = "all" | "draft" | "outstanding" | "overdue" | "paid";
 
 export function InvoicesRoute() {
@@ -29,7 +29,7 @@ export function InvoicesRoute() {
       [...s.invoices]
         .map((i) => ({ i, st: invoiceStatus(i), t: invoiceTotals(i), co: s.companies.find((c) => c.id === i.companyId) }))
         .filter((r) =>
-          filter === "all" ? true : filter === "draft" ? r.st === "draft" : filter === "paid" ? r.st === "paid" : filter === "overdue" ? r.st === "overdue" : r.st !== "paid" && r.st !== "draft" && r.st !== "cancelled",
+          filter === "all" ? true : filter === "draft" ? r.st === "draft" : filter === "paid" ? r.st === "paid" : filter === "overdue" ? r.st === "overdue" : !["paid", "draft", "cancelled", "credited"].includes(r.st),
         )
         .sort((a, b) => +new Date(a.i.dueAt) - +new Date(b.i.dueAt)),
     [s.invoices, s.companies, filter],
@@ -206,7 +206,16 @@ function InvoiceDetail({ inv }: { inv: Invoice }) {
           {inv.payments.map((p, k) => (
             <tr key={k}><td colSpan={2} className="pt-1 text-ok">Paid · {fmtDay(p.at)}</td><td className="pt-1 text-right text-ok">−{formatFull(p.amountPaise)}</td></tr>
           ))}
-          {t.paid > 0 && <tr><td colSpan={2} className="pt-1 font-sans font-medium">Balance due</td><td className="pt-1 text-right font-medium">{formatFull(t.due)}</td></tr>}
+          {inv.credits?.map((c) => (
+            <tr key={c.creditNoteId}>
+              <td colSpan={2} className="pt-1 text-ink-2">
+                Credit note{" "}
+                <Link to={`/credit-notes/${c.creditNoteId}/print`} className="underline hover:text-ink">{c.number}</Link> · {fmtDay(c.at)}
+              </td>
+              <td className="pt-1 text-right text-ink-2">−{formatFull(c.totalPaise)}</td>
+            </tr>
+          ))}
+          {(t.paid > 0 || t.credited > 0) && <tr><td colSpan={2} className="pt-1 font-sans font-medium">Balance due</td><td className="pt-1 text-right font-medium">{formatFull(t.due)}</td></tr>}
         </tfoot>
       </table>
     </div>
@@ -222,6 +231,10 @@ function InvoiceActions({ inv }: { inv: Invoice }) {
   const [busy, setBusy] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [reason, setReason] = useState("");
+  const [crediting, setCrediting] = useState(false);
+  const [credit, setCredit] = useState({ amount: "", reason: "" });
+  // Left to credit = taxable value not yet credited.
+  const creditable = t.subtotal - (inv.credits ?? []).reduce((a, c) => a + c.taxablePaise, 0);
   /** Calls the API, then shows the invoice exactly as it was saved. */
   const run = async (path: string, body: object | undefined, done: string) => {
     setBusy(true);
@@ -242,6 +255,11 @@ function InvoiceActions({ inv }: { inv: Invoice }) {
       <Button variant="ghost" size="sm" onClick={() => navigate(`/invoices/${inv.id}/print`)}>
         <FileDown strokeWidth={1.5} /> PDF
       </Button>
+      {isManager && inv.sent && !inv.cancelled && creditable > 0 && !crediting && (
+        <Button variant="ghost" size="sm" onClick={() => setCrediting(true)}>
+          <ReceiptText strokeWidth={1.5} /> Credit note
+        </Button>
+      )}
       {!isManager || st === "cancelled" ? null : st === "draft" && cancelling ? (
         <form
           className="ml-auto flex flex-1 items-center gap-2"
@@ -260,11 +278,42 @@ function InvoiceActions({ inv }: { inv: Invoice }) {
           <Button variant="ghost" size="sm" onClick={() => setCancelling(true)}>
             <Ban strokeWidth={1.5} /> Cancel draft
           </Button>
+          <Button variant="ghost" size="sm" onClick={() => useUi.getState().openComposer("invoice", { invoiceId: inv.id })}>
+            <Pencil strokeWidth={1.5} /> Edit
+          </Button>
           <Button variant="ink" size="sm" className="ml-auto" disabled={busy} onClick={() => void run("/send", undefined, `Marked ${inv.number} as sent`)}>
             <Send strokeWidth={1.5} /> Mark as sent
           </Button>
         </>
-      ) : st !== "paid" ? (
+      ) : crediting ? (
+        <form
+          className="ml-auto flex flex-1 flex-wrap items-center gap-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const v = parseFloat(credit.amount.replace(/,/g, ""));
+            if (!(v > 0)) return toast("Enter the amount to credit in rupees, before GST");
+            if (rupees(v) > creditable) return toast(`At most ${formatFull(creditable)} is left to credit (before GST)`);
+            if (!credit.reason.trim()) return toast("Say why the credit is being given");
+            setBusy(true);
+            try {
+              const res = await api<{ creditNote: CreditNote; invoice: Invoice }>(`/invoices/${inv.id}/credit-notes`, { method: "POST", body: { amountPaise: rupees(v), reason: credit.reason.trim() } });
+              useCrm.setState((s) => ({ invoices: s.invoices.map((i) => (i.id === inv.id ? res.invoice : i)), creditNotes: [res.creditNote, ...s.creditNotes] }));
+              toast(`Credit note ${res.creditNote.number} raised`, { action: { label: "Open PDF", onClick: () => navigate(`/credit-notes/${res.creditNote.id}/print`) } });
+              setCrediting(false);
+              setCredit({ amount: "", reason: "" });
+            } catch (err) {
+              toast(`Couldn't raise the credit note — ${(err as Error).message}`);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <Input aria-label="Amount to credit in rupees, before GST" autoFocus inputMode="decimal" placeholder={`₹ up to ${(creditable / 100).toLocaleString("en-IN")}`} value={credit.amount} onChange={(e) => setCredit({ ...credit, amount: e.target.value })} className="h-7 w-32 font-mono" />
+          <Input aria-label="Reason for the credit" placeholder="Reason" value={credit.reason} onChange={(e) => setCredit({ ...credit, reason: e.target.value })} className="h-7 min-w-0 flex-1" />
+          <Button size="sm" variant="ghost" type="button" onClick={() => setCrediting(false)}>Back</Button>
+          <Button size="sm" variant="ink" type="submit" disabled={busy}>Raise credit note</Button>
+        </form>
+      ) : st !== "paid" && st !== "credited" ? (
         <form
           className="ml-auto flex items-center gap-2"
           onSubmit={async (e) => {

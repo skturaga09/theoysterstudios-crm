@@ -26,7 +26,7 @@ import { useUi } from "../../lib/ui-store";
 import { Timeline } from "./timeline";
 
 const healthTone = { ok: "ok", warn: "warn", risk: "risk" } as const;
-const statusTone = { draft: "mute", sent: "mute", partial: "warn", paid: "ok", overdue: "risk", cancelled: "mute" } as const;
+const statusTone = { draft: "mute", sent: "mute", partial: "warn", paid: "ok", overdue: "risk", cancelled: "mute", credited: "mute" } as const;
 const FILES: Record<string, [string, string][]> = {
   "d-atlas": [["Retainer_Scope_v3.pdf", "PDF · 240 KB"], ["Brand_Guidelines_2025.pdf", "PDF · 3.1 MB"]],
   "d-northwind": [["Northwind_Launch_Film_Proposal.pdf", "PDF · 1.8 MB"]],

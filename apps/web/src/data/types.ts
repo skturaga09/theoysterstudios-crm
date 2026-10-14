@@ -116,7 +116,24 @@ export type Task = {
   remind?: boolean;
 };
 
-export type InvoiceStatus = "draft" | "sent" | "partial" | "paid" | "overdue" | "cancelled";
+export type InvoiceStatus = "draft" | "sent" | "partial" | "paid" | "overdue" | "cancelled" | "credited";
+
+/** A GST credit note against a sent invoice, in its own number series (TOS/CN/26-27/001). */
+export type CreditNote = {
+  id: ID;
+  number: string;
+  invoiceId: ID;
+  invoiceNumber: string;
+  invoiceIssuedAt: ISO;
+  companyId: ID;
+  dealId?: ID;
+  issuedAt: ISO;
+  supply: "intra" | "inter";
+  lines: InvoiceLine[];
+  reason: string;
+  seller?: Invoice["seller"];
+  buyer?: Invoice["buyer"];
+};
 export type InvoiceLine = { desc: string; sac: string; qty: number; ratePaise: Paise };
 export type Invoice = {
   id: ID;
@@ -134,6 +151,8 @@ export type Invoice = {
   seller?: { legalName: string; gstin: string; address: string };
   /** The client's details as they were when the invoice was created. */
   buyer?: { name: string; gstin: string; address: string; city: string };
+  /** Credit notes raised against this invoice; they lower the balance like payments. */
+  credits?: { creditNoteId: ID; number: string; at: ISO; taxablePaise: Paise; totalPaise: Paise }[];
   /** Cancelled drafts stay on record so the number series has no gaps. */
   cancelled?: boolean;
   cancelledAt?: ISO;

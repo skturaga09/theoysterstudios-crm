@@ -24,7 +24,7 @@ import {
 import { toast } from "@pinnacle/ui";
 import { api, save } from "../lib/api";
 import { useSession } from "../lib/session";
-import type { Activity, Company, Contact, Conversation, Deal, Invoice, Lead, Member, Task } from "./types";
+import type { Activity, Company, Contact, Conversation, CreditNote, Deal, Invoice, Lead, Member, Task } from "./types";
 import type { Workspace } from "@pinnacle/shared/schemas";
 
 const uid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 8)}`;
@@ -52,6 +52,7 @@ interface CrmState {
   activities: Activity[];
   tasks: Task[];
   invoices: Invoice[];
+  creditNotes: CreditNote[];
   leads: Lead[];
   /** Id of the most recent live arrival (drives the flash + Lead Flow burst). */
   lastArrival?: { conversationId: string; channel: Lead["channel"]; at: number };
@@ -139,6 +140,7 @@ export const useCrm = create<CrmState>((set, get) => ({
   activities: ACTIVITIES,
   tasks: TASKS,
   invoices: INVOICES,
+  creditNotes: [],
   leads: LEADS,
 
   moveDeal: (id, stage, index) => {

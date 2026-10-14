@@ -9,6 +9,8 @@ import {
   CreateActivitySchema,
   CreateInvoiceSchema,
   CreateTaskSchema,
+  CreditNoteSchema,
+  UpdateDraftInvoiceSchema,
   ImportContactRowSchema,
   ImportRequestSchema,
   RecordPaymentSchema,
@@ -24,7 +26,7 @@ import {
 import { formatFull, invoiceTotals, type InvoiceMath } from "@pinnacle/shared";
 import { nameFromEmail, SUPPORT_MEMBER, type Member, type Verify } from "./auth";
 import type { Doc } from "./db";
-import { createInvoice } from "./invoices";
+import { createCreditNote, createInvoice } from "./invoices";
 
 /** `_id` → `id`, matching the web app's types. */
 const out = ({ _id, ...rest }: { _id: string } & object) => ({ id: _id, ...rest });
@@ -316,7 +318,7 @@ export function buildApp({
     return deletedCount ? reply.code(204).send() : reply.code(404).send({ error: "Not found, or not yours to remove" });
   });
 
-  type InvoiceDoc = InvoiceMath & { _id: string; sent: boolean; cancelled?: boolean; payments: { at: string; amountPaise: number }[] };
+  type InvoiceDoc = InvoiceMath & { _id: string; companyId: string; sent: boolean; cancelled?: boolean; payments: { at: string; amountPaise: number }[] };
   const invoices = db.collection<InvoiceDoc>("invoices");
   app.get("/invoices", async (req) => {
     const { limit, companyId } = ListQuery.parse(req.query);
@@ -325,21 +327,47 @@ export function buildApp({
   });
   app.post("/invoices", { preHandler: notMember }, async (req, reply) => {
     const input = CreateInvoiceSchema.parse(req.body);
-    const { legalName, gstin, address } = await getWorkspace();
+    const { legalName, gstin } = await getWorkspace();
     if (!legalName || !gstin) return reply.code(422).send({ error: "Add the studio's legal name and GSTIN in Settings → Workspace first" });
-    const company = await db.collection<Doc>("companies").findOne({ _id: input.companyId });
-    if (!company) return reply.code(422).send({ error: "That company doesn't exist" });
+    if (!(await db.collection<Doc>("companies").countDocuments({ _id: input.companyId }, { limit: 1 }))) return reply.code(422).send({ error: "That company doesn't exist" });
     if (input.dealId && !(await db.collection<Doc>("deals").countDocuments({ _id: input.dealId, companyId: input.companyId }, { limit: 1 })))
       return reply.code(422).send({ error: "That deal doesn't belong to this company" });
-    // The seller's details are copied onto the invoice, so later edits to the workspace don't change issued invoices.
-    // The client's details are copied too, so editing the company later doesn't change issued invoices.
-    const str = (v: unknown) => (typeof v === "string" ? v : "");
-    const buyer = { name: str(company.name), gstin: str(company.gstin), address: str(company.address), city: str(company.city) };
-    return reply.code(201).send(out(await createInvoice(db, client, { ...input, seller: { legalName, gstin, address }, buyer })));
+    // Our and the client's details are copied onto the invoice, so later edits don't change issued invoices.
+    return reply.code(201).send(out(await createInvoice(db, client, { ...input, ...(await parties(input.companyId)) })));
   });
+
+  /** Our and the client's details as they are now — copied onto an invoice when it's created and when it's issued. */
+  const parties = async (companyId: string) => {
+    const { legalName, gstin, address } = await getWorkspace();
+    const company = await db.collection<Doc>("companies").findOne({ _id: companyId });
+    const str = (v: unknown) => (typeof v === "string" ? v : "");
+    return { seller: { legalName, gstin, address }, buyer: { name: str(company?.name), gstin: str(company?.gstin), address: str(company?.address), city: str(company?.city) } };
+  };
   app.post<{ Params: { id: string } }>("/invoices/:id/send", { preHandler: notMember }, async (req, reply) => {
-    const doc = await invoices.findOneAndUpdate({ _id: req.params.id, cancelled: { $ne: true } }, { $set: { sent: true } }, { returnDocument: "after" });
-    return doc ? out(doc) : reply.code(404).send({ error: "Not found, or cancelled" });
+    const inv = await invoices.findOne({ _id: req.params.id, cancelled: { $ne: true } });
+    if (!inv) return reply.code(404).send({ error: "Not found, or cancelled" });
+    // Issuing is the moment that counts: refresh the copies in case details were corrected while it was a draft.
+    const snapshot = inv.sent ? {} : await parties(String(inv.companyId));
+    return out((await invoices.findOneAndUpdate({ _id: inv._id }, { $set: { sent: true, ...snapshot } }, { returnDocument: "after" }))!);
+  });
+  /** Edit a draft. Sent invoices can't change — that's what credit notes are for. */
+  app.patch<{ Params: { id: string } }>("/invoices/:id", { preHandler: notMember }, async (req, reply) => {
+    const changes = UpdateDraftInvoiceSchema.parse(req.body);
+    const inv = await invoices.findOne({ _id: req.params.id });
+    if (!inv) return reply.code(404).send({ error: "Not found" });
+    if (inv.sent || inv.cancelled) return reply.code(409).send({ error: "Only a draft can be edited; use a credit note for a sent invoice" });
+    if (changes.dealId && !(await db.collection<Doc>("deals").countDocuments({ _id: changes.dealId, companyId: inv.companyId }, { limit: 1 })))
+      return reply.code(422).send({ error: "That deal doesn't belong to this company" });
+    return out((await invoices.findOneAndUpdate({ _id: inv._id }, { $set: changes }, { returnDocument: "after" }))!);
+  });
+  app.post<{ Params: { id: string } }>("/invoices/:id/credit-notes", { preHandler: notMember }, async (req, reply) => {
+    const result = await createCreditNote(db, client, req.params.id, CreditNoteSchema.parse(req.body), req.member._id);
+    if ("error" in result) return reply.code(result.error === "Not found" ? 404 : 409).send({ error: result.error });
+    return reply.code(201).send({ creditNote: out(result.note), invoice: out(result.invoice) });
+  });
+  app.get("/credit-notes", async (req) => {
+    const own = await ownDealIds(req);
+    return (await db.collection<Doc>("creditNotes").find(own ? { dealId: { $in: own } } : {}).sort({ issuedAt: -1 }).limit(5000).toArray()).map(out);
   });
   /**
    * Cancels a draft. The invoice stays (marked cancelled) so the number series has no gaps; a sent invoice

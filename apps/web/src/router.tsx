@@ -8,6 +8,7 @@ import { AppShell } from "./shell/app-shell";
 const routes: RouteObject[] = [
   // Printable invoice: full page, outside the app shell (no sidebar), still behind sign-in.
   { path: "/invoices/:id/print", lazy: async () => ({ Component: (await import("./routes/invoices/print")).InvoicePrintRoute }) },
+  { path: "/credit-notes/:id/print", lazy: async () => ({ Component: (await import("./routes/invoices/print")).CreditNotePrintRoute }) },
   {
     path: "/",
     element: <AppShell />,

@@ -7,8 +7,9 @@ interface UiState {
   dealId?: string;
   openDeal: (id: string) => void;
   closeDeal: () => void;
-  composer?: { kind: Composer; dealId?: string; stage?: string };
-  openComposer: (kind: Composer, opts?: { dealId?: string; stage?: string }) => void;
+  /** `invoiceId`: edit that draft instead of creating a new invoice. */
+  composer?: { kind: Composer; dealId?: string; stage?: string; invoiceId?: string };
+  openComposer: (kind: Composer, opts?: { dealId?: string; stage?: string; invoiceId?: string }) => void;
   closeComposer: () => void;
   create?: () => void;
   setCreate: (fn?: () => void) => void;

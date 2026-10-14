@@ -25,7 +25,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify });
@@ -269,6 +269,26 @@ describe("api", () => {
     const sent = (await call("POST", "/invoices", inv)).json();
     await call("POST", `/invoices/${sent.id}/send`);
     expect((await call("POST", `/invoices/${sent.id}/cancel`, { reason: "Changed mind" })).statusCode).toBe(409);
+  });
+
+  it("edits drafts only, and credits sent invoices in their own series", async () => {
+    const inv = { companyId: c1, dueAt: "2026-11-13T00:00:00+05:30", supply: "intra", lines: [{ desc: "Shoot", sac: "998391", qty: 1, ratePaise: 100000 }] };
+    const draft = (await call("POST", "/invoices", inv)).json();
+    const edited = (await call("PATCH", `/invoices/${draft.id}`, { lines: [{ desc: "Shoot, 2 days", sac: "998391", qty: 2, ratePaise: 100000 }], companyId: "ignored" })).json();
+    expect(edited).toMatchObject({ companyId: c1, lines: [{ desc: "Shoot, 2 days", qty: 2 }] });
+    await call("PATCH", `/companies/${c1}`, { address: "New office, Pune" });
+    const sent = (await call("POST", `/invoices/${draft.id}/send`)).json();
+    expect(sent.buyer.address).toBe("New office, Pune"); // details re-captured at issue
+    expect((await call("PATCH", `/invoices/${draft.id}`, { dueAt: "2026-12-01T00:00:00+05:30" })).statusCode).toBe(409);
+
+    // ₹2,000 + 9% + 9% = ₹2,360. Credit ₹500 (+GST = ₹590).
+    expect((await call("POST", `/invoices/${(await call("POST", "/invoices", inv)).json().id}/credit-notes`, { amountPaise: 100, reason: "x" })).statusCode).toBe(409); // draft
+    const cn = (await call("POST", `/invoices/${draft.id}/credit-notes`, { amountPaise: 50000, reason: "One day cancelled" })).json();
+    expect(cn.creditNote.number).toMatch(/^TOS\/CN\/\d\d-\d\d\/001$/);
+    expect(cn.invoice.credits[0]).toMatchObject({ taxablePaise: 50000, totalPaise: 59000 });
+    expect((await call("POST", `/invoices/${draft.id}/credit-notes`, { amountPaise: 150001, reason: "too much" })).statusCode).toBe(409); // only ₹1,500 left
+    expect((await call("POST", `/invoices/${draft.id}/payments`, { amountPaise: 236000 - 59000 + 1 })).statusCode).toBe(409); // can't overpay what's left
+    expect((await call("GET", "/credit-notes")).json()[0].invoiceNumber).toBe(draft.number);
   });
 
   it("deletes records and keeps a deal's board position", async () => {

@@ -62,7 +62,7 @@ export function invoiceStatus(inv: Invoice): InvoiceStatus {
   if (inv.cancelled) return "cancelled";
   const t = invoiceTotals(inv);
   if (!inv.sent) return "draft";
-  if (t.due <= 100) return "paid";
+  if (t.due <= 100) return t.credited > 0 && t.paid === 0 ? "credited" : "paid";
   if (new Date(inv.dueAt) < startOfToday()) return "overdue";
   if (t.paid > 0) return "partial";
   return "sent";
