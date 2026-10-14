@@ -1,0 +1,30 @@
+{
+  "name": "@pinnacle/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/server.ts",
+    "test": "vitest run",
+    "test:firestore": "node --env-file=.env node_modules/vitest/vitest.mjs run",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "bundle": "node bundle.mjs"
+  },
+  "dependencies": {
+    "@pinnacle/shared": "workspace:*",
+    "fastify": "^5.12.7",
+    "firebase-admin": "^14.5.0",
+    "firebase-functions": "^7.4.0",
+    "mongodb": "^7.7.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.28.2",
+    "mongodb-memory-server": "^11.3.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.4"
+  }
+}

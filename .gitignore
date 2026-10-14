@@ -1,0 +1,14 @@
+node_modules
+dist
+.turbo
+.env*
+!.env.example
+*.log
+.DS_Store
+test-results
+playwright-report
+dist-preview
+
+# Firebase deploy bundle (built by apps/api/bundle.mjs)
+apps/api/deploy
+.firebase

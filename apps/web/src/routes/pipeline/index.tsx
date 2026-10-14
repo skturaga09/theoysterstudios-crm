@@ -1,0 +1,271 @@
+import { CHANNEL_LABEL, CHANNELS, fmtDay, formatCompact, HEALTH_LABEL, type Channel, type Health, type Stage } from "@pinnacle/shared";
+import {
+  Avatar,
+  Button,
+  ChannelChip,
+  cn,
+  HealthDot,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuLabel,
+  MenuSeparator,
+  MenuTrigger,
+  MoneyText,
+  Segmented,
+  StageMeter,
+  Table,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+} from "@pinnacle/ui";
+import { ChevronDown, Columns3, List, Plus, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { PageHeader } from "../../components/page-header";
+import { isOpen, PROBABILITY } from "../../data/derive";
+import { ME_ID } from "../../data/seed";
+import { useCrm } from "../../data/store";
+import type { Deal } from "../../data/types";
+import { useCreateAction, useListNav, usePref } from "../../lib/hooks";
+import { useUi } from "../../lib/ui-store";
+import { Board } from "./board";
+
+export type Filters = { owner?: string; channel?: Channel; health?: Health; month?: "this" | "next" };
+
+// A function so "My deals" uses the signed-in member's id, which is set after this module loads.
+const VIEWS = (): { name: string; filters: Filters }[] => [
+  { name: "All deals", filters: {} },
+  { name: "My deals", filters: { owner: ME_ID } },
+  { name: "Closing this month", filters: { month: "this" } },
+  { name: "At risk", filters: { health: "risk" } },
+];
+
+const monthBounds = (offset: number) => {
+  const a = new Date();
+  a.setDate(1);
+  a.setHours(0, 0, 0, 0);
+  a.setMonth(a.getMonth() + offset);
+  const b = new Date(a);
+  b.setMonth(b.getMonth() + 1);
+  return [a, b] as const;
+};
+
+export function applyFilters(deals: Deal[], f: Filters) {
+  return deals.filter((d) => {
+    if (f.owner && d.ownerId !== f.owner) return false;
+    if (f.channel && d.channel !== f.channel) return false;
+    if (f.health && d.health !== f.health) return false;
+    if (f.month) {
+      const [a, b] = monthBounds(f.month === "this" ? 0 : 1);
+      const c = new Date(d.closeAt);
+      if (c < a || c >= b) return false;
+    }
+    return true;
+  });
+}
+
+function FilterChip<T extends string>({
+  label,
+  value,
+  display,
+  options,
+  onChange,
+}: {
+  label: string;
+  value?: T;
+  display?: string;
+  options: { value: T; label: string }[];
+  onChange: (v?: T) => void;
+}) {
+  return (
+    <Menu>
+      <MenuTrigger asChild>
+        <button
+          className={cn(
+            "inline-flex h-7 items-center gap-1.5 rounded-control border px-2.5 text-[12.5px] transition-colors duration-150",
+            value ? "border-line-2 bg-surface text-ink" : "border-dashed border-line-2 text-ink-2 hover:text-ink",
+          )}
+        >
+          {label}
+          {value && <span className="font-medium">{display}</span>}
+          <ChevronDown size={13} strokeWidth={1.5} className="text-ink-3" />
+        </button>
+      </MenuTrigger>
+      <MenuContent>
+        {options.map((o) => (
+          <MenuItem key={o.value} checked={value === o.value} onSelect={() => onChange(value === o.value ? undefined : o.value)}>
+            {o.label}
+          </MenuItem>
+        ))}
+        {value && (
+          <>
+            <MenuSeparator />
+            <MenuItem onSelect={() => onChange(undefined)}>Clear</MenuItem>
+          </>
+        )}
+      </MenuContent>
+    </Menu>
+  );
+}
+
+export function PipelineRoute() {
+  const deals = useCrm((s) => s.deals);
+  const members = useCrm((s) => s.members);
+  const [view, setView] = usePref<"board" | "table">("pipeline.view", "board");
+  const [filters, setFilters] = useState<Filters>({});
+  const [viewName, setViewName] = useState("All deals");
+  useCreateAction(() => useUi.getState().openComposer("deal"));
+
+  const visible = useMemo(() => applyFilters(deals, filters), [deals, filters]);
+  const open = visible.filter(isOpen);
+  const pipeline = open.reduce((a, d) => a + d.valuePaise, 0);
+  const weighted = open.reduce((a, d) => a + d.valuePaise * PROBABILITY[d.stage], 0);
+  const set = (patch: Filters) => {
+    setFilters((f) => ({ ...f, ...patch }));
+    setViewName("Custom");
+  };
+  const anyFilter = Object.values(filters).some(Boolean);
+
+  return (
+    <>
+      <PageHeader
+        eyebrow={<>{open.length} open · <MoneyText paise={pipeline} /> pipeline · <MoneyText paise={Math.round(weighted)} /> weighted</>}
+        title="Pipeline"
+        actions={
+          <>
+            <Segmented
+              label="Layout"
+              value={view}
+              onChange={setView}
+              options={[
+                { value: "board", label: <><Columns3 strokeWidth={1.5} />Board</> },
+                { value: "table", label: <><List strokeWidth={1.5} />Table</> },
+              ]}
+            />
+            <Button variant="ink" onClick={() => useUi.getState().openComposer("deal")}>
+              <Plus strokeWidth={1.5} /> New deal
+            </Button>
+          </>
+        }
+      />
+
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <Menu>
+          <MenuTrigger asChild>
+            <button className="inline-flex h-7 items-center gap-1.5 rounded-control px-1.5 text-[13px] font-medium hover:bg-hover">
+              {viewName} <ChevronDown size={13} strokeWidth={1.5} className="text-ink-3" />
+            </button>
+          </MenuTrigger>
+          <MenuContent>
+            <MenuLabel>Saved views</MenuLabel>
+            {VIEWS().map((v) => (
+              <MenuItem key={v.name} checked={viewName === v.name} onSelect={() => { setFilters(v.filters); setViewName(v.name); }}>
+                {v.name}
+              </MenuItem>
+            ))}
+          </MenuContent>
+        </Menu>
+        <span className="mx-1 h-4 w-px bg-line" />
+        <FilterChip
+          label="Owner"
+          value={filters.owner}
+          display={members.find((m) => m.id === filters.owner)?.name.split(" ")[0]}
+          options={members.map((m) => ({ value: m.id, label: m.name }))}
+          onChange={(owner) => set({ owner })}
+        />
+        <FilterChip
+          label="Source"
+          value={filters.channel}
+          display={filters.channel && CHANNEL_LABEL[filters.channel]}
+          options={CHANNELS.map((c) => ({ value: c, label: CHANNEL_LABEL[c] }))}
+          onChange={(channel) => set({ channel })}
+        />
+        <FilterChip
+          label="Close"
+          value={filters.month}
+          display={filters.month === "this" ? "This month" : "Next month"}
+          options={[{ value: "this", label: "This month" }, { value: "next", label: "Next month" }]}
+          onChange={(month) => set({ month })}
+        />
+        <FilterChip
+          label="Health"
+          value={filters.health}
+          display={filters.health && HEALTH_LABEL[filters.health]}
+          options={(["ok", "warn", "risk"] as const).map((h) => ({ value: h, label: HEALTH_LABEL[h] }))}
+          onChange={(health) => set({ health })}
+        />
+        {anyFilter && (
+          <Button variant="ghost" size="sm" onClick={() => { setFilters({}); setViewName("All deals"); }}>
+            <X strokeWidth={1.5} /> Clear
+          </Button>
+        )}
+      </div>
+
+      {view === "board" ? <Board deals={visible} /> : <DealTable deals={visible} />}
+    </>
+  );
+}
+
+type SortKey = "company" | "stage" | "value" | "close" | "owner";
+const STAGE_RANK: Record<Stage, number> = { new: 0, qualified: 1, proposal: 2, negotiation: 3, won: 4, lost: 5 };
+
+function DealTable({ deals }: { deals: Deal[] }) {
+  const companies = useCrm((s) => s.companies);
+  const members = useCrm((s) => s.members);
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "close", dir: 1 });
+  const name = (d: Deal) => companies.find((c) => c.id === d.companyId)?.name ?? "";
+  const rows = useMemo(() => {
+    const val = (d: Deal) =>
+      sort.key === "company" ? name(d) : sort.key === "stage" ? STAGE_RANK[d.stage] : sort.key === "value" ? d.valuePaise : sort.key === "owner" ? d.ownerId : +new Date(d.closeAt);
+    return [...deals].sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sort.dir);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deals, sort, companies]);
+  const [active] = useListNav(rows.length, (i) => useUi.getState().openDeal(rows[i]!.id));
+  const H = ({ k, children, align }: { k: SortKey; children: string; align?: "right" }) => (
+    <TH align={align} aria-sort={sort.key === k ? (sort.dir === 1 ? "ascending" : "descending") : "none"}>
+      <button className="uppercase hover:text-ink" onClick={() => setSort((s) => ({ key: k, dir: s.key === k ? (s.dir === 1 ? -1 : 1) : 1 }))}>
+        {children} {sort.key === k ? (sort.dir === 1 ? "↑" : "↓") : ""}
+      </button>
+    </TH>
+  );
+  return (
+    <div className="border-t border-line">
+      <Table>
+        <THead>
+          <tr>
+            <H k="company">Deal</H>
+            <H k="stage">Stage</H>
+            <H k="value" align="right">Value</H>
+            <H k="close">Close</H>
+            <TH className="hidden md:table-cell">Source</TH>
+            <H k="owner">Owner</H>
+            <TH className="w-6"><span className="sr-only">Health</span></TH>
+          </tr>
+        </THead>
+        <TBody>
+          {rows.map((d, i) => {
+            const owner = members.find((m) => m.id === d.ownerId);
+            return (
+              <TR key={d.id} data-nav-index={i} onClick={() => useUi.getState().openDeal(d.id)} className={cn(active === i && "bg-hover")}>
+                <TD>
+                  <div className="font-medium">{name(d)}</div>
+                  <div className="text-[11.5px] text-ink-3">{d.title}</div>
+                </TD>
+                <TD><StageMeter stage={d.stage} /></TD>
+                <TD align="right"><MoneyText paise={d.valuePaise} /></TD>
+                <TD numeric className="text-ink-2">{fmtDay(d.closeAt)}</TD>
+                <TD className="hidden md:table-cell"><ChannelChip channel={d.channel} /></TD>
+                <TD>{owner && <span className="flex items-center gap-2"><Avatar name={owner.name} me={owner.id === ME_ID} /> <span className="hidden text-ink-2 lg:inline">{owner.name}</span></span>}</TD>
+                <TD><HealthDot health={d.health} /></TD>
+              </TR>
+            );
+          })}
+        </TBody>
+      </Table>
+      {!rows.length && <p className="t-dense py-8 text-ink-3">No deals match these filters. Clear a filter or create a deal with C.</p>}
+      <p className="m-0 mt-3 font-mono text-[11px] text-ink-3">{rows.length} deals · {formatCompact(rows.reduce((a, d) => a + d.valuePaise, 0))} · J / K to move · Enter to open</p>
+    </div>
+  );
+}

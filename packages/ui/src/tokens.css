@@ -1,0 +1,311 @@
+/* ==========================================================================
+   The Oyster Studios design tokens — "Editorial studio"
+   Ink on paper. One accent (signal). Semantic ok/warn/risk kept separate.
+   Theme: system default; [data-theme="light"|"dark"] on <html> overrides.
+   ========================================================================== */
+
+:root,
+[data-theme="light"] {
+  --bg: #f5f5f2;
+  --surface: #ffffff;
+  --sunken: #edede9;
+  --hover: #f0f0ec;
+  --ink: #16181b;
+  --ink-2: #5a5e65;
+  --ink-3: #8e9299;
+  --line: #e2e2dc;
+  --line-2: #cfcfc8;
+  --signal: #f2551c;
+  --signal-wash: #fde8de;
+  --grad-from: #f2551c;
+  --grad-via: #f0782f;
+  --grad-to: #d93a6a;
+  --ok: #1e7f55;
+  --ok-wash: #e1f1e8;
+  --warn: #a86a12;
+  --warn-wash: #f6ecd9;
+  --risk: #c23b32;
+  --risk-wash: #f8e3e1;
+
+  /* Ink-on-ink text (primary buttons, inverted avatar, toast) */
+  --on-ink: #f5f5f2;
+
+  --shadow: 0 0 0 1px rgb(22 24 27 / 0.05), 0 2px 2px -1px rgb(22 24 27 / 0.06);
+  --pop: 0 0 0 1px rgb(22 24 27 / 0.05), 0 16px 40px -12px rgb(22 24 27 / 0.22), 0 4px 10px -4px rgb(22 24 27 / 0.08);
+  --scrim: rgb(22 24 27 / 0.28);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1012;
+    --surface: #16171a;
+    --sunken: #1d1e22;
+    --hover: #1b1c20;
+    --ink: #ecece7;
+    --ink-2: #a2a5ab;
+    --ink-3: #6c7077;
+    --line: #25272b;
+    --line-2: #34373c;
+    --signal: #ff7444;
+    --signal-wash: #3a1d11;
+  --grad-from: #ff7444;
+  --grad-via: #ff9a4d;
+  --grad-to: #f0628f;
+    --grad-from: #ff7444;
+    --grad-via: #ff9a4d;
+    --grad-to: #f0628f;
+    --ok: #4fbf8a;
+    --ok-wash: #11291e;
+    --warn: #d9a04a;
+    --warn-wash: #2e2413;
+    --risk: #f06a5e;
+    --risk-wash: #33191a;
+    --on-ink: #0f1012;
+    --shadow: 0 0 0 1px rgb(255 255 255 / 0.04), 0 2px 2px -1px rgb(0 0 0 / 0.5);
+    --pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 18px 44px -12px rgb(0 0 0 / 0.7), 0 4px 10px -4px rgb(0 0 0 / 0.5);
+    --scrim: rgb(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}
+
+[data-theme="dark"] {
+  --bg: #0f1012;
+  --surface: #16171a;
+  --sunken: #1d1e22;
+  --hover: #1b1c20;
+  --ink: #ecece7;
+  --ink-2: #a2a5ab;
+  --ink-3: #6c7077;
+  --line: #25272b;
+  --line-2: #34373c;
+  --signal: #ff7444;
+  --signal-wash: #3a1d11;
+  --ok: #4fbf8a;
+  --ok-wash: #11291e;
+  --warn: #d9a04a;
+  --warn-wash: #2e2413;
+  --risk: #f06a5e;
+  --risk-wash: #33191a;
+  --on-ink: #0f1012;
+  --shadow: 0 0 0 1px rgb(255 255 255 / 0.04), 0 2px 2px -1px rgb(0 0 0 / 0.5);
+  --pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 18px 44px -12px rgb(0 0 0 / 0.7), 0 4px 10px -4px rgb(0 0 0 / 0.5);
+  --scrim: rgb(0 0 0 / 0.5);
+  color-scheme: dark;
+}
+
+/* ---------- Tailwind v4 theme mapping ----------
+   Our names first; shadcn names alias them so generated
+   shadcn components pick up the same palette. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-hover: var(--hover);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-on-ink: var(--on-ink);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-signal: var(--signal);
+  --color-signal-wash: var(--signal-wash);
+  --color-ok: var(--ok);
+  --color-ok-wash: var(--ok-wash);
+  --color-warn: var(--warn);
+  --color-warn-wash: var(--warn-wash);
+  --color-risk: var(--risk);
+  --color-risk-wash: var(--risk-wash);
+
+  /* shadcn aliases (note: shadcn "accent" = our row hover) */
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--ink);
+  --color-primary-foreground: var(--on-ink);
+  --color-secondary: var(--sunken);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--sunken);
+  --color-muted-foreground: var(--ink-2);
+  --color-accent: var(--hover);
+  --color-accent-foreground: var(--ink);
+  --color-destructive: var(--risk);
+  --color-border: var(--line);
+  --color-input: var(--line-2);
+  --color-ring: var(--signal);
+
+  --font-sans: "Geist Variable", "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, "SF Mono", monospace;
+  --font-serif: "Newsreader Variable", "Newsreader", ui-serif, Georgia, serif;
+
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-panel: 10px;
+  --radius-menu: 14px;
+  --radius-chip: 99px;
+  /* shadcn's --radius */
+  --radius: 6px;
+
+  --shadow-rest: var(--shadow);
+  --shadow-pop: var(--pop);
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* ---------- Signal gradient ----------
+   Warm extension of the accent. Highlights only: the user's name, the logo mark,
+   the one signal button, the current stage. Never backgrounds or decoration. */
+@utility bg-grad {
+  background-image: linear-gradient(100deg, var(--grad-from) 0%, var(--grad-via) 45%, var(--grad-to) 100%);
+}
+@utility text-grad {
+  background-image: linear-gradient(100deg, var(--grad-from) 0%, var(--grad-via) 45%, var(--grad-to) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  padding-right: 0.08em; /* keeps italic overhang inside the clip… */
+  margin-right: -0.08em; /* …without shifting what follows */
+}
+
+/* ---------- Type scale ---------- */
+@utility t-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+@utility t-meta {
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+@utility t-dense {
+  font-size: 13px;
+  line-height: 1.45;
+}
+@utility t-body {
+  font-size: 14px;
+  line-height: 1.45;
+}
+@utility t-sheet {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  line-height: 1.1;
+  font-weight: 400;
+  letter-spacing: -0.005em;
+}
+@utility t-title {
+  font-family: var(--font-serif);
+  font-size: 34px;
+  line-height: 1.05;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+@utility t-greeting {
+  font-family: var(--font-serif);
+  font-size: 42px;
+  line-height: 1.05;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+@utility t-kpi {
+  font-family: var(--font-serif);
+  font-size: 44px;
+  line-height: 1;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Base ---------- */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--line);
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    background: var(--bg);
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.45;
+    font-feature-settings: "ss01";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  ::selection {
+    background: var(--signal-wash);
+    color: var(--ink);
+  }
+  :focus-visible {
+    outline: 2px solid var(--signal);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  button {
+    cursor: pointer;
+  }
+  [data-theme] {
+    background-color: var(--bg);
+    color: var(--ink);
+  }
+}
+
+/* Route transitions (View Transitions API).
+   Old: fade + 4px up, 180ms. New: fade in + 6px rise, 320ms. */
+::view-transition-old(main) {
+  animation: 180ms var(--ease-out) both vt-out;
+}
+::view-transition-new(main) {
+  animation: 320ms var(--ease-out) both vt-in;
+}
+@keyframes vt-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(main),
+  ::view-transition-new(main) {
+    animation-duration: 100ms;
+    animation-name: vt-fade;
+    transform: none;
+  }
+  @keyframes vt-fade {
+    from {
+      opacity: 0;
+    }
+  }
+}

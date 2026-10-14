@@ -1,0 +1,34 @@
+@import "tailwindcss";
+@import "@pinnacle/ui/tokens.css";
+@import "@fontsource-variable/geist/wght.css";
+@import "@fontsource-variable/geist-mono/wght.css";
+@import "@fontsource-variable/newsreader/opsz.css";
+@import "@fontsource-variable/newsreader/opsz-italic.css";
+
+/* Scan the shared UI package for class names. */
+@source "../../../packages/ui/src";
+
+/* Theme-dependent icons (sun in dark, moon in light). */
+.theme-dark-only { display: none; }
+[data-theme="dark"] .theme-dark-only { display: block; }
+[data-theme="dark"] .theme-light-only { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-dark-only { display: block; }
+  :root:not([data-theme="light"]) .theme-light-only { display: none; }
+}
+
+/* New-item flash: signal-wash that clears (SSE arrivals, converted rows). */
+@keyframes flash-new {
+  from { background-color: var(--signal-wash); }
+  to { background-color: transparent; }
+}
+.flash-new { animation: flash-new 1.8s var(--ease-out) both; }
+/* Deal → Won: a single ok ring pulse. */
+@keyframes won-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent); }
+  100% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--ok) 0%, transparent); }
+}
+.won-pulse { animation: won-pulse 600ms var(--ease-out) 1; }
+@media (prefers-reduced-motion: reduce) {
+  .flash-new, .won-pulse { animation-duration: 1ms; }
+}

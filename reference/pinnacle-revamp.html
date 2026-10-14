@@ -1,0 +1,848 @@
+<title>Pinnacle CRM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap">
+
+<style>
+/* ================= TOKENS ================= */
+:root{
+  /* shadcn/ui — zinc, light */
+  --bg:#FAFAFA; --panel:#FFFFFF; --panel-2:#F4F4F5; --sidebar:#FCFCFD;
+  --border:#E4E4E7; --border-strong:#D4D4D8;
+  --text:#18181B; --text-2:#71717A; --text-3:#A1A1AA;
+  --primary:#18181B; --primary-hover:#27272A; --primary-fg:#FAFAFA; --primary-wash:#F4F4F5; --primary-border:#E4E4E7;
+  --gray:#71717A; --gray-w:#F4F4F5;
+  --blue:#2563EB; --blue-w:#EAF1FE;
+  --sky:#0284C7; --sky-w:#E2F3FB;
+  --indigo:#6366F1; --indigo-w:#EDEDFD;
+  --green:#16A34A; --green-w:#E7F6EC;
+  --amber:#CA7B0A; --amber-w:#FBEFD6;
+  --red:#DC2626; --red-w:#FBE9E9;
+  --shadow-sm:0 1px 2px 0 rgba(0,0,0,.05);
+  --shadow:0 1px 3px 0 rgba(0,0,0,.08), 0 1px 2px -1px rgba(0,0,0,.06);
+  --shadow-pop:0 10px 30px -10px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.08);
+  --font:"Hanken Grotesk",system-ui,-apple-system,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+  --r:8px; --r-sm:6px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#09090B; --panel:#101012; --panel-2:#18181B; --sidebar:#0B0B0D;
+  --border:#27272A; --border-strong:#3F3F46;
+  --text:#FAFAFA; --text-2:#A1A1AA; --text-3:#71717A;
+  --primary:#FAFAFA; --primary-hover:#E4E4E7; --primary-fg:#18181B; --primary-wash:#27272A; --primary-border:#3F3F46;
+  --gray:#A1A1AA; --gray-w:#27272A;
+  --blue:#60A5FA; --blue-w:#17233A;
+  --sky:#38BDF8; --sky-w:#122733;
+  --indigo:#A5A6F6; --indigo-w:#1F1F3A;
+  --green:#4ADE80; --green-w:#11291D;
+  --amber:#E0A34A; --amber-w:#2E2411;
+  --red:#F26B5E; --red-w:#331A1A;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.5);
+  --shadow:0 1px 3px rgba(0,0,0,.6), 0 1px 2px -1px rgba(0,0,0,.5);
+  --shadow-pop:0 16px 40px -8px rgba(0,0,0,.7), 0 2px 8px rgba(0,0,0,.6);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#09090B; --panel:#101012; --panel-2:#18181B; --sidebar:#0B0B0D;
+  --border:#27272A; --border-strong:#3F3F46;
+  --text:#FAFAFA; --text-2:#A1A1AA; --text-3:#71717A;
+  --primary:#FAFAFA; --primary-hover:#E4E4E7; --primary-fg:#18181B; --primary-wash:#27272A; --primary-border:#3F3F46;
+  --gray:#A1A1AA; --gray-w:#27272A; --blue:#60A5FA; --blue-w:#17233A; --sky:#38BDF8; --sky-w:#122733;
+  --indigo:#A5A6F6; --indigo-w:#1F1F3A; --green:#4ADE80; --green-w:#11291D; --amber:#E0A34A; --amber-w:#2E2411; --red:#F26B5E; --red-w:#331A1A;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.5);
+  --shadow:0 1px 3px rgba(0,0,0,.6), 0 1px 2px -1px rgba(0,0,0,.5);
+  --shadow-pop:0 16px 40px -8px rgba(0,0,0,.7), 0 2px 8px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font);font-size:13px;line-height:1.45;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+a{color:inherit;text-decoration:none}
+button{font-family:inherit;cursor:pointer;color:inherit}
+input{font-family:inherit}
+::selection{background:var(--primary-wash)}
+:focus-visible{outline:2px solid var(--primary);outline-offset:1px;border-radius:4px}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono)}
+
+/* ================= APP SHELL ================= */
+.app{display:grid;grid-template-columns:248px 1fr;height:100vh;overflow:hidden}
+
+/* ---- Sidebar ---- */
+.side{background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.ws{display:flex;align-items:center;gap:10px;padding:12px 12px;margin:6px;border-radius:var(--r);cursor:pointer;transition:background .13s}
+.ws:hover{background:var(--panel-2)}
+.ws .logo{width:30px;height:30px;border-radius:7px;background:var(--primary);color:var(--primary-fg);display:grid;place-items:center;
+  font-weight:800;font-size:15px;flex:none;box-shadow:var(--shadow-sm)}
+.ws .wsname{min-width:0;line-height:1.2}
+.ws .wsname b{font-size:13.5px;font-weight:700;display:block}
+.ws .wsname span{font-size:11px;color:var(--text-3)}
+.ws .chev{margin-left:auto;color:var(--text-3);flex:none}
+.side-sep{height:1px;background:var(--border);margin:2px 12px 8px}
+
+.side-scroll{overflow-y:auto;flex:1;padding:2px 8px 8px}
+.navlbl{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);
+  padding:12px 10px 5px}
+.nav{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px}
+.nav a{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--r-sm);color:var(--text-2);
+  font-weight:500;font-size:13px;position:relative;transition:background .12s,color .12s}
+.nav a .ic{width:17px;height:17px;flex:none;color:var(--text-3)}
+.nav a .ct{margin-left:auto;font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums;
+  background:var(--panel-2);border:1px solid var(--border);border-radius:20px;padding:0 6px;min-width:20px;text-align:center;font-weight:600}
+.nav a:hover{background:var(--panel-2);color:var(--text)}
+.nav a:hover .ic{color:var(--text-2)}
+.nav a.active{background:var(--primary-wash);color:var(--primary);font-weight:600}
+.nav a.active .ic{color:var(--primary)}
+.nav a.active .ct{background:transparent;border-color:var(--primary-border);color:var(--primary)}
+
+.side-foot{border-top:1px solid var(--border);padding:8px;display:flex;align-items:center;gap:9px}
+.side-foot .me{width:28px;height:28px;border-radius:50%;background:var(--indigo);color:#fff;display:grid;place-items:center;
+  font-weight:700;font-size:12px;flex:none}
+.side-foot .meinfo{min-width:0;line-height:1.2}
+.side-foot .meinfo b{font-size:12.5px;font-weight:600;display:block}
+.side-foot .meinfo span{font-size:11px;color:var(--text-3)}
+.iconbtn{width:28px;height:28px;border-radius:var(--r-sm);border:1px solid transparent;background:transparent;color:var(--text-3);
+  display:grid;place-items:center;transition:.12s;flex:none}
+.iconbtn:hover{background:var(--panel-2);color:var(--text);border-color:var(--border)}
+
+/* ---- Main ---- */
+.main{min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.topbar{height:52px;border-bottom:1px solid var(--border);background:var(--panel);display:flex;align-items:center;gap:12px;padding:0 16px;flex:none}
+.menu-toggle{display:none}
+.gsearch{flex:1;max-width:420px;display:flex;align-items:center;gap:8px;background:var(--panel-2);border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:6px 10px;color:var(--text-3);font-size:12.5px}
+.gsearch input{border:none;background:transparent;outline:none;color:var(--text);flex:1;font-size:12.5px}
+.gsearch kbd{font-family:var(--mono);font-size:10px;border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--text-3)}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.notif{position:relative}
+.notif .dot{position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--red);border:1.5px solid var(--panel)}
+
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:var(--r-sm);border:1px solid var(--border-strong);
+  background:var(--panel);color:var(--text);font-weight:600;font-size:12.5px;transition:.12s;white-space:nowrap}
+.btn:hover{background:var(--panel-2);border-color:var(--text-3)}
+.btn .ic{width:15px;height:15px}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-fg)}
+.btn.primary:hover{background:var(--primary-hover);border-color:var(--primary-hover)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--text-2)}
+.btn.ghost:hover{background:var(--panel-2);color:var(--text)}
+.btn.sm{height:28px;padding:0 9px;font-size:12px}
+.btn:active{transform:scale(.975)}
+
+.content{flex:1;overflow-y:auto;min-height:0}
+.view{display:none}
+.view.active{display:block;animation:fade .16s ease}
+@keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.wrap{padding:18px 22px 40px;max-width:1440px}
+
+/* ---- view head / toolbars ---- */
+.vhead{display:flex;align-items:flex-end;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+.vhead .vtitle{font-size:19px;font-weight:700;letter-spacing:-.01em}
+.vhead .vsub{font-size:12.5px;color:var(--text-3);margin-top:2px}
+.vhead .vtools{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:2px}
+.seg button{height:26px;padding:0 11px;border:none;background:transparent;border-radius:5px;font-weight:600;font-size:12px;color:var(--text-2);display:inline-flex;align-items:center;gap:6px}
+.seg button.on{background:var(--panel);color:var(--text);box-shadow:var(--shadow-sm)}
+.seg button .ic{width:14px;height:14px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--border-strong);border-radius:var(--r-sm);
+  background:var(--panel);font-size:12px;font-weight:500;color:var(--text-2)}
+.chip b{color:var(--text);font-weight:600}
+.chip.dashed{border-style:dashed;color:var(--text-3)}
+.chip:hover{border-color:var(--text-3);color:var(--text)}
+.chip .x{color:var(--text-3);margin-left:1px}
+
+/* ---- badges / avatars ---- */
+.badge{display:inline-flex;align-items:center;gap:5px;height:21px;padding:0 8px;border-radius:20px;font-size:11.5px;font-weight:600;
+  color:var(--c,var(--gray));background:var(--w,var(--gray-w));border:1px solid color-mix(in srgb,var(--c,var(--gray)) 24%,transparent);white-space:nowrap}
+.badge .d{width:6px;height:6px;border-radius:50%;background:currentColor}
+.av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:10.5px;font-weight:700;color:#fff;flex:none;letter-spacing:.01em}
+.av.lg{width:44px;height:44px;font-size:17px;border-radius:10px}
+.av.sm{width:20px;height:20px;font-size:9.5px}
+.avstack{display:flex}
+.avstack .av{margin-left:-6px;box-shadow:0 0 0 2px var(--panel)}
+.avstack .av:first-child{margin-left:0}
+
+/* ================= METRIC CARDS ================= */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.metric{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);padding:14px 15px;position:relative}
+.metric .ml{font-size:12px;color:var(--text-2);font-weight:500;display:flex;align-items:center;gap:7px}
+.metric .ml .mi{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:var(--c);background:var(--w)}
+.metric .mv{font-size:26px;font-weight:700;letter-spacing:-.02em;margin:9px 0 2px}
+.metric .mv small{font-size:14px;color:var(--text-3);font-weight:600}
+.metric .md{font-size:11.5px;color:var(--text-2);display:flex;align-items:center;gap:5px}
+.trend{font-weight:700;font-size:11.5px;display:inline-flex;align-items:center;gap:2px}
+.trend.up{color:var(--green)} .trend.down{color:var(--red)}
+.metric .mspark{position:absolute;right:14px;bottom:12px;width:66px;height:26px;opacity:.9}
+
+/* ================= PANELS / cards ================= */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.card-h{display:flex;align-items:center;gap:10px;padding:12px 15px;border-bottom:1px solid var(--border)}
+.card-h h3{margin:0;font-size:13.5px;font-weight:700}
+.card-h .hint{font-size:11.5px;color:var(--text-3)}
+.card-h .link{margin-left:auto;font-size:12px;color:var(--primary);font-weight:600}
+.grid2{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;align-items:start}
+
+/* ================= DATA TABLE ================= */
+.tablecard{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.tbar{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--border);background:var(--panel)}
+.tbar .tcount{font-size:12px;color:var(--text-3);font-weight:600}
+.tbar .tright{margin-left:auto;display:flex;gap:7px;align-items:center}
+.tsearch{display:flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:5px 9px;color:var(--text-3);font-size:12px}
+.tsearch input{border:none;background:transparent;outline:none;color:var(--text);width:140px;font-size:12px}
+.dtwrap{overflow-x:auto}
+table.dt{width:100%;border-collapse:collapse;font-size:12.5px}
+table.dt thead th{position:sticky;top:0;background:var(--panel-2);text-align:left;font-weight:600;font-size:11px;color:var(--text-3);
+  letter-spacing:.03em;text-transform:uppercase;padding:9px 12px;border-bottom:1px solid var(--border);white-space:nowrap;z-index:1}
+table.dt thead th.sortable{cursor:pointer}
+table.dt thead th.sortable:hover{color:var(--text)}
+table.dt thead th .caret{opacity:.5;margin-left:3px}
+table.dt td{padding:9px 12px;border-bottom:1px solid var(--border);vertical-align:middle;white-space:nowrap}
+table.dt tbody tr{transition:background .1s;cursor:pointer}
+table.dt tbody tr:hover{background:var(--panel-2)}
+table.dt tbody tr:last-child td{border-bottom:none}
+.ck{width:15px;height:15px;border:1.6px solid var(--border-strong);border-radius:4px;background:var(--panel);display:grid;place-items:center;color:transparent;transition:.1s}
+.ck.on{background:var(--primary);border-color:var(--primary);color:#fff}
+td.ckcell,th.ckcell{width:38px;padding-left:14px}
+.co{display:flex;align-items:center;gap:9px}
+.co .coname b{font-weight:600;font-size:12.5px;display:block;line-height:1.25}
+.co .coname span{font-size:11px;color:var(--text-3);font-family:var(--mono)}
+.cell-owner{display:flex;align-items:center;gap:7px}
+.cell-owner span{color:var(--text-2)}
+.val{font-weight:700;font-variant-numeric:tabular-nums}
+.muted{color:var(--text-3)}
+.tagcell{display:flex;gap:5px}
+.minitag{font-size:10.5px;font-weight:600;color:var(--text-2);background:var(--panel-2);border:1px solid var(--border);border-radius:5px;padding:1px 6px}
+.rowarrow{color:var(--text-3);opacity:0;transition:.1s}
+tr:hover .rowarrow{opacity:1}
+.tfoot{display:flex;align-items:center;gap:10px;padding:9px 12px;border-top:1px solid var(--border);font-size:12px;color:var(--text-3)}
+.tfoot .pg{margin-left:auto;display:flex;gap:4px}
+.tfoot .pg button{width:28px;height:28px;border:1px solid var(--border);background:var(--panel);border-radius:var(--r-sm);color:var(--text-2);font-weight:600}
+.tfoot .pg button.on{background:var(--primary-wash);color:var(--primary);border-color:var(--primary-border)}
+/* selection bar */
+.selbar{display:none;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--primary-border);background:var(--primary-wash)}
+.selbar.show{display:flex}
+.selbar b{color:var(--primary)}
+
+/* ================= KANBAN ================= */
+.kanban{display:grid;grid-auto-flow:column;grid-auto-columns:288px;gap:14px;overflow-x:auto;padding-bottom:10px;align-items:start}
+.kcol{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r);display:flex;flex-direction:column;max-height:calc(100vh - 190px)}
+.kcol-h{display:flex;align-items:center;gap:8px;padding:11px 12px 9px}
+.kcol-h .kdot{width:8px;height:8px;border-radius:50%}
+.kcol-h .kname{font-weight:700;font-size:12.5px}
+.kcol-h .kct{font-size:11px;color:var(--text-3);font-weight:600;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:0 7px}
+.kcol-h .ksum{margin-left:auto;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+.kcol-h .kadd{margin-left:6px;color:var(--text-3)}
+.kbody{padding:0 9px 9px;display:flex;flex-direction:column;gap:9px;overflow-y:auto}
+.kcard{background:var(--panel);border:1px solid var(--border);border-radius:var(--r-sm);padding:11px;box-shadow:var(--shadow-sm);cursor:pointer;transition:.12s}
+.kcard:hover{border-color:var(--primary-border);box-shadow:var(--shadow);transform:translateY(-1px)}
+.kcard .kco{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.kcard .kco b{font-weight:600;font-size:12.5px}
+.kcard .kval{font-size:16px;font-weight:700;letter-spacing:-.01em}
+.kcard .kmeta{display:flex;align-items:center;gap:8px;margin-top:9px;padding-top:9px;border-top:1px solid var(--border)}
+.kcard .kmeta .kdue{font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:4px}
+.kcard .kmeta .av{margin-left:auto}
+
+/* ================= RECORD DETAIL ================= */
+.rec-top{background:var(--panel);border-bottom:1px solid var(--border);padding:14px 22px}
+.rec-back{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2);font-weight:600;margin-bottom:12px}
+.rec-back:hover{color:var(--text)}
+.rec-id{display:flex;align-items:center;gap:14px}
+.rec-id .name{font-size:20px;font-weight:700;letter-spacing:-.01em}
+.rec-id .sub{font-size:12.5px;color:var(--text-3);display:flex;align-items:center;gap:8px}
+.rec-id .sub a{color:var(--primary);font-weight:600}
+.rec-actions{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap}
+.stagetrack{display:flex;gap:3px;margin-top:16px}
+.stagetrack .st{flex:1;display:flex;flex-direction:column;gap:5px}
+.stagetrack .st .bar{height:5px;border-radius:3px;background:var(--border)}
+.stagetrack .st.done .bar{background:var(--primary)}
+.stagetrack .st.cur .bar{background:var(--primary)}
+.stagetrack .st .lbl{font-size:11px;font-weight:600;color:var(--text-3)}
+.stagetrack .st.done .lbl,.stagetrack .st.cur .lbl{color:var(--text)}
+.stagetrack .st.cur .lbl{color:var(--primary)}
+
+.rec-body{display:grid;grid-template-columns:280px 1fr 300px;gap:16px;padding:18px 22px 40px;align-items:start}
+.props .prow{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-sm);transition:background .1s}
+.props .prow:hover{background:var(--panel-2)}
+.props .prow .pl{width:96px;flex:none;font-size:12px;color:var(--text-3);display:flex;align-items:center;gap:7px}
+.props .prow .pv{font-size:12.5px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.props .prow .edit{opacity:0;color:var(--text-3)}
+.props .prow:hover .edit{opacity:1}
+.card-body{padding:13px 15px}
+.card-body.tight{padding:8px}
+
+/* composer + timeline */
+.composer{padding:12px 15px;border-bottom:1px solid var(--border)}
+.comp-tabs{display:flex;gap:2px;margin-bottom:9px}
+.comp-tabs button{height:28px;padding:0 11px;border:none;background:transparent;border-radius:var(--r-sm);font-weight:600;font-size:12px;color:var(--text-2);display:inline-flex;align-items:center;gap:6px}
+.comp-tabs button.on{background:var(--primary-wash);color:var(--primary)}
+.comp-input{border:1px solid var(--border-strong);border-radius:var(--r-sm);padding:10px 12px;color:var(--text-3);font-size:12.5px;
+  display:flex;align-items:center;justify-content:space-between}
+.comp-input .btn{height:28px}
+.timeline{padding:6px 15px 15px}
+.tl{position:relative;padding:12px 0 12px 30px}
+.tl::before{content:"";position:absolute;left:11px;top:0;bottom:0;width:2px;background:var(--border)}
+.tl:first-child::before{top:14px}
+.tl:last-child::before{bottom:auto;height:14px}
+.tl .tic{position:absolute;left:0;top:9px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+  background:var(--panel);border:1px solid var(--border);color:var(--c,var(--text-2));z-index:1}
+.tl .tt{font-size:12.5px}
+.tl .tt b{font-weight:700}
+.tl .tmeta{font-size:11px;color:var(--text-3);margin-top:2px;display:flex;align-items:center;gap:6px}
+.tl .tbubble{margin-top:7px;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:9px 11px;font-size:12.5px;color:var(--text-2)}
+
+.assoc{display:flex;flex-direction:column;gap:14px}
+.assoc .card-h{padding:11px 13px}
+.assoc .a-item{display:flex;align-items:center;gap:9px;padding:9px 13px;border-bottom:1px solid var(--border)}
+.assoc .a-item:last-child{border-bottom:none}
+.assoc .a-item:hover{background:var(--panel-2)}
+.assoc .a-item .ainfo{min-width:0;line-height:1.3}
+.assoc .a-item .ainfo b{font-size:12.5px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.assoc .a-item .ainfo span{font-size:11px;color:var(--text-3)}
+.assoc .a-item .aright{margin-left:auto;text-align:right;flex:none}
+.filerow{display:flex;align-items:center;gap:9px;padding:9px 13px;border-bottom:1px solid var(--border)}
+.filerow:last-child{border-bottom:none}
+.filerow .fic{width:26px;height:26px;border-radius:6px;background:var(--red-w);color:var(--red);display:grid;place-items:center;flex:none}
+
+/* ================= TASKS ================= */
+.taskgroup{margin-bottom:18px}
+.taskgroup .tg-h{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12.5px;font-weight:700}
+.taskgroup .tg-h .tg-ct{font-size:11px;color:var(--text-3);font-weight:600}
+.task{display:flex;align-items:center;gap:11px;padding:10px 14px;background:var(--panel);border:1px solid var(--border);border-radius:var(--r-sm);margin-bottom:6px}
+.task .tk-title{font-weight:600;font-size:12.5px}
+.task .tk-title.done{color:var(--text-3);text-decoration:line-through}
+.task .tk-rec{font-size:11.5px;color:var(--text-3)}
+.task .tk-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.pflag{width:7px;height:7px;border-radius:2px;transform:rotate(45deg)}
+
+/* charts */
+.chartbox{padding:14px 16px}
+.legend{display:flex;gap:16px;padding:0 16px 14px;font-size:11px;color:var(--text-3)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:12px;height:3px;border-radius:2px}
+.funnel{display:flex;flex-direction:column;gap:10px;padding:14px 16px}
+.frow{display:grid;grid-template-columns:110px 1fr auto;gap:12px;align-items:center}
+.frow .fn{font-size:12px;font-weight:600}
+.frow .fn small{display:block;color:var(--text-3);font-weight:400;font-size:10.5px}
+.fbar{height:22px;border-radius:5px;background:var(--panel-2);overflow:hidden}
+.fbar i{display:block;height:100%;border-radius:5px}
+.frow .fv{font-weight:700;font-variant-numeric:tabular-nums;font-size:12.5px}
+
+.empty{padding:64px 20px;text-align:center;color:var(--text-2)}
+.empty .eic{width:48px;height:48px;border-radius:12px;background:var(--panel-2);border:1px solid var(--border);display:grid;place-items:center;color:var(--text-3);margin:0 auto 14px}
+.empty h3{font-size:16px;font-weight:700;color:var(--text);margin:0 0 5px}
+.empty p{max-width:42ch;margin:0 auto;font-size:12.5px}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(18px) scale(.95);background:var(--text);color:var(--bg);
+  padding:9px 16px;border-radius:var(--r-sm);font-size:12.5px;font-weight:600;box-shadow:var(--shadow-pop);opacity:0;pointer-events:none;
+  transition:.26s cubic-bezier(.16,1,.3,1);z-index:100;display:flex;align-items:center;gap:8px}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
+.toast .tc{width:14px;height:14px;border-radius:50%;background:var(--green);display:grid;place-items:center;color:var(--text)}
+
+/* ================= MOTION (tailwindcss-animate style) ================= */
+@keyframes enter{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+@keyframes growx{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.view.active .metric{animation:enter .42s cubic-bezier(.2,.7,.2,1) both}
+.view.active .metric:nth-child(2){animation-delay:.05s}
+.view.active .metric:nth-child(3){animation-delay:.1s}
+.view.active .metric:nth-child(4){animation-delay:.15s}
+.view.active .kanban .kcol{animation:enter .5s cubic-bezier(.2,.7,.2,1) both}
+.view.active .kanban .kcol:nth-child(2){animation-delay:.06s}
+.view.active .kanban .kcol:nth-child(3){animation-delay:.12s}
+.view.active .kanban .kcol:nth-child(4){animation-delay:.18s}
+.view.active .kanban .kcol:nth-child(5){animation-delay:.24s}
+.view.active .kcard{animation:enter .4s cubic-bezier(.2,.7,.2,1) both}
+.view.active .kcard:nth-child(2){animation-delay:.05s}
+.view.active .kcard:nth-child(3){animation-delay:.1s}
+.view.active .card,.view.active .tablecard{animation:enter .4s cubic-bezier(.2,.7,.2,1) both}
+.view.active table.dt tbody tr{animation:enter .34s cubic-bezier(.2,.7,.2,1) both}
+.view.active table.dt tbody tr:nth-child(2){animation-delay:.03s}
+.view.active table.dt tbody tr:nth-child(3){animation-delay:.06s}
+.view.active table.dt tbody tr:nth-child(4){animation-delay:.09s}
+.view.active table.dt tbody tr:nth-child(5){animation-delay:.12s}
+.view.active table.dt tbody tr:nth-child(6){animation-delay:.15s}
+.view.active table.dt tbody tr:nth-child(7){animation-delay:.18s}
+.view.active table.dt tbody tr:nth-child(8){animation-delay:.21s}
+.view.active table.dt tbody tr:nth-child(n+9){animation-delay:.24s}
+.view.active .taskgroup .task{animation:enter .36s cubic-bezier(.2,.7,.2,1) both}
+.view.active .taskgroup .task:nth-child(3){animation-delay:.05s}
+.view.active .taskgroup .task:nth-child(4){animation-delay:.1s}
+.view.active .taskgroup .task:nth-child(5){animation-delay:.15s}
+.view.active .timeline .tl{animation:enter .4s cubic-bezier(.2,.7,.2,1) both}
+.view.active .timeline .tl:nth-child(2){animation-delay:.06s}
+.view.active .timeline .tl:nth-child(3){animation-delay:.12s}
+.view.active .timeline .tl:nth-child(4){animation-delay:.18s}
+.view.active .timeline .tl:nth-child(5){animation-delay:.24s}
+.view.active .funnel .frow{animation:enter .4s cubic-bezier(.2,.7,.2,1) both}
+.view.active .funnel .frow:nth-child(2){animation-delay:.06s}
+.view.active .funnel .frow:nth-child(3){animation-delay:.12s}
+.view.active .funnel .frow:nth-child(4){animation-delay:.18s}
+.view.active .funnel .frow:nth-child(5){animation-delay:.24s}
+.view.active .funnel .fbar i{transform-origin:left;animation:growx .7s cubic-bezier(.4,0,.1,1) both;animation-delay:.15s}
+.view.active .props .prow{animation:enter .3s cubic-bezier(.2,.7,.2,1) both}
+.view.active .stagetrack .st .bar{transform-origin:left;animation:growx .5s cubic-bezier(.4,0,.1,1) both}
+.view.active .stagetrack .st:nth-child(2) .bar{animation-delay:.08s}
+.view.active .stagetrack .st:nth-child(3) .bar{animation-delay:.16s}
+.view.active .stagetrack .st:nth-child(4) .bar{animation-delay:.24s}
+.view.active .stagetrack .st:nth-child(5) .bar{animation-delay:.32s}
+.view.active .assoc .card:nth-child(2){animation-delay:.06s}
+.view.active .assoc .card:nth-child(3){animation-delay:.12s}
+.view.active .assoc .card:nth-child(4){animation-delay:.18s}
+
+/* ================= RESPONSIVE ================= */
+.scrim{display:none}
+@media (max-width:1140px){.metrics{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.rec-body{grid-template-columns:1fr}}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr}
+  .side{position:fixed;z-index:60;width:248px;height:100vh;transform:translateX(-100%);transition:transform .26s cubic-bezier(.2,.7,.2,1)}
+  .app.nav-open .side{transform:none;box-shadow:var(--shadow-pop)}
+  .scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:.2s;z-index:55}
+  .app.nav-open .scrim{opacity:1;pointer-events:auto}
+  .menu-toggle{display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--panel);color:var(--text)}
+  .wrap{padding:14px 14px 40px}.metrics{grid-template-columns:1fr 1fr}.gsearch{max-width:none}
+}
+@media (max-width:560px){.metrics{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+</style>
+
+<div class="app" id="app">
+  <div class="scrim" id="scrim"></div>
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="side">
+    <div class="ws" onclick="toast('Workspace switcher')">
+      <div class="logo">P</div>
+      <div class="wsname"><b>Pinnacle Studio</b><span>CRM · Growth plan</span></div>
+      <svg class="chev ic" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div class="side-sep"></div>
+    <div class="side-scroll">
+      <ul class="nav" id="navMain"></ul>
+      <div class="navlbl">Records</div>
+      <ul class="nav" id="navRecords"></ul>
+      <div class="navlbl">Insights</div>
+      <ul class="nav" id="navInsights"></ul>
+    </div>
+    <div class="side-foot">
+      <div class="me">SR</div>
+      <div class="meinfo"><b>Saksham Rao</b><span>Founder · Admin</span></div>
+      <button class="iconbtn" id="themebtn" title="Toggle theme" aria-label="Toggle theme">
+        <svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <div class="main">
+    <div class="topbar">
+      <button class="menu-toggle" id="menuToggle" aria-label="Menu"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+      <div class="gsearch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input placeholder="Search companies, contacts, deals…"><kbd>⌘K</kbd></div>
+      <div class="top-right">
+        <button class="iconbtn notif" onclick="toast('3 new notifications')" aria-label="Notifications"><span class="dot"></span>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg></button>
+        <button class="btn primary sm" onclick="toast('Create new record')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>New</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ============ HOME ============ -->
+      <section class="view active" data-view="home">
+        <div class="wrap">
+          <div class="vhead"><div><div class="vtitle">Good evening, Saksham</div><div class="vsub">Wednesday, 16 September · here's where things stand</div></div>
+            <div class="vtools"><button class="btn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>This month</button>
+            <button class="btn" onclick="go('reports')">View reports</button></div></div>
+          <div class="metrics" id="homeMetrics"></div>
+          <div class="grid2">
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <div class="card"><div class="card-h"><h3>Deals closing this month</h3><span class="hint">6 deals · ₹47.3L</span><a class="link" href="#" onclick="go('deals');return false">Pipeline</a></div>
+                <div class="dtwrap"><table class="dt" id="closingTable"></table></div></div>
+              <div class="card"><div class="card-h"><h3>My open tasks</h3><span class="hint">8 due today</span><a class="link" href="#" onclick="go('tasks');return false">All tasks</a></div>
+                <div id="homeTasks"></div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <div class="card"><div class="card-h"><h3>Pipeline by stage</h3><a class="link" href="#" onclick="go('deals');return false">Board</a></div><div class="funnel" id="homeFunnel"></div></div>
+              <div class="card"><div class="card-h"><h3>Recent activity</h3></div><div class="timeline" id="homeActivity" style="padding:6px 15px 8px"></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ DEALS ============ -->
+      <section class="view" data-view="deals">
+        <div class="wrap">
+          <div class="vhead"><div><div class="vtitle">Deals</div><div class="vsub">42 open · ₹1.24 Cr pipeline · ₹58L weighted</div></div>
+            <div class="vtools">
+              <div class="seg" id="dealSeg">
+                <button class="on" data-dv="board" onclick="dealView('board')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="10" y="3" width="6" height="12" rx="1"/><rect x="17" y="3" width="4" height="16" rx="1"/></svg>Board</button>
+                <button data-dv="table" onclick="dealView('table')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 6h18M3 12h18M3 18h18"/></svg>Table</button>
+              </div>
+              <button class="chip dashed"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18M6 12h12M10 19h4"/></svg>Filter</button>
+              <button class="chip">Owner: <b>Me</b> <span class="x">✕</span></button>
+              <button class="btn primary" onclick="toast('Add deal')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add deal</button>
+            </div></div>
+          <div id="dealBoard"><div class="kanban" id="kanban"></div></div>
+          <div id="dealTable" style="display:none"><div class="tablecard"><div class="dtwrap"><table class="dt" id="dealsTableEl"></table></div>
+            <div class="tfoot"><span>42 deals</span></div></div></div>
+        </div>
+      </section>
+
+      <!-- ============ COMPANIES ============ -->
+      <section class="view" data-view="companies">
+        <div class="wrap">
+          <div class="vhead"><div><div class="vtitle">Companies</div><div class="vsub">All accounts in your workspace</div></div>
+            <div class="vtools">
+              <button class="chip dashed"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 5h18M6 12h12M10 19h4"/></svg>Filter</button>
+              <button class="chip">Stage: <b>All</b></button>
+              <button class="btn"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 6h13M3 12h9M3 18h5M17 6l4 4-4 4"/></svg>Sort</button>
+              <button class="btn primary" onclick="toast('Add company')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add company</button>
+            </div></div>
+          <div class="tablecard">
+            <div class="tbar"><span class="tcount" id="compCount">12 companies</span>
+              <div class="tright"><div class="tsearch"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input placeholder="Search…"></div>
+              <button class="btn sm ghost"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button></div></div>
+            <div class="selbar" id="selbar"><span><b id="selcount">0</b> selected</span>
+              <button class="btn sm ghost" onclick="toast('Assign owner')">Assign</button>
+              <button class="btn sm ghost" onclick="toast('Change stage')">Change stage</button>
+              <button class="btn sm ghost" onclick="toast('Add tag')">Tag</button>
+              <button class="btn sm ghost" style="margin-left:auto" onclick="clearSel()">Clear</button></div>
+            <div class="dtwrap"><table class="dt" id="compTable"></table></div>
+            <div class="tfoot"><span>Showing 12 of 12</span><div class="pg"><button>‹</button><button class="on">1</button><button>›</button></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ RECORD DETAIL ============ -->
+      <section class="view" data-view="record">
+        <div class="rec-top">
+          <a class="rec-back" href="#" onclick="go('companies');return false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m15 18-6-6 6-6"/></svg>Companies</a>
+          <div class="rec-id">
+            <div class="av lg" style="background:var(--green)">A</div>
+            <div><div class="name">Atlas Athletic</div>
+              <div class="sub"><a href="#" onclick="toast('Open website');return false">atlasathletic.in</a> · Sportswear · Bengaluru · <span class="badge" style="--c:var(--amber);--w:var(--amber-w)"><span class="d"></span>Negotiation</span></div></div>
+            <div class="rec-actions">
+              <button class="btn" onclick="toast('Compose email')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Email</button>
+              <button class="btn" onclick="toast('Start call')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.5 2.8.6a2 2 0 0 1 1.7 2Z"/></svg>Call</button>
+              <button class="btn" onclick="toast('Log activity')">Log activity</button>
+              <button class="btn primary" onclick="toast('Add task')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Task</button>
+              <button class="iconbtn" style="border:1px solid var(--border-strong)"><svg class="ic" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+            </div>
+          </div>
+          <div class="stagetrack" id="stagetrack"></div>
+        </div>
+        <div class="rec-body">
+          <!-- properties -->
+          <div class="card"><div class="card-h"><h3>Details</h3><a class="link" href="#" onclick="toast('Edit all');return false">Edit</a></div>
+            <div class="card-body tight props" id="props"></div></div>
+          <!-- activity -->
+          <div class="card">
+            <div class="composer">
+              <div class="comp-tabs">
+                <button class="on"><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Note</button>
+                <button><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Email</button>
+                <button><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.5 2.8.6a2 2 0 0 1 1.7 2Z"/></svg>Call</button>
+                <button><svg class="ic" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M9 11l3 3 8-8M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg>Task</button>
+              </div>
+              <div class="comp-input"><span>Write a note about Atlas Athletic…</span><button class="btn primary sm" onclick="toast('Note saved')">Save note</button></div>
+            </div>
+            <div class="card-h" style="border-top:none"><h3 style="font-size:12px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em">Activity</h3></div>
+            <div class="timeline" id="recTimeline"></div>
+          </div>
+          <!-- associations -->
+          <div class="assoc" id="assoc"></div>
+        </div>
+      </section>
+
+      <!-- ============ TASKS ============ -->
+      <section class="view" data-view="tasks">
+        <div class="wrap">
+          <div class="vhead"><div><div class="vtitle">Tasks</div><div class="vsub">12 overdue · 8 due today</div></div>
+            <div class="vtools"><div class="seg"><button class="on">List</button><button onclick="toast('Board view')">Board</button></div>
+              <button class="chip">Assignee: <b>Me</b></button>
+              <button class="btn primary" onclick="toast('Add task')"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>Add task</button></div></div>
+          <div id="taskGroups"></div>
+        </div>
+      </section>
+
+      <!-- ============ REPORTS ============ -->
+      <section class="view" data-view="reports">
+        <div class="wrap">
+          <div class="vhead"><div><div class="vtitle">Reports</div><div class="vsub">Pipeline & revenue performance</div></div>
+            <div class="vtools"><button class="btn">Last 12 months</button><button class="btn" onclick="toast('Export CSV')">Export</button></div></div>
+          <div class="metrics" id="repMetrics"></div>
+          <div class="grid2" style="margin-top:2px">
+            <div class="card"><div class="card-h"><h3>Revenue collected</h3><span class="hint">₹ Lakh · vs target</span></div>
+              <div class="chartbox" id="repChart"></div>
+              <div class="legend"><span><i style="background:var(--primary)"></i>Collected</span><span><i style="background:var(--text-3)"></i>Target</span></div></div>
+            <div class="card"><div class="card-h"><h3>Pipeline funnel</h3><span class="hint">by stage</span></div><div class="funnel" id="repFunnel"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PLACEHOLDERS ============ -->
+      <section class="view" data-view="contacts"><div class="wrap"><div class="vhead"><div class="vtitle">Contacts</div></div>
+        <div class="card"><div class="empty"><div class="eic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="8" r="3.2"/><path d="M15 8a3.2 3.2 0 1 0 0-.01M3 20a6 6 0 0 1 12 0M14.5 20a6 6 0 0 1 6.5-6"/></svg></div><h3>Contacts</h3><p>People across all your accounts. Same table pattern as Companies — this surface is part of the full build.</p></div></div></div></section>
+      <section class="view" data-view="invoices"><div class="wrap"><div class="vhead"><div class="vtitle">Invoices</div></div>
+        <div class="card"><div class="empty"><div class="eic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 2h9l5 5v15H6zM15 2v5h5M9 13h6M9 17h5"/></svg></div><h3>Invoices &amp; billing</h3><p>Track receivables, aging, and payments. ₹7.8L is currently overdue across 4 invoices.</p></div></div></div></section>
+      <section class="view" data-view="settings"><div class="wrap"><div class="vhead"><div class="vtitle">Settings</div></div>
+        <div class="card"><div class="empty"><div class="eic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14.1 2H9.9l-.4 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2l.4 2.6h4.2l.4-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6A7 7 0 0 0 19 12Z"/></svg></div><h3>Workspace settings</h3><p>Team, roles, pipelines, integrations, and billing.</p></div></div></div></section>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="tc"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></span><span id="toastMsg">Done</span></div>
+
+<script>
+/* ============ ICONS ============ */
+const IC={
+home:'<path d="M3 10.5 12 3l9 7.5V21H3z"/><path d="M9 21v-7h6v7"/>',
+deals:'<rect x="3" y="3" width="6" height="18" rx="1"/><rect x="10" y="3" width="6" height="12" rx="1"/><rect x="17" y="3" width="4" height="16" rx="1"/>',
+company:'<path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v16M15 9h4a1 1 0 0 1 1 1v11M3 21h18M8 8h3M8 12h3M8 16h3"/>',
+contacts:'<circle cx="9" cy="8" r="3.2"/><path d="M15 8a3.2 3.2 0 1 0 0-.01M3 20a6 6 0 0 1 12 0M14.5 20a6 6 0 0 1 6.5-6"/>',
+tasks:'<path d="M9 11l3 3 8-8M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>',
+invoices:'<path d="M6 2h9l5 5v15H6zM15 2v5h5M9 13h6M9 17h5"/>',
+reports:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+inbox:'<path d="M3 12h5l2 3h4l2-3h5M4 4h16v16H4z"/>',
+settings:'<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14.1 2H9.9l-.4 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2l.4 2.6h4.2l.4-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6A7 7 0 0 0 19 12Z"/>'};
+const NAV={
+ navMain:[['home','Home','home',''],['inbox','Inbox','inbox','3'],['deals','Deals','deals','42'],['tasks','Tasks','tasks','12']],
+ navRecords:[['companies','Companies','company','12'],['contacts','Contacts','contacts','48'],['invoices','Invoices','invoices','4']],
+ navInsights:[['reports','Reports','reports',''],['settings','Settings','settings','']]};
+const ROUTE={home:'inbox',inbox:'inbox'};
+Object.entries(NAV).forEach(([id,items])=>{document.getElementById(id).innerHTML=items.map(([v,label,ic,ct])=>{
+  const route=(v==='inbox')?"toast('Inbox — 3 unread')":`go('${v}')`;
+  return `<li><a href="#" data-nav="${v}" onclick="${v==='inbox'?route+';return false':route+";return false"}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${IC[ic]}</svg><span>${label}</span>${ct?`<span class="ct">${ct}</span>`:''}</a></li>`;}).join('');});
+
+/* ============ ROUTER / THEME / TOAST ============ */
+const NAMES={home:'Home',deals:'Deals',companies:'Companies',record:'Companies',tasks:'Tasks',reports:'Reports',contacts:'Contacts',invoices:'Invoices',settings:'Settings'};
+function go(v){document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active',s.dataset.view===v));
+  document.querySelectorAll('[data-nav]').forEach(a=>a.classList.toggle('active',a.dataset.nav===(v==='record'?'companies':v)));
+  document.getElementById('app').classList.remove('nav-open');document.querySelector('.content').scrollTop=0;}
+const root=document.documentElement;
+(function(){try{const t=localStorage.getItem('crm-theme');if(t)root.setAttribute('data-theme',t);}catch(e){}})();
+document.getElementById('themebtn').addEventListener('click',()=>{const cur=root.getAttribute('data-theme');
+  const sys=matchMedia('(prefers-color-scheme:dark)').matches;const next=cur?(cur==='dark'?'light':'dark'):(sys?'light':'dark');
+  root.setAttribute('data-theme',next);try{localStorage.setItem('crm-theme',next);}catch(e){}});
+let tT;function toast(m){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=m;t.classList.add('show');clearTimeout(tT);tT=setTimeout(()=>t.classList.remove('show'),2000);}
+document.getElementById('menuToggle').onclick=()=>document.getElementById('app').classList.toggle('nav-open');
+document.getElementById('scrim').onclick=()=>document.getElementById('app').classList.remove('nav-open');
+function dealView(v){document.getElementById('dealBoard').style.display=v==='board'?'':'none';document.getElementById('dealTable').style.display=v==='table'?'':'none';
+  document.querySelectorAll('#dealSeg button').forEach(b=>b.classList.toggle('on',b.dataset.dv===v));}
+
+/* ============ COLOR MAPS ============ */
+const OWN={SM:'var(--blue)',AK:'var(--amber)',RV:'var(--red)',DP:'var(--indigo)',PriM:'var(--green)'};
+const OWNHEX={SM:'#2563EB',AK:'#C2740A',RV:'#DC2626',DP:'#6366F1',PriM:'#15A24A'};
+const STAGE={New:['gray','New'],Qualified:['blue','Qualified'],Proposal:['sky','Proposal'],Negotiation:['amber','Negotiation'],Won:['green','Won'],Delivery:['indigo','Delivery'],Lost:['red','Lost']};
+function badge(color,label,dot=true){return `<span class="badge" style="--c:var(--${color});--w:var(--${color}-w)">${dot?'<span class="d"></span>':''}${label}</span>`;}
+function av(init,size=''){const k=init.replace(/[^A-Za-z]/g,'').slice(0,2).toUpperCase();const c=OWNHEX[init]||'#6B7280';return `<span class="av ${size}" style="background:${c}">${k}</span>`;}
+function ownerCell(init,name){return `<span class="cell-owner">${av(init)}<span>${name}</span></span>`;}
+
+/* ============ DATA ============ */
+const companies=[
+ ['Atlas Athletic','atlasathletic.in','A','green','SM','Saksham','Negotiation','13.0','2h ago','Bengaluru',['Retainer','Priority']],
+ ['Northwind Ventures','northwind.vc','N','indigo','DP','Dev','Proposal','11.0','3h ago','New Delhi',['Launch']],
+ ['Sable & Oak','sableoak.co','S','amber','SM','Saksham','Qualified','9.5','1d ago','Mumbai',['Rebrand']],
+ ['Cirrus Travel','cirrus.travel','C','sky','RV','Riya','Won','8.5','4h ago','Goa',['Won']],
+ ['Halcyon Hotels','halcyon.com','H','red','RV','Riya','Delivery','7.2','4h ago','Goa',['At risk']],
+ ['Verdant Botanicals','verdant.bio','V','green','AK','Aditi','New','6.5','yesterday','Bengaluru',[]],
+ ['Foxglove Interiors','foxglove.design','F','indigo','DP','Dev','Proposal','6.4','6h ago','Jaipur',['Content']],
+ ['Ora Wellness','orawellness.in','O','sky','AK','Aditi','Qualified','5.0','2d ago','Pune',[]],
+ ['Lumen Skincare','lumenskin.com','L','amber','AK','Aditi','Negotiation','4.8','yesterday','Bengaluru',['Films']],
+ ['Marrow & Co','marrowco.in','M','green','AK','Aditi','Won','4.1','3d ago','Chennai',['Packaging']],
+ ['Meridian Coffee','meridian.coffee','M','red','RV','Riya','Proposal','1.8','5h ago','Pune',['Renewal']],
+ ['Cobalt Fitness','cobaltfit.app','C','blue','DP','Dev','New','2.4','1d ago','Hyderabad',[]]];
+
+const dealsByStage={
+ New:[['Verdant Botanicals','V','green','Brand refresh','6.5','DP','Oct 22','green'],['Cobalt Fitness','C','blue','Social retainer','2.4','DP','Oct 18','green'],['Marrow & Co','M','green','Packaging','4.1','AK','Oct 12','amber']],
+ Qualified:[['Sable & Oak','S','amber','Full rebrand','9.5','SM','Sep 20','amber'],['Halcyon Hotels','H','red','Campaign','7.2','RV','Sep 24','green'],['Ora Wellness','O','sky','Website','5.0','AK','Oct 04','green']],
+ Proposal:[['Northwind Ventures','N','indigo','Launch film','11.0','DP','Sep 22','green'],['Foxglove Interiors','F','indigo','Content + shoot','6.4','DP','Sep 18','amber'],['Meridian Coffee','M','red','Retainer renewal','1.8','RV','Sep 19','red']],
+ Negotiation:[['Atlas Athletic','A','green','Annual retainer','13.0','SM','Sep 24','green'],['Lumen Skincare','L','amber','Product films','4.8','AK','Sep 20','red']],
+ Won:[['Cirrus Travel','C','sky','Rebrand','8.5','RV','Closed','green'],['Pallete Foods','P','blue','Social','3.2','DP','Closed','green']]};
+const stageDot={New:'var(--gray)',Qualified:'var(--blue)',Proposal:'var(--sky)',Negotiation:'var(--amber)',Won:'var(--green)'};
+
+const homeMetrics=[
+ ['Pipeline value','₹1.24','Cr','deals','up','+8.2%','var(--blue)','var(--blue-w)',[30,34,32,40,44,42,50,58]],
+ ['Won this month','₹22.0','L','trophy','up','6 deals','var(--green)','var(--green-w)',[8,10,9,14,12,16,18,22]],
+ ['Revenue MTD','₹18.4','L','revenue','up','77% target','var(--indigo)','var(--indigo-w)',[9,11,10,13,15,16,17,18]],
+ ['Tasks due','8','','tasks','down','3 overdue','var(--amber)','var(--amber-w)',[4,6,5,7,6,9,7,8]]];
+const repMetrics=[
+ ['Win rate','34','%','','up','+4 pts','var(--green)','var(--green-w)',null],
+ ['Avg deal size','₹5.9','L','','up','+₹0.8L','var(--blue)','var(--blue-w)',null],
+ ['Sales cycle','21','d','','down','-3 days','var(--indigo)','var(--indigo-w)',null],
+ ['Forecast','₹58','L','','up','goal ₹70L','var(--amber)','var(--amber-w)',null]];
+const mIcon={deals:IC.deals,trophy:'<path d="M6 4h12v3a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4zM6 5H3v2a3 3 0 0 0 3 3M18 5h3v2a3 3 0 0 0-3 3M9 15h6v4H9zM8 21h8"/>',revenue:'<path d="M12 2v20M17 6H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/>',tasks:IC.tasks};
+
+const funnelData=[['New','12 · leads','28','var(--gray)',100],['Qualified','9 · leads','34','var(--blue)',82],['Proposal','7 · deals','41','var(--sky)',64],['Negotiation','4 · deals','21','var(--amber)',40],['Won','2 · deals','14','var(--green)',22]];
+const closing=[
+ ['Atlas Athletic','A','green','13.0','amber','Negotiation','SM','Sep 24'],
+ ['Northwind Ventures','N','indigo','11.0','sky','Proposal','DP','Sep 22'],
+ ['Sable & Oak','S','amber','9.5','blue','Qualified','SM','Sep 20'],
+ ['Halcyon Hotels','H','red','7.2','indigo','Delivery','RV','Sep 17'],
+ ['Foxglove Interiors','F','indigo','6.4','sky','Proposal','DP','Sep 18'],
+ ['Lumen Skincare','L','amber','4.8','amber','Negotiation','AK','Sep 20']];
+const homeTasks=[[false,'Send Meridian renewal proposal','Meridian Coffee','crit'],[false,'Approve Foxglove moodboard','Foxglove Interiors','amber'],[false,'Chase Halcyon overdue invoice','Halcyon Hotels','crit'],[false,'Confirm Northwind shoot crew','Northwind Ventures','amber'],[true,'Brief Lumen reshoot','Lumen Skincare','done']];
+const activity=[
+ ['stage','SM','Saksham','moved <b>Atlas Athletic</b> to Negotiation','32m ago','var(--amber)'],
+ ['email','RV','Riya','emailed <b>Halcyon Hotels</b> — payment reminder','1h ago','var(--blue)'],
+ ['won','SM','Saksham','marked <b>Cirrus Travel</b> as Won · ₹8.5L','3h ago','var(--green)'],
+ ['note','AK','Aditi','added a note on <b>Lumen Skincare</b>','5h ago','var(--indigo)'],
+ ['call','DP','Dev','logged a call with <b>Northwind Ventures</b> · 18m','yesterday','var(--sky)']];
+const tlIcon={stage:'<path d="M5 12h14M13 6l6 6-6 6"/>',email:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',won:'<path d="M20 6 9 17l-5-5"/>',note:'<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>',call:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.5 2.8.6a2 2 0 0 1 1.7 2Z"/>',task:'<path d="M9 11l3 3 8-8M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/>'};
+
+const tasks=[
+ ['Overdue',2,[[false,'Chase Halcyon overdue invoice · ₹3.2L','Halcyon Hotels','RV','red','2 days ago'],[false,'Send Sable & Oak follow-up','Sable & Oak','SM','amber','Yesterday']]],
+ ['Today',4,[[false,'Send Meridian renewal proposal','Meridian Coffee','SM','red','09:30'],[false,'Approve Foxglove moodboard','Foxglove Interiors','DP','amber','Today'],[false,'Prep Atlas contract draft','Atlas Athletic','SM','blue','Today'],[false,'Review Cirrus rebrand direction','Cirrus Travel','RV','gray','Today']]],
+ ['Upcoming',3,[[false,'Confirm Northwind shoot crew','Northwind Ventures','DP','amber','Thu'],[true,'Lock Q4 retainer pricing','Internal','SM','done','Done'],[false,'Kickoff call — Ora Wellness','Ora Wellness','AK','blue','Fri']]]];
+
+const props=[
+ ['Owner','user','<span class="cell-owner">'+av('SM')+'<span>Saksham Rao</span></span>'],
+ ['Stage','flag',badge('amber','Negotiation')],
+ ['Deal value','money','<b class="num">₹13,00,000</b>'],
+ ['Email','mail','hello@atlasathletic.in'],
+ ['Phone','phone','+91 98450 ••••'],
+ ['Website','globe','atlasathletic.in'],
+ ['Industry','tag','Sportswear'],
+ ['Employees','users','45'],
+ ['Location','pin','Bengaluru, IN'],
+ ['Source','link','Referral'],
+ ['Created','clock','12 Aug 2025']];
+const propIcon={user:'<circle cx="12" cy="8" r="3.4"/><path d="M5 20a7 7 0 0 1 14 0"/>',flag:'<path d="M5 21V4h13l-2 4 2 4H5"/>',money:'<path d="M12 2v20M17 6H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/>',mail:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2A19 19 0 0 1 3.1 5.2 2 2 0 0 1 5 3h3a2 2 0 0 1 2 1.7c.4 2 .9 3 .9 3L9 10a16 16 0 0 0 6 6l2-1.9s1 .5 3 .9A2 2 0 0 1 22 16.9Z"/>',globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',tag:'<path d="M20 12 12 20l-8-8V4h8z"/><circle cx="8" cy="8" r="1.3"/>',users:'<circle cx="9" cy="8" r="3"/><path d="M15 8a3 3 0 1 0 0-.01M3 20a6 6 0 0 1 12 0M15 14a6 6 0 0 1 6 6"/>',pin:'<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="2.6"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'};
+const recTimeline=[
+ ['stage','var(--amber)','<b>Saksham Rao</b> moved this deal to <b>Negotiation</b>','32m ago',''],
+ ['email','var(--blue)','<b>Saksham Rao</b> sent an email','Today · 15:20','Subject: Revised retainer scope & timeline — attached the updated SOW for the annual engagement.'],
+ ['call','var(--sky)','<b>Saksham Rao</b> logged a call · 32 min','Today · 11:05','Walked through pricing. Riya (Head of Brand) wants to add a quarterly campaign. Sending revised contract.'],
+ ['note','var(--indigo)','<b>Dev Patel</b> added a note','Yesterday','Warm account — referred by Cirrus. Decision expected by end of week.'],
+ ['task','var(--green)','<b>Saksham Rao</b> created a task · Send contract draft','2 days ago','']];
+const openDeals=[['Annual retainer','13.0','amber','Negotiation'],['Launch film add-on','4.0','sky','Proposal']];
+const recContacts=[['Riya Menon','RV','Head of Brand'],['Arjun Rao','SM','Marketing Lead']];
+const recTasks=[['Send contract draft','red','Due today'],['Schedule kickoff call','amber','Thu']];
+const recFiles=[['Retainer_Scope_v3.pdf','PDF · 240 KB'],['Brand_Guidelines_2025.pdf','PDF · 3.1 MB']];
+
+/* ============ SPARK / CHART ============ */
+function spark(data,color,w=66,h=26){if(!data)return'';const mn=Math.min(...data),mx=Math.max(...data),rng=(mx-mn)||1,st=w/(data.length-1);
+ const pts=data.map((d,i)=>[i*st,h-2-((d-mn)/rng)*(h-4)]);const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+ const id='s'+Math.random().toString(36).slice(2,7);
+ return `<svg class="mspark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".22"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+ <path d="${line} L${w} ${h} L0 ${h}Z" fill="url(#${id})"/><path d="${line}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;}
+function barChart(el,collected,target,labels){const w=520,h=210,padB=24,padT=12,maxV=Math.max(...collected,...target)*1.1,n=collected.length;
+ const gw=(w-36)/n,bw=gw*0.5,x0=28,base=h-padB,sc=v=>(v/maxV)*(h-padB-padT);let s='';
+ for(let g=0;g<=3;g++){const gy=padT+((h-padB-padT)/3)*g,val=Math.round(maxV*(1-g/3));
+  s+=`<line x1="${x0}" y1="${gy}" x2="${w-4}" y2="${gy}" stroke="var(--border)" stroke-width="1"/><text x="${x0-5}" y="${gy+3}" text-anchor="end" font-size="8.5" font-family="JetBrains Mono,monospace" fill="var(--text-3)">${val}</text>`;}
+ collected.forEach((v,i)=>{const cx=x0+gw*i+gw/2,bh=sc(v);s+=`<rect x="${(cx-bw/2).toFixed(1)}" y="${(base-bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="var(--primary)"/>`;
+  s+=`<text x="${cx.toFixed(1)}" y="${h-8}" text-anchor="middle" font-size="8.5" font-family="JetBrains Mono,monospace" fill="var(--text-3)">${labels[i]}</text>`;});
+ const tp=target.map((v,i)=>[x0+gw*i+gw/2,base-sc(v)]);const tl=tp.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+ s+=`<path d="${tl}" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-dasharray="4 4"/>`;
+ el.innerHTML=`<svg viewBox="0 0 ${w} ${h}" width="100%" style="display:block">${s}</svg>`;}
+const revC=[38,34,42,40,47,45,52,58,54,63,60,18],revT=[40,40,44,44,48,48,54,56,56,62,62,24],revM=['O','N','D','J','F','M','A','M','J','J','A','S'];
+
+/* ============ RENDER ============ */
+// home metrics
+function renderMetrics(el,arr){el.innerHTML=arr.map(m=>{const[label,val,unit,ic,dir,delta,c,w,sp]=m;
+ return `<div class="metric" style="--c:${c};--w:${w}">${sp?spark(sp,c):''}
+  <div class="ml">${ic&&mIcon[ic]?`<span class="mi"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${mIcon[ic]}</svg></span>`:''}${label}</div>
+  <div class="mv num">${val}${unit?`<small>${unit}</small>`:''}</div>
+  <div class="md"><span class="trend ${dir}">${dir==='up'?'▲':'▼'} ${delta}</span></div></div>`;}).join('');}
+renderMetrics(document.getElementById('homeMetrics'),homeMetrics);
+renderMetrics(document.getElementById('repMetrics'),repMetrics);
+
+// funnel
+function renderFunnel(el){el.innerHTML=funnelData.map(f=>`<div class="frow"><div class="fn">${f[0]}<small>${f[1]}</small></div>
+ <div class="fbar"><i style="width:${f[4]}%;background:${f[3]}"></i></div><div class="fv">₹${f[2]}L</div></div>`).join('');}
+renderFunnel(document.getElementById('homeFunnel'));renderFunnel(document.getElementById('repFunnel'));
+
+// closing table (home)
+document.getElementById('closingTable').innerHTML=`<thead><tr><th>Deal</th><th>Value</th><th>Stage</th><th>Owner</th><th>Close</th></tr></thead>
+ <tbody>${closing.map(c=>`<tr onclick="go('record')"><td><div class="co">${av(c[1]?c[4]:'',)} <span class="coname"><b>${c[0]}</b></span></div></td>
+  <td class="val">₹${c[3]}L</td><td>${badge(STAGE[c[5]]?STAGE[c[5]][0]:c[4],c[5])}</td><td>${av(c[6])}</td><td class="muted">${c[7]}</td></tr>`).join('')}</tbody>`;
+
+// home tasks
+function taskRowHTML(t){return `<div class="task" style="border:none;border-radius:0;border-bottom:1px solid var(--border);margin:0">
+ <button class="ck ${t[0]?'on':''}" onclick="tck(this)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></button>
+ <div><div class="tk-title ${t[0]?'done':''}">${t[1]}</div><div class="tk-rec">${t[2]}</div></div></div>`;}
+document.getElementById('homeTasks').innerHTML=homeTasks.map(taskRowHTML).join('');
+function tck(b){b.classList.toggle('on');const t=b.parentElement.querySelector('.tk-title');if(t)t.classList.toggle('done',b.classList.contains('on'));toast(b.classList.contains('on')?'Task completed':'Task reopened');}
+
+// home activity
+function tlHTML(a){const[type,init,name,text,time,c]=a;return `<div class="tl"><div class="tic" style="--c:${c}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">${tlIcon[type]}</svg></div>
+ <div class="tt">${name?`<b>${name}</b> `:''}${text}</div><div class="tmeta">${time}</div></div>`;}
+document.getElementById('homeActivity').innerHTML=activity.map(tlHTML).join('');
+
+// KANBAN
+document.getElementById('kanban').innerHTML=Object.entries(dealsByStage).map(([stage,deals])=>{
+ const sum=deals.reduce((a,d)=>a+parseFloat(d[4]),0);
+ return `<div class="kcol"><div class="kcol-h"><span class="kdot" style="background:${stageDot[stage]}"></span><span class="kname">${stage}</span>
+  <span class="kct">${deals.length}</span><span class="ksum">₹${sum.toFixed(1)}L</span>
+  <button class="iconbtn kadd" onclick="toast('Add deal to ${stage}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg></button></div>
+  <div class="kbody">${deals.map(d=>`<div class="kcard" onclick="go('record')">
+   <div class="kco">${av(d[1]?d[5]:'')}<b>${d[0]}</b></div>
+   <div style="font-size:11.5px;color:var(--text-3);margin-bottom:6px">${d[3]}</div>
+   <div class="kval num">₹${d[4]}L</div>
+   <div class="kmeta"><span class="kdue"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>${d[6]}</span>
+   <span class="badge" style="--c:var(--${d[7]});--w:var(--${d[7]}-w);height:18px;padding:0 6px;font-size:10px"><span class="d"></span></span>${av(d[5])}</div></div>`).join('')}</div></div>`;}).join('');
+
+// deals table
+const dealsFlat=[];Object.entries(dealsByStage).forEach(([st,ds])=>ds.forEach(d=>dealsFlat.push([d[0],d[1],d[2],d[3],d[4],d[5],st,d[6],d[7]])));
+document.getElementById('dealsTableEl').innerHTML=`<thead><tr><th>Deal</th><th>Company</th><th>Value</th><th>Stage</th><th>Owner</th><th>Close date</th><th>Health</th></tr></thead>
+ <tbody>${dealsFlat.map(d=>`<tr onclick="go('record')"><td><b>${d[3]}</b></td><td><div class="co">${av(d[5])}<span class="coname"><b>${d[0]}</b></span></div></td>
+  <td class="val">₹${d[4]}L</td><td>${badge(stageDotName(d[6]),d[6])}</td><td>${ownerCell(d[5],ownerName(d[5]))}</td><td class="muted">${d[7]}</td>
+  <td>${badge(d[8],d[8]==='green'?'On track':d[8]==='amber'?'Watch':'At risk')}</td></tr>`).join('')}</tbody>`;
+function stageDotName(s){return{New:'gray',Qualified:'blue',Proposal:'sky',Negotiation:'amber',Won:'green'}[s]||'gray';}
+function ownerName(i){return{SM:'Saksham',AK:'Aditi',RV:'Riya',DP:'Dev'}[i]||i;}
+
+// COMPANIES table
+let selected=new Set();
+function renderCompanies(){const el=document.getElementById('compTable');
+ el.innerHTML=`<thead><tr><th class="ckcell"><button class="ck" onclick="toggleAll(event)" id="ckAll"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></button></th>
+  <th class="sortable">Company <span class="caret">↕</span></th><th class="sortable">Stage</th><th class="sortable">Value <span class="caret">↓</span></th><th>Owner</th><th>Last activity</th><th>Location</th><th>Tags</th><th></th></tr></thead>
+  <tbody>${companies.map((c,i)=>`<tr onclick="rowClick(event,${i})">
+   <td class="ckcell" onclick="event.stopPropagation()"><button class="ck ${selected.has(i)?'on':''}" onclick="toggleRow(${i},this)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></button></td>
+   <td><div class="co">${av(c[4])}<span class="coname"><b>${c[0]}</b><span>${c[1]}</span></span></div></td>
+   <td>${badge(stageDotName(c[6])||'gray',c[6])}</td>
+   <td class="val">₹${c[7]}L</td>
+   <td>${ownerCell(c[4],c[5])}</td>
+   <td class="muted">${c[8]}</td>
+   <td class="muted">${c[9]}</td>
+   <td class="tagcell">${c[10].map(t=>`<span class="minitag">${t}</span>`).join('')||'<span class="muted">—</span>'}</td>
+   <td><svg class="rowarrow" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg></td></tr>`).join('')}</tbody>`;}
+function rowClick(e,i){go('record');}
+function toggleRow(i,btn){e:{};if(selected.has(i)){selected.delete(i);}else{selected.add(i);}btn.classList.toggle('on',selected.has(i));updateSel();event.stopPropagation();}
+function toggleAll(e){e.stopPropagation();const all=selected.size===companies.length;selected=new Set(all?[]:companies.map((_,i)=>i));renderCompanies();updateSel();}
+function updateSel(){const bar=document.getElementById('selbar');document.getElementById('selcount').textContent=selected.size;bar.classList.toggle('show',selected.size>0);
+ const ckAll=document.getElementById('ckAll');if(ckAll)ckAll.classList.toggle('on',selected.size===companies.length&&selected.size>0);}
+function clearSel(){selected.clear();renderCompanies();updateSel();}
+renderCompanies();
+
+// RECORD detail
+const stagesSeq=['New','Qualified','Proposal','Negotiation','Won'];const curStage=3;
+document.getElementById('stagetrack').innerHTML=stagesSeq.map((s,i)=>`<div class="st ${i<curStage?'done':i===curStage?'cur':''}"><div class="bar"></div><div class="lbl">${s}</div></div>`).join('');
+document.getElementById('props').innerHTML=props.map(p=>`<div class="prow"><span class="pl"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">${propIcon[p[1]]||''}</svg>${p[0]}</span><span class="pv">${p[2]}</span><svg class="edit" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>`).join('');
+document.getElementById('recTimeline').innerHTML=recTimeline.map(t=>`<div class="tl"><div class="tic" style="--c:${t[1]}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9">${tlIcon[t[0]]}</svg></div>
+ <div class="tt">${t[2]}</div><div class="tmeta">${t[3]}</div>${t[4]?`<div class="tbubble">${t[4]}</div>`:''}</div>`).join('');
+document.getElementById('assoc').innerHTML=`
+ <div class="card"><div class="card-h"><h3>Open deals</h3><span class="hint">2</span><a class="link" href="#" onclick="toast('Add deal');return false">+</a></div>
+  ${openDeals.map(d=>`<div class="a-item"><div class="ainfo"><b>${d[0]}</b><span>${badge(d[2],d[3])}</span></div><div class="aright val">₹${d[1]}L</div></div>`).join('')}</div>
+ <div class="card"><div class="card-h"><h3>Contacts</h3><span class="hint">2</span><a class="link" href="#" onclick="toast('Add contact');return false">+</a></div>
+  ${recContacts.map(c=>`<div class="a-item">${av(c[1])}<div class="ainfo"><b>${c[0]}</b><span>${c[2]}</span></div></div>`).join('')}</div>
+ <div class="card"><div class="card-h"><h3>Open tasks</h3><span class="hint">2</span></div>
+  ${recTasks.map(t=>`<div class="a-item"><button class="ck" onclick="tckA(this)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></button><div class="ainfo"><b>${t[0]}</b></div><div class="aright">${badge(t[1],t[2],false)}</div></div>`).join('')}</div>
+ <div class="card"><div class="card-h"><h3>Files</h3><span class="hint">2</span></div>
+  ${recFiles.map(f=>`<div class="filerow"><span class="fic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 2h9l5 5v15H6z"/><path d="M15 2v5h5"/></svg></span><div class="ainfo"><b>${f[0]}</b><span>${f[1]}</span></div></div>`).join('')}</div>`;
+function tckA(b){b.classList.toggle('on');toast('Task updated');}
+
+// TASKS view
+document.getElementById('taskGroups').innerHTML=tasks.map(g=>`<div class="taskgroup"><div class="tg-h">${g[0]}<span class="tg-ct">${g[1]}</span></div>
+ ${g[2].map(t=>`<div class="task"><button class="ck ${t[0]?'on':''}" onclick="tck(this)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><path d="M4 12l6 6L20 6"/></svg></button>
+  <span class="pflag" style="background:var(--${t[4]==='done'?'green':t[4]})"></span>
+  <div><div class="tk-title ${t[0]?'done':''}">${t[1]}</div><div class="tk-rec">${t[2]}</div></div>
+  <div class="tk-right"><span class="muted">${t[5]}</span>${av(t[3])}</div></div>`).join('')}</div>`).join('');
+
+// REPORTS chart
+barChart(document.getElementById('repChart'),revC,revT,revM);
+
+// keyboard nav
+const order=['home','deals','companies','tasks','reports','contacts','invoices'];
+addEventListener('keydown',e=>{if(e.target.matches('input,textarea'))return;const n=parseInt(e.key);if(n>=1&&n<=order.length)go(order[n-1]);});
+</script>
