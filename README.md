@@ -45,3 +45,4 @@ firebase deploy --only functions:api,hosting
 ```
 
 Secrets (database connection, admin and support emails) are in Google Secret Manager — see DECISIONS.md → Hosting.
+Alerts, backups and other routine tasks: [docs/OPERATIONS.md](docs/OPERATIONS.md).
