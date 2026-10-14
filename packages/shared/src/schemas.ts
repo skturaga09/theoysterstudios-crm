@@ -43,7 +43,10 @@ export const CreateCompanySchema = z.object({
   city: z.string().trim().max(80).default(""),
   ownerId: id,
   tags: z.array(z.string().trim().min(1).max(40)).max(20).default([]),
-  gstin: z.string().trim().toUpperCase().regex(GSTIN_RE, "Invalid GSTIN").optional(),
+  // "" clears it (the client isn't GST-registered).
+  gstin: z.string().trim().toUpperCase().pipe(z.union([z.literal(""), z.string().regex(GSTIN_RE, "Invalid GSTIN")])).optional(),
+  /** Billing address, printed under "Bill to" on invoices. */
+  address: z.string().trim().max(300).optional(),
   employees: z.number().int().positive().optional(),
 });
 export const UpdateCompanySchema = CreateCompanySchema.partial();

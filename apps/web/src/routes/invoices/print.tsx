@@ -37,11 +37,12 @@ export function InvoicePrintRoute() {
   if (!inv) return <div className="p-8"><EmptyState icon={Printer} title="Invoice not found" body="It may have been removed, or the link is old." /></div>;
 
   const seller = inv.seller ?? workspace;
+  const buyer = inv.buyer ?? { name: co?.name ?? "—", gstin: co?.gstin ?? "", address: co?.address ?? "", city: co?.city ?? "" };
   const t = invoiceTotals(inv);
   const st = invoiceStatus(inv);
   const stamp = st === "draft" ? "DRAFT — NOT ISSUED" : st === "cancelled" ? "CANCELLED" : undefined;
   // Place of supply is where the client is: their GSTIN's state, or ours for an intra-state supply.
-  const placeOfSupply = stateWithCode(co?.gstin) ?? (inv.supply === "intra" ? stateWithCode(seller.gstin) : undefined) ?? co?.city ?? "—";
+  const placeOfSupply = stateWithCode(buyer.gstin) ?? (inv.supply === "intra" ? stateWithCode(seller.gstin) : undefined) ?? (buyer.city || "—");
 
   return (
     <div className="min-h-dvh bg-sunken py-6 print:bg-white print:py-0">
@@ -78,10 +79,10 @@ export function InvoicePrintRoute() {
           </div>
           <div>
             <h2 className="i3 m-0 mb-1 text-[10px] font-medium tracking-wider uppercase">Bill to</h2>
-            <p className="m-0 font-semibold">{co?.name ?? "—"}</p>
-            {co?.city && <p className="i2 m-0">{co.city}</p>}
-            <p className="m-0 mt-1 font-mono">GSTIN {co?.gstin ?? "Unregistered"}</p>
-            {stateWithCode(co?.gstin) && <p className="i2 m-0">State: {stateWithCode(co?.gstin)}</p>}
+            <p className="m-0 font-semibold">{buyer.name}</p>
+            {buyer.address ? <p className="i2 m-0 whitespace-pre-line">{buyer.address}</p> : buyer.city && <p className="i2 m-0">{buyer.city}</p>}
+            <p className="m-0 mt-1 font-mono">GSTIN {buyer.gstin || "Unregistered"}</p>
+            {stateWithCode(buyer.gstin) && <p className="i2 m-0">State: {stateWithCode(buyer.gstin)}</p>}
           </div>
         </section>
 

@@ -24,6 +24,8 @@ export type Company = {
   tags: string[];
   lastActivityAt: ISO;
   gstin?: string;
+  /** Billing address, printed under "Bill to" on invoices. */
+  address?: string;
   employees?: number;
 };
 
@@ -130,6 +132,8 @@ export type Invoice = {
   sent: boolean;
   /** Our details as they were when the invoice was created (absent on sample invoices). */
   seller?: { legalName: string; gstin: string; address: string };
+  /** The client's details as they were when the invoice was created. */
+  buyer?: { name: string; gstin: string; address: string; city: string };
   /** Cancelled drafts stay on record so the number series has no gaps. */
   cancelled?: boolean;
   cancelledAt?: ISO;

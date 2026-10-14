@@ -276,11 +276,15 @@ export function buildApp({
     const input = CreateInvoiceSchema.parse(req.body);
     const { legalName, gstin, address } = await getWorkspace();
     if (!legalName || !gstin) return reply.code(422).send({ error: "Add the studio's legal name and GSTIN in Settings → Workspace first" });
-    if (!(await db.collection<Doc>("companies").countDocuments({ _id: input.companyId }, { limit: 1 }))) return reply.code(422).send({ error: "That company doesn't exist" });
+    const company = await db.collection<Doc>("companies").findOne({ _id: input.companyId });
+    if (!company) return reply.code(422).send({ error: "That company doesn't exist" });
     if (input.dealId && !(await db.collection<Doc>("deals").countDocuments({ _id: input.dealId, companyId: input.companyId }, { limit: 1 })))
       return reply.code(422).send({ error: "That deal doesn't belong to this company" });
     // The seller's details are copied onto the invoice, so later edits to the workspace don't change issued invoices.
-    return reply.code(201).send(out(await createInvoice(db, client, { ...input, seller: { legalName, gstin, address } })));
+    // The client's details are copied too, so editing the company later doesn't change issued invoices.
+    const str = (v: unknown) => (typeof v === "string" ? v : "");
+    const buyer = { name: str(company.name), gstin: str(company.gstin), address: str(company.address), city: str(company.city) };
+    return reply.code(201).send(out(await createInvoice(db, client, { ...input, seller: { legalName, gstin, address }, buyer })));
   });
   app.post<{ Params: { id: string } }>("/invoices/:id/send", async (req, reply) => {
     const doc = await invoices.findOneAndUpdate({ _id: req.params.id, cancelled: { $ne: true } }, { $set: { sent: true } }, { returnDocument: "after" });

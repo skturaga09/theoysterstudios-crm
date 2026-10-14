@@ -21,8 +21,9 @@ export function financialYear(at: Date): string {
  * GST rules expect consecutive serials.
  */
 export type Seller = { legalName: string; gstin: string; address: string };
+export type Buyer = { name: string; gstin: string; address: string; city: string };
 
-export async function createInvoice(db: Db, client: MongoClient, input: z.infer<typeof CreateInvoiceSchema> & { seller: Seller }) {
+export async function createInvoice(db: Db, client: MongoClient, input: z.infer<typeof CreateInvoiceSchema> & { seller: Seller; buyer: Buyer }) {
   const issuedAt = input.issuedAt ?? new Date().toISOString();
   const fy = financialYear(new Date(issuedAt));
   const session = client.startSession();

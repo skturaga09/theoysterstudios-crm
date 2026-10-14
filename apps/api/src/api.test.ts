@@ -166,6 +166,12 @@ describe("api", () => {
     expect((await call("PUT", "/workspace", { ...studio, instagramHandle: "theoysterstudios" })).json().instagramHandle).toBe("@theoysterstudios");
     const created = (await call("POST", "/invoices", inv)).json();
     expect(created.seller).toEqual({ legalName: studio.legalName, gstin: studio.gstin, address: studio.address });
+    expect(created.buyer).toMatchObject({ name: "Cirrus Travel", address: "" });
+    await call("PATCH", `/companies/${c1}`, { address: "4 MG Road, Pune 411001", gstin: "27ABCDE1234F1Z5" });
+    const after = (await call("POST", "/invoices", inv)).json();
+    expect(after.buyer).toEqual({ name: "Cirrus Travel", gstin: "27ABCDE1234F1Z5", address: "4 MG Road, Pune 411001", city: "" });
+    expect((await call("PATCH", `/companies/${c1}`, { gstin: "" })).json().gstin).toBe(""); // can be cleared
+    expect((await call("GET", "/invoices")).json().find((i: { id: string }) => i.id === after.id).buyer.gstin).toBe("27ABCDE1234F1Z5"); // issued copy kept
     await call("PUT", "/workspace", { ...studio, address: "New address" });
     expect((await call("GET", "/invoices")).json().find((i: { id: string }) => i.id === created.id).seller.address).toBe("Bengaluru");
   });

@@ -354,6 +354,7 @@ const IMPORT_FIELDS: Record<ImportTarget, ImportField[]> = {
     { key: "industry", label: "Industry", guess: /industry|sector|category/i },
     { key: "city", label: "City", guess: /city|location|town/i },
     { key: "gstin", label: "GSTIN", guess: /gst/i },
+    { key: "address", label: "Billing address", guess: /address|billing/i },
     { key: "tags", label: "Tags", guess: /tag|label/i },
   ],
   contacts: [

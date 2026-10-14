@@ -277,7 +277,14 @@ function NewInvoiceForm({ dealId, onDone }: { dealId?: string; onDone: () => voi
           <Link to="/settings/workspace" onClick={onDone} className="font-medium underline">Add them in Settings → Workspace</Link>
         </p>
       )}
-      <Field label="Bill to" hint={co ? (co.gstin ? `GSTIN ${co.gstin}` : "No GSTIN on file — billed as unregistered.") : "Add the company with a new deal first if it isn't listed."}>
+      <Field
+        label="Bill to"
+        hint={
+          co
+            ? [co.gstin ? `GSTIN ${co.gstin}` : "No GSTIN on file — billed as unregistered.", !co.address && "No billing address yet — add it on the company."].filter(Boolean).join(" ")
+            : "Add the company first (Companies → New company) if it isn't listed."
+        }
+      >
         <Select value={companyId} onChange={(e) => { setCompanyId(e.target.value); setDeal(""); setSupplyChoice(undefined); }} autoFocus={!fromDeal}>
           <option value="">Choose a company…</option>
           {[...s.companies].sort((a, b) => a.name.localeCompare(b.name)).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -349,7 +356,7 @@ const compact = (o: Record<string, string | undefined>) => Object.fromEntries(Ob
 
 function NewCompanyForm({ onDone }: { onDone: () => void }) {
   const s = useCrm();
-  const [f, setF] = useState({ name: "", domain: "", industry: "", city: "", gstin: "" });
+  const [f, setF] = useState({ name: "", domain: "", industry: "", city: "", gstin: "", address: "" });
   const [owner, setOwner] = useState(defaultOwnerId);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -389,6 +396,9 @@ function NewCompanyForm({ onDone }: { onDone: () => void }) {
       </div>
       <Field label="GSTIN" hint="Optional. Needed on their tax invoices; decides CGST + SGST or IGST.">
         <Input value={f.gstin} onChange={set("gstin")} placeholder="30ABCDE1234F1Z5" className="font-mono" />
+      </Field>
+      <Field label="Billing address" hint="Printed under “Bill to” on their invoices.">
+        <Textarea value={f.address} onChange={set("address")} rows={3} placeholder={"2nd Floor, 14 Church Street\nBengaluru 560001"} />
       </Field>
       {error && <p role="alert" className="t-meta m-0 text-risk">{error}</p>}
     </form>

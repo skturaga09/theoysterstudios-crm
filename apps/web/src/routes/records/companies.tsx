@@ -1,5 +1,5 @@
 import { fmtAgo, STAGE_LABEL, STAGES, type Stage } from "@pinnacle/shared";
-import { Avatar, Button, ChannelChip, Menu, MenuContent, MenuItem, MenuTrigger, MoneyText, Sheet, StageMeter, toast } from "@pinnacle/ui";
+import { Avatar, Button, ChannelChip, Input, Menu, MenuContent, MenuItem, MenuTrigger, MoneyText, Sheet, StageMeter, Textarea, toast } from "@pinnacle/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Building2, ChevronDown, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -12,6 +12,7 @@ import { ME_ID } from "../../data/seed";
 import { useCrm } from "../../data/store";
 import type { Company, Deal } from "../../data/types";
 import { changeStage } from "../../lib/actions";
+import { api, ApiError } from "../../lib/api";
 import { useCreateAction } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 
@@ -147,20 +148,81 @@ export function CompaniesRoute() {
   );
 }
 
+const EDITABLE = [
+  { key: "name", label: "Name" },
+  { key: "domain", label: "Website", mono: true },
+  { key: "industry", label: "Industry" },
+  { key: "city", label: "City" },
+  { key: "gstin", label: "GSTIN", mono: true },
+  { key: "address", label: "Billing address", multiline: true },
+] as const;
+type EditableKey = (typeof EDITABLE)[number]["key"];
+
 function CompanyDetail({ c }: { c: Row }) {
   const s = useCrm();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<Record<EditableKey, string>>({ name: "", domain: "", industry: "", city: "", gstin: "", address: "" });
+  const [error, setError] = useState<string>();
+  const [busy, setBusy] = useState(false);
   const deals = s.deals.filter((d) => d.companyId === c.id);
   const contacts = s.contacts.filter((x) => x.companyId === c.id);
   const acts = s.activities.filter((a) => a.companyId === c.id);
+  const startEditing = () => {
+    setForm(Object.fromEntries(EDITABLE.map((f) => [f.key, c[f.key] ?? ""])) as Record<EditableKey, string>);
+    setError(undefined);
+    setEditing(true);
+  };
+
+  if (editing)
+    return (
+      <form
+        className="flex flex-col gap-3"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!form.name.trim()) return setError("The company needs a name.");
+          if (s.companies.some((x) => x.id !== c.id && x.name.trim().toLowerCase() === form.name.trim().toLowerCase())) return setError(`Another company is already called ${form.name.trim()}.`);
+          setBusy(true);
+          try {
+            const saved = await api<Company>(`/companies/${c.id}`, { method: "PATCH", body: Object.fromEntries(EDITABLE.map((f) => [f.key, form[f.key].trim()])) });
+            useCrm.setState((x) => ({ companies: x.companies.map((co) => (co.id === c.id ? saved : co)) }));
+            toast(`Saved ${saved.name}`);
+            setEditing(false);
+          } catch (err) {
+            setError(err instanceof ApiError && err.body && "issues" in err.body ? "Check the GSTIN — it should be 15 characters, like 29ABCDE1234F1Z5." : (err as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        {EDITABLE.map((f) => (
+          <label key={f.key} className="flex flex-col gap-1.5">
+            <span className="text-[12.5px] font-medium">{f.label}</span>
+            {"multiline" in f ? (
+              <Textarea rows={3} value={form[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
+            ) : (
+              <Input value={form[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} className={"mono" in f ? "font-mono" : undefined} />
+            )}
+          </label>
+        ))}
+        {error && <p role="alert" className="t-meta m-0 text-risk">{error}</p>}
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+          <Button type="submit" variant="ink" disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
+        </div>
+      </form>
+    );
+
   return (
     <div className="flex flex-col gap-6">
       <dl className="m-0 grid grid-cols-[110px_1fr] gap-y-2.5 t-dense">
-        <dt className="text-ink-3">Domain</dt><dd className="m-0 font-mono text-[12.5px]">{c.domain}</dd>
-        <dt className="text-ink-3">Industry</dt><dd className="m-0">{c.industry}</dd>
-        <dt className="text-ink-3">City</dt><dd className="m-0">{c.city}</dd>
-        <dt className="text-ink-3">GSTIN</dt><dd className="m-0 font-mono text-[12.5px]">{c.gstin ?? "—"}</dd>
+        <dt className="text-ink-3">Website</dt><dd className="m-0 font-mono text-[12.5px]">{c.domain || "—"}</dd>
+        <dt className="text-ink-3">Industry</dt><dd className="m-0">{c.industry || "—"}</dd>
+        <dt className="text-ink-3">City</dt><dd className="m-0">{c.city || "—"}</dd>
+        <dt className="text-ink-3">GSTIN</dt><dd className="m-0 font-mono text-[12.5px]">{c.gstin || "Unregistered"}</dd>
+        <dt className="text-ink-3">Billing address</dt><dd className="m-0 whitespace-pre-line">{c.address || <span className="text-ink-3">Not added yet</span>}</dd>
         <dt className="text-ink-3">Owner</dt><dd className="m-0">{c.ownerName}</dd>
       </dl>
+      <Button size="sm" className="-mt-3 self-start" onClick={startEditing}>Edit details</Button>
       <section>
         <h3 className="t-eyebrow m-0 mb-2 text-ink-3">Deals · {deals.length}</h3>
         <ul className="m-0 list-none p-0">

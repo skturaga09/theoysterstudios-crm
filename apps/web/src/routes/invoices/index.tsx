@@ -106,7 +106,7 @@ export function InvoicesRoute() {
             {rows.map(({ i, st, t, co }, k) => (
               <TR key={i.id} data-nav-index={k} onClick={() => setOpenId(i.id)} className={cn(active === k && "bg-hover")}>
                 <TD className="font-mono text-[12.5px]">{i.number}</TD>
-                <TD><div className="font-medium">{co?.name}</div><div className="font-mono text-[11px] text-ink-3">{co?.gstin ?? "Unregistered"}</div></TD>
+                <TD><div className="font-medium">{co?.name}</div><div className="font-mono text-[11px] text-ink-3">{co?.gstin || "Unregistered"}</div></TD>
                 <TD numeric className="hidden text-ink-2 md:table-cell">{fmtDay(i.issuedAt)}</TD>
                 <TD numeric className={st === "overdue" ? "text-risk" : "text-ink-2"}>{fmtDay(i.dueAt)}{st === "overdue" && <span className="ml-1.5 text-[11px]">+{daysOverdue(i)}d</span>}</TD>
                 <TD align="right"><MoneyText paise={t.total} /></TD>
@@ -136,6 +136,8 @@ function InvoiceDetail({ inv }: { inv: Invoice }) {
   const workspace = useWorkspace();
   const from = inv.seller ?? workspace;
   const co = useCrm((s) => s.companies.find((c) => c.id === inv.companyId));
+  // The copy saved on the invoice wins; older invoices fall back to the company as it is now.
+  const to = inv.buyer ?? { name: co?.name ?? "—", gstin: co?.gstin ?? "", address: co?.address ?? "", city: co?.city ?? "" };
   const t = invoiceTotals(inv);
   const st = invoiceStatus(inv);
   return (
@@ -159,9 +161,10 @@ function InvoiceDetail({ inv }: { inv: Invoice }) {
         </div>
         <div>
           <div className="t-eyebrow mb-1.5 text-ink-3">Bill to</div>
-          <div className="font-medium">{co?.name}</div>
-          <div className="text-[12px] text-ink-2">{co?.city}</div>
-          <div className="mt-1 font-mono text-[11.5px] text-ink-2">GSTIN {co?.gstin ?? "—"}</div>
+          <div className="font-medium">{to.name}</div>
+          {to.address && <div className="text-[12px] whitespace-pre-line text-ink-2">{to.address}</div>}
+          {!to.address && to.city && <div className="text-[12px] text-ink-2">{to.city}</div>}
+          <div className="mt-1 font-mono text-[11.5px] text-ink-2">GSTIN {to.gstin || "Unregistered"}</div>
         </div>
       </div>
       <dl className="m-0 grid grid-cols-[110px_1fr] gap-y-2 t-dense">
