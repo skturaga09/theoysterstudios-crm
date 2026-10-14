@@ -104,3 +104,5 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   "Connections" the integrations will read (Google Workspace domain, enquiry inbox, Instagram handle, WhatsApp
   number). Admins edit them in Settings → Workspace; validated by `WorkspaceSchema` (GSTIN format + known state
   code). Invoices can't be created until legal name and GSTIN are set, and each invoice keeps a `seller` copy.
+- **Backups (oyster-crm):** deletion protection on; point-in-time recovery on (7 days); daily backup kept 14 days
+  (`firebase firestore:backups:schedules:list --database oyster-crm`). The test database has none of these.
