@@ -19,6 +19,8 @@ export type Company = {
   business?: Business;
   id: ID;
   name: string;
+  /** The card photo: an address the CRM issued (an upload, or their Instagram picture). */
+  photo?: string;
   domain: string;
   industry: string;
   city: string;
@@ -126,6 +128,8 @@ export type Conversation = {
   /** Which of the two businesses it belongs to; unset = not decided yet (shown in every view). */
   business?: Business;
   id: ID;
+  /** Their profile picture (Instagram), kept by the CRM; becomes the client card photo on conversion. */
+  photo?: string;
   channel: Channel;
   name: string;
   handle: string;

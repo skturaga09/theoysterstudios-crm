@@ -10,3 +10,4 @@ export * from "./dashboard";
 export * from "./finance";
 export * from "./analytics";
 export * from "./gstr1";
+export * from "./journey";

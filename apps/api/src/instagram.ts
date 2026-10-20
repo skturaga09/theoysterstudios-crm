@@ -4,6 +4,7 @@
  * Instagram or the Meta app secret, since Meta's docs name both). Read-only: nothing is ever sent to Instagram.
  * Docs: developers.facebook.com/docs/instagram-platform (business-login, webhooks).
  */
+import { copyRemotePhoto } from "./photos";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { routeLead, type RoutingRule } from "@pinnacle/shared";
 import { MongoServerError, ObjectId, type Db } from "mongodb";
@@ -136,6 +137,8 @@ export async function handleWebhook(db: Db, f: Fetch, payload: WebhookPayload) {
         );
       } else {
         const profile = await fetchProfile(f, ig.accessToken, person);
+        // Their Instagram picture, kept as our own copy (Instagram's link expires) — it becomes the client card photo.
+        const photo = profile.profilePic?.startsWith("https://") ? await copyRemotePhoto(db, f, profile.profilePic) : undefined;
         const rules = (await db.collection<{ _id: string; rules: RoutingRule[] }>("routing").findOne({ _id: "rules" }))?.rules ?? [];
         const active = new Set((await db.collection<Doc>("members").find({ status: { $ne: "removed" } }, { projection: { _id: 1 } }).toArray()).map((x) => x._id));
         await conversations.insertOne({
@@ -144,6 +147,7 @@ export async function handleWebhook(db: Db, f: Fetch, payload: WebhookPayload) {
           externalId: person,
           name: profile.name || (profile.username ? `@${profile.username}` : "Instagram user"),
           handle: profile.username ? `@${profile.username}` : "",
+          ...(photo && { photo }),
           city: "",
           unread: !outgoing,
           lastMessageAt: at,
@@ -160,12 +164,12 @@ export async function handleWebhook(db: Db, f: Fetch, payload: WebhookPayload) {
 }
 
 /** Name and username of someone who messaged the account. Best effort: a failure leaves them unnamed. */
-async function fetchProfile(f: Fetch, token: string, igsid: string): Promise<{ name?: string; username?: string }> {
+async function fetchProfile(f: Fetch, token: string, igsid: string): Promise<{ name?: string; username?: string; profilePic?: string }> {
   try {
-    const res = await f(`https://graph.instagram.com/${encodeURIComponent(igsid)}?${new URLSearchParams({ fields: "name,username", access_token: token })}`);
+    const res = await f(`https://graph.instagram.com/${encodeURIComponent(igsid)}?${new URLSearchParams({ fields: "name,username,profile_pic", access_token: token })}`);
     if (!res.ok) return {};
-    const body = (await res.json()) as { name?: string; username?: string };
-    return { name: body.name, username: body.username };
+    const body = (await res.json()) as { name?: string; username?: string; profile_pic?: string };
+    return { name: body.name, username: body.username, profilePic: body.profile_pic };
   } catch {
     return {};
   }

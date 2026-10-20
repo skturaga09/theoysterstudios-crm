@@ -88,7 +88,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "notificationPreferences", "calendarFeeds", "portalLinks", "signLinks"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "notificationPreferences", "calendarFeeds", "portalLinks", "signLinks", "photos"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify, fetch: fakeGoogle });
@@ -933,6 +933,29 @@ describe("api", () => {
     expect((await enquire({ name: "Flood", phone: "+91 98111 00000", message: "hello there" }, "203.0.113.50")).statusCode).toBe(429);
     expect((await app.inject({ method: "GET", url: "/public/enquiry-info" })).json().studioName).toBeTruthy();
   }, 60_000);
+
+  it("keeps a client's card photo: upload, serve from an unguessable address, replace, and delete with the client", async () => {
+    const webp = Buffer.concat([Buffer.from("RIFF"), Buffer.from([20, 0, 0, 0]), Buffer.from("WEBPVP8 "), Buffer.alloc(12, 1)]);
+    const dataUrl = (b: Buffer, type = "webp") => `data:image/${type};base64,${b.toString("base64")}`;
+    const co = (await call("POST", "/companies", { name: "Sana & Vir", ownerId: "sr", business: "photography" })).json();
+    expect((await call("POST", `/companies/${co.id}/photo`, { dataUrl: dataUrl(Buffer.from("<script>alert(1)</script>"), "png") })).statusCode).toBe(400); // not really an image
+    const up = (await call("POST", `/companies/${co.id}/photo`, { dataUrl: dataUrl(webp) })).json();
+    expect(up.photo).toMatch(/^\/api\/public\/photos\/[\w-]{30,}$/);
+    const served = await app.inject({ method: "GET", url: up.photo.replace("/api", "") }); // no sign-in: the address is the key
+    expect(served.statusCode).toBe(200);
+    expect(served.headers["content-type"]).toBe("image/webp");
+    expect(served.headers["cache-control"]).toContain("immutable");
+    expect(served.rawPayload.equals(webp)).toBe(true);
+    // Replacing deletes the old picture; so does deleting the client.
+    const again = (await call("POST", `/companies/${co.id}/photo`, { dataUrl: dataUrl(webp) })).json();
+    expect(again.photo).not.toBe(up.photo);
+    expect((await app.inject({ method: "GET", url: up.photo.replace("/api", "") })).statusCode).toBe(404);
+    await call("POST", "/members", { email: "crew2@gmail.com", role: "crew" });
+    expect((await call("POST", `/companies/${co.id}/photo`, { dataUrl: dataUrl(webp) }, "ok:crew2@gmail.com")).statusCode).toBe(403);
+    expect((await call("PATCH", `/companies/${co.id}`, { photo: "https://evil.example/x.png" })).statusCode).toBe(400); // only CRM addresses
+    await call("DELETE", `/companies/${co.id}`);
+    expect((await app.inject({ method: "GET", url: again.photo.replace("/api", "") })).statusCode).toBe(404);
+  });
 
   it("deletes records and keeps a deal's board position", async () => {
     const d = (await call("POST", "/deals", { title: "Film", companyId: "c1", valuePaise: 1, closeAt: "2026-11-30T00:00:00+05:30", ownerId: "sr", channel: "web", position: 3 })).json();

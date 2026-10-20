@@ -63,6 +63,8 @@ export const CreateCompanySchema = z.object({
   address: z.string().trim().max(300).optional(),
   employees: z.number().int().positive().optional(),
   business: BusinessSchema.optional(),
+  /** The client's photo on their card: an address the CRM issued (upload, or their Instagram picture). */
+  photo: z.string().regex(/^\/api\/public\/photos\/[\w-]{20,80}$/).nullable().optional(),
   /** Files and documents kept elsewhere (Google Drive folders, contracts, shot lists…). */
   links: z
     .array(z.object({ label: z.string().trim().min(1, "Name the link").max(80), url: z.string().trim().url("Enter a full web address, starting https://").max(2000) }))

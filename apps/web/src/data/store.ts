@@ -293,6 +293,7 @@ const raw = create<CrmState>((set, get) => ({
         company = await api<Company>("/companies", {
           method: "POST",
           body: {
+            ...(conv.photo && { photo: conv.photo }),
             name: conv.company ?? conv.name,
             domain: conv.handle.includes("@") && !conv.handle.startsWith("@") ? conv.handle.split("@")[1]! : "—",
             industry: "—",

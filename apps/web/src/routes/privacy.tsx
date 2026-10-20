@@ -36,6 +36,7 @@ export function PrivacyPage() {
           <li>When you message our WhatsApp Business number: your WhatsApp name and phone number, the messages in that conversation, and when they were sent.</li>
           <li>When you email us or book a meeting with us: your name, email address, the message or booking, and when it was sent.</li>
           <li>If we go on to work together: the contact details you give us, what we agree to do, and our invoices to you.</li>
+          <li>A photo for your client record, if you share one with us or it is your Instagram profile picture when you message us on Instagram. It is removed when your record is deleted.</li>
         </ul>
         <p>We do not collect anything else from your Instagram, WhatsApp, email or calendar account. Our team can reply to your Instagram and WhatsApp messages from this system; it never posts publicly or changes your account.</p>
 

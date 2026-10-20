@@ -361,3 +361,18 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   5 per IP per 10 minutes, routed into Inbox).
 - **Amounts in exact rupees:** every money field takes rupees as people say them ("58,950", "1,18,000.50"), with
   "2.5L", "75k", "1.2cr" as shorthand (`parseRupees`); the field shows what it read. Lakh-only inputs are gone.
+- **Client cards** (Clients → Cards, the default; Table still there): a card per client with their photo (or
+  initials on the business colour), a countdown (days to the next function, retainer month, Delivered), the
+  project's progress ring, the next milestone (red when late), money (overdue / due / paid up), approvals waiting
+  and open tasks, and a "This week" ribbon. Sort/filter: upcoming first, payments due, waiting on client
+  approval, delivered, A–Z. Clicking opens a side panel: the client's **journey** (`clientJourney` in shared,
+  tested — enquiry, booking, payment stages done when paid, functions done once past, retainer months,
+  deliverables done when delivered; date order; the first open one is "next") and their open tasks (tick from
+  the panel), with WhatsApp / call / project / full page.
+- **Client photos:** uploaded by anyone who may change the client or runs projects; the browser crops to
+  800×400 and converts to WebP (~50 KB; JPEG on old Safari) before upload. Stored in the CRM's database
+  (`photos`, ≤ 400 KB, type checked from the bytes) and served at `/api/public/photos/<48-char token>` with
+  immutable caching — an unguessable link, like a cloud-storage download link; a new upload gets a new address,
+  the old photo is deleted, and deleting the client deletes it. No separate storage service to set up.
+  Instagram leads bring their profile picture (`profile_pic`, copied since Instagram's links expire), which
+  becomes the card photo when the lead is converted. Mentioned in the privacy policy.

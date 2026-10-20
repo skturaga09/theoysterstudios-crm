@@ -9,7 +9,8 @@ import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
 import { invoiceStatus, invoiceTotals, isOpen, sum } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
-import { useCanEdit, useCrm } from "../../data/store";
+import { useAccess, useCanEdit, useCrm } from "../../data/store";
+import { Cover } from "./client-cards";
 import type { Activity, Company } from "../../data/types";
 import { api } from "../../lib/api";
 import { useUi } from "../../lib/ui-store";
@@ -26,6 +27,7 @@ export function ClientRoute() {
   const s = useCrm();
   const c = s.companies.find((x) => x.id === id);
   const canEdit = useCanEdit(c?.ownerId);
+  const runsProjects = useAccess("projects") === "edit";
   if (!c)
     return (
       <EmptyState
@@ -81,6 +83,7 @@ export function ClientRoute() {
       <button onClick={() => navigate(-1)} className="t-meta mb-2 inline-flex items-center gap-1 text-ink-3 hover:text-ink-2">
         <ArrowLeft size={13} strokeWidth={1.5} /> Back
       </button>
+      <Cover company={c} canUpload={canEdit || runsProjects} className="mb-6 h-[160px] rounded-card md:h-[200px]" />
       <PageHeader
         eyebrow={[c.business ? BUSINESS_LABEL[c.business] : "Both businesses", isClient ? (c.clientSince ? `client since ${fmtDay(c.clientSince)}` : "client") : "prospect"].join(" · ")}
         title={c.name}

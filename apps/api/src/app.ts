@@ -49,6 +49,7 @@ import { createPaymentLink, handleRazorpayWebhook, validRazorpaySignature, type 
 import { handleWhatsAppWebhook, sendReminder, sendText, type WhatsAppKeys } from "./whatsapp";
 import { feedFor, toIcs } from "./calendar";
 import { portalView, type PortalLink } from "./portal";
+import { deletePhoto, fromDataUrl, savePhoto, type Photo } from "./photos";
 import { createCreditNote, createInvoice, financialYear, nextNumber } from "./invoices";
 import { createDriveFolder, shareWithDomain, exchangeGoogleCode, googleAccessToken, googleAuthorizeUrl, revokeGoogle, syncGoogle, type GoogleAccount } from "./google";
 import { sendInstagram, authorizeUrl, exchangeCode, handleWebhook, newVerifyToken, subscribeMessages, validSignature, type Fetch, type InstagramIntegration, type SetupKeys } from "./instagram";
@@ -141,7 +142,7 @@ export function buildApp({
    * the team list. Checked per request, so removing someone cuts access immediately.
    */
   app.addHook("onRequest", async (req, reply) => {
-    if (PUBLIC.has(req.url.split("?")[0]!) || req.url.startsWith("/public/calendar/") || req.url.startsWith("/public/portal/") || req.url.startsWith("/public/sign/")) return;
+    if (PUBLIC.has(req.url.split("?")[0]!) || req.url.startsWith("/public/photos/") || req.url.startsWith("/public/calendar/") || req.url.startsWith("/public/portal/") || req.url.startsWith("/public/sign/")) return;
     const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
     const claims = token ? await verify(token).catch(() => undefined) : undefined;
     if (!claims?.email || !claims.email_verified) return reply.code(401).send({ error: "Sign in with Google" });
@@ -548,6 +549,7 @@ export function buildApp({
       write,
       check,
       after,
+      afterDelete,
     }: {
       area: Area;
       owned?: boolean;
@@ -557,6 +559,8 @@ export function buildApp({
       check?: (next: Record<string, unknown>, existing?: Doc) => Promise<string | undefined>;
       /** Runs after a create or change is saved (e.g. a confirmed deal makes its company a client). */
       after?: (saved: Doc, req: FastifyRequest, existing?: Doc) => Promise<void>;
+      /** Runs after a record is deleted (e.g. its photo goes too). */
+      afterDelete?: (deleted: Doc) => Promise<void>;
     },
   ) {
     const col = db.collection<Doc>(name);
@@ -614,6 +618,7 @@ export function buildApp({
       const no = writeError(req, {}, existing);
       if (no) return reply.code(403).send({ error: no });
       await col.deleteOne({ _id: existing._id });
+      await afterDelete?.(existing);
       return reply.code(204).send();
     });
     return { visible };
@@ -624,6 +629,11 @@ export function buildApp({
   records("companies", CreateCompanySchema, UpdateCompanySchema, () => ({ lastActivityAt: now() }), {
     area: "sales",
     owned: true,
+    // A replaced or removed photo is deleted, and a deleted client takes their photo with them.
+    after: async (saved, _req, existing) => {
+      if (existing?.photo && existing.photo !== saved.photo) await deletePhoto(db, existing.photo);
+    },
+    afterDelete: async (c) => deletePhoto(db, c.photo),
     scope: async (req) => {
       const mine = await crewProjects(req);
       return mine && { _id: { $in: mine.map((p) => String(p.companyId)) } };
@@ -637,6 +647,33 @@ export function buildApp({
       return mine && { companyId: { $in: mine.map((p) => String(p.companyId)) } };
     },
   });
+  /* ---------- Client photos ---------- */
+  /** Upload (or replace) a client's card photo: anyone who may change the client. The browser sends a small WebP. */
+  app.post<{ Params: { id: string } }>("/companies/:id/photo", { bodyLimit: 1_000_000 }, async (req, reply) => {
+    const { dataUrl } = z.object({ dataUrl: z.string().max(600_000) }).parse(req.body);
+    const companies = db.collection<Doc>("companies");
+    const c = await companies.findOne({ _id: req.params.id });
+    if (!c) return reply.code(404).send({ error: "Not found" });
+    const a = access(req, "sales");
+    if (!(a === "edit" || (a === "own" && c.ownerId === req.member._id) || access(req, "projects") === "edit")) return reply.code(403).send({ error: denied(req, "sales") });
+    const bytes = fromDataUrl(dataUrl);
+    if (!bytes) return reply.code(400).send({ error: "Use a JPEG, PNG or WebP photo" });
+    let photo: string;
+    try {
+      photo = await savePhoto(db, bytes);
+    } catch (e) {
+      return reply.code(400).send({ error: (e as Error).message });
+    }
+    await deletePhoto(db, c.photo);
+    return out((await companies.findOneAndUpdate({ _id: c._id }, { $set: { photo } }, { returnDocument: "after" }))!);
+  });
+  app.get<{ Params: { file: string } }>("/public/photos/:file", async (req, reply) => {
+    const p = /^[\w-]{20,80}$/.test(req.params.file) ? await db.collection<Photo>("photos").findOne({ _id: req.params.file }) : null;
+    if (!p) return reply.code(404).send({ error: "Not found" });
+    // A new upload gets a new address, so this one never changes: cache it for good (browser and CDN).
+    return reply.type(p.type).header("cache-control", "public, max-age=31536000, immutable").header("x-content-type-options", "nosniff").send(Buffer.from(p.data.buffer));
+  });
+
   /* ---------- Pipelines: each business's stages ---------- */
   const pipelinesCol = db.collection<{ _id: string } & Pipelines>("pipelines");
   const getPipelines = async (): Promise<Pipelines> => {

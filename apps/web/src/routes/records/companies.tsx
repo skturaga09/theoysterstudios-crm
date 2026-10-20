@@ -1,7 +1,7 @@
 import { fmtAgo, BUSINESS_LABEL, BUSINESSES, type Business, fmtDay } from "@pinnacle/shared";
 import { Avatar, Button, Input, Menu, MenuContent, MenuItem, MenuTrigger, MoneyText, Select, Textarea, toast, Segmented } from "@pinnacle/ui";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Building2, ChevronDown, Plus } from "lucide-react";
+import { Building2, ChevronDown, LayoutGrid, List, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { BulkButton, DataTable } from "../../components/data-table";
@@ -16,13 +16,13 @@ import { runFor, stageRank } from "../../data/pipeline";
 import { api, ApiError } from "../../lib/api";
 import { useCreateAction, usePref } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
+import { ClientCard, ClientPanel, clientSummary } from "./client-cards";
 
 type Row = Company & { isClient: boolean; best?: Deal; openValue: number; ownerName: string; last: number };
 const TAGS = ["Priority", "Retainer", "Rebrand", "Films", "Packaging", "At risk"];
 
-export const Monogram = ({ name }: { name: string }) => (
-  <span className="grid size-8 shrink-0 place-items-center rounded-control bg-sunken font-serif text-[16px] text-ink-2">{name[0]}</span>
-);
+export const Monogram = ({ name, photo }: { name: string; photo?: string }) =>
+  photo ? <img src={photo} alt="" className="size-8 shrink-0 rounded-control object-cover" /> : <span className="grid size-8 shrink-0 place-items-center rounded-control bg-sunken font-serif text-[16px] text-ink-2">{name[0]}</span>;
 
 export function CompaniesRoute() {
   const isManager = useCanAssign();
@@ -30,6 +30,9 @@ export function CompaniesRoute() {
   const navigate = useNavigate();
   // Clients = at least one confirmed deal; prospects = not yet.
   const [show, setShow] = usePref<"clients" | "prospects" | "all">("clients.show", "clients");
+  const [layout, setLayout] = usePref<"cards" | "table">("clients.layout", "cards");
+  const [focus, setFocus] = usePref<"upcoming" | "payments" | "approval" | "delivered" | "name">("clients.focus", "upcoming");
+  const [opened, setOpened] = useState<string>();
   useCreateAction(() => useUi.getState().openComposer("company"));
 
   const rows: Row[] = useMemo(
@@ -58,7 +61,7 @@ export function CompaniesRoute() {
       enableHiding: false,
       cell: ({ row: { original: c } }) => (
         <span className="flex items-center gap-3">
-          <Monogram name={c.name} />
+          <Monogram name={c.name} photo={c.photo} />
           <span className="leading-tight">
             <span className="block font-medium">{c.name}</span>
             <span className="font-mono text-[11px] text-ink-3">{c.domain}</span>
@@ -85,6 +88,17 @@ export function CompaniesRoute() {
   ];
 
   const visibleRows = rows.filter((r) => show === "all" || (show === "clients") === r.isClient);
+  // Cards: filtered and ordered by what needs attention.
+  const cards = visibleRows
+    .map((r) => ({ r, x: clientSummary(r, s) }))
+    .filter(({ x }) => (focus === "payments" ? x.due > 100 : focus === "approval" ? x.needsApproval > 0 : focus === "delivered" ? x.delivered : true))
+    .sort((a, b) =>
+      focus === "name"
+        ? a.r.name.localeCompare(b.r.name)
+        : focus === "payments"
+          ? b.x.overdue - a.x.overdue || b.x.due - a.x.due
+          : Number(a.x.delivered) - Number(b.x.delivered) || (a.x.nextEventDate ?? a.x.next?.date ?? "9999").localeCompare(b.x.nextEventDate ?? b.x.next?.date ?? "9999"),
+    );
 
   return (
     <>
@@ -94,11 +108,34 @@ export function CompaniesRoute() {
         actions={
           <>
             <Segmented label="Show" value={show} onChange={setShow} options={[{ value: "clients", label: "Clients" }, { value: "prospects", label: "Prospects" }, { value: "all", label: "All" }]} />
+            <Segmented label="Layout" value={layout} onChange={setLayout} options={[{ value: "cards", label: <><LayoutGrid strokeWidth={1.5} />Cards</> }, { value: "table", label: <><List strokeWidth={1.5} />Table</> }]} />
             <Button onClick={() => useUi.getState().openComposer("deal")}>New lead</Button>
             <Button variant="ink" onClick={() => useUi.getState().openComposer("company")}><Plus strokeWidth={1.5} /> New client</Button>
           </>
         }
       />
+      {layout === "cards" ? (
+        <>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <Select aria-label="Show first" value={focus} onChange={(e) => setFocus(e.target.value as typeof focus)} className="w-[220px]">
+              <option value="upcoming">Upcoming first</option>
+              <option value="payments">Payments due</option>
+              <option value="approval">Waiting on client approval</option>
+              <option value="delivered">Delivered</option>
+              <option value="name">A to Z</option>
+            </Select>
+            <span className="t-meta text-ink-3">{cards.length} shown · drop a photo on a card to add it</span>
+          </div>
+          {cards.length ? (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3">
+              {cards.map(({ r }) => <ClientCard key={r.id} company={r} onOpen={() => setOpened(r.id)} />)}
+            </div>
+          ) : (
+            <EmptyState icon={Building2} title="No clients here" body="Try another filter, or switch the top bar to Both businesses." />
+          )}
+          <ClientPanel company={s.companies.find((c) => c.id === opened)} onClose={() => setOpened(undefined)} />
+        </>
+      ) : (
       <DataTable
         data={visibleRows}
         columns={columns}
@@ -150,7 +187,7 @@ export function CompaniesRoute() {
           </>
         )}
       />
-
+      )}
     </>
   );
 }
