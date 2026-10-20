@@ -88,7 +88,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "notificationPreferences", "calendarFeeds"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "notificationPreferences", "calendarFeeds", "portalLinks"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify, fetch: fakeGoogle });
@@ -796,6 +796,53 @@ describe("api", () => {
     const paid = (await call("GET", "/invoices")).json().find((i: { id: string }) => i.id === inv.id);
     expect(paid.payments).toEqual([{ at: new Date(1_792_000_000_000).toISOString(), amountPaise: 11_800_00, ref: "pay_123", method: "Razorpay · upi" }]);
     expect(paid.paymentLink.status).toBe("paid");
+  });
+
+  it("shares a project with its client through a private link: only client-safe details, and approvals", async () => {
+    const co = (await call("POST", "/companies", { name: "Zoya & Aman", ownerId: "sr", business: "photography" })).json();
+    const d = (await call("POST", "/deals", { title: "Zoya & Aman wedding", companyId: co.id, valuePaise: 1, closeAt: "2027-04-01T00:00:00+05:30", ownerId: "sr", channel: "web", business: "photography", stage: "won", eventDate: "2027-04-01" })).json();
+    const p = (await call("GET", `/projects?dealId=${d.id}`)).json()[0];
+    await call("PATCH", `/projects/${p.id}`, { notes: "INTERNAL: client haggles", crew: [{ memberId: "sr", role: "Lead photographer" }] });
+    const tasks = (await call("GET", `/tasks?projectId=${p.id}`)).json() as { id: string; title: string; approval: string }[];
+    const review = tasks.find((t) => t.title === "Client review and approval")!;
+    await call("POST", `/tasks/${review.id}/comments`, { body: "STAFF ONLY: use the warm grade" });
+
+    expect((await call("GET", `/projects/${p.id}/portal`)).json()).toEqual({}); // no link yet
+    const { url, token } = (await call("POST", `/projects/${p.id}/portal`, { origin: "https://crm.example" })).json();
+    expect(url).toBe(`https://crm.example/portal/${token}`);
+    expect((await call("POST", `/projects/${p.id}/portal`, { origin: "https://crm.example" })).json().token).toBe(token); // same link again
+
+    const view = await app.inject({ method: "GET", url: `/public/portal/${token}` }); // no sign-in
+    expect(view.statusCode).toBe(200);
+    const body = view.json();
+    expect(body.project).toMatchObject({ name: "Zoya & Aman wedding", events: [{ name: "Wedding", date: "2027-04-01" }], progress: { done: 0, total: tasks.length } });
+    expect(body.client.name).toBe("Zoya & Aman");
+    expect(body.approvals.map((x: { title: string }) => x.title)).toEqual(["Client review and approval", "Album design"]);
+    expect(body.deliverables[0]).toMatchObject({ name: "Edited photos", status: "pending" });
+    const raw = view.body;
+    for (const secret of ["INTERNAL", "STAFF ONLY", "Lead photographer", "Wedding day coverage", "assigneeId", "managerId", "ownerId"]) expect(raw).not.toContain(secret);
+
+    // The client approves one item and asks for changes on another; staff hear about it.
+    const approve = (taskId: string, payload: object, t = token) => app.inject({ method: "POST", url: `/public/portal/${t}/approvals/${taskId}`, payload });
+    expect((await approve(review.id, { decision: "changes" })).statusCode).toBe(400); // must say what to change
+    expect((await approve(review.id, { decision: "changes", note: "Brighter skin tones please", name: "Zoya" })).json()).toEqual({ ok: true, approval: "changes" });
+    expect((await approve(review.id, { decision: "approved", name: "Zoya" })).json().approval).toBe("approved");
+    expect((await approve(review.id, { decision: "approved" })).statusCode).toBe(409);
+    const after = (await call("GET", `/tasks/${review.id}`)).json();
+    expect(after.approval).toBe("approved");
+    expect(after.comments.at(-1)).toMatchObject({ authorId: "client", authorName: "Zoya", body: "Approved" });
+    expect((await app.inject({ method: "GET", url: `/public/portal/${token}` })).json().approvals[0].notes.map((n: { body: string }) => n.body)).toEqual(["Changes requested: Brighter skin tones please", "Approved"]);
+    const nonApproval = tasks.find((t) => t.title === "Wedding day coverage")!;
+    expect((await approve(nonApproval.id, { decision: "approved" })).statusCode).toBe(404); // not a client item
+    const elsewhere = (await call("POST", "/tasks", { title: "Other project", dueAt: "2027-01-01T10:00:00+05:30", assigneeId: "sr", approval: "pending" })).json();
+    expect((await approve(elsewhere.id, { decision: "approved" })).statusCode).toBe(404); // another project's task
+
+    // Crew can't share; turning the link off ends it.
+    await call("POST", "/members", { email: "crewbie@gmail.com", role: "crew" });
+    expect((await call("POST", `/projects/${p.id}/portal`, { origin: "https://crm.example" }, "ok:crewbie@gmail.com")).statusCode).toBe(403);
+    expect((await call("DELETE", `/projects/${p.id}/portal`)).statusCode).toBe(204);
+    expect((await app.inject({ method: "GET", url: `/public/portal/${token}` })).statusCode).toBe(404);
+    expect((await app.inject({ method: "GET", url: "/public/portal/short" })).statusCode).toBe(404);
   });
 
   it("deletes records and keeps a deal's board position", async () => {

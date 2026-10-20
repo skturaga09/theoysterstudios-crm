@@ -116,7 +116,7 @@ export const SERVICES: Record<Business, string[]> = {
 
 /* ---------- Notifications ---------- */
 /** In-app notification groups each teammate can turn on or off for themselves. */
-export const NOTIFICATION_KINDS = ["lead", "assigned", "project", "task", "comment", "won", "accepted", "late", "summary"] as const;
+export const NOTIFICATION_KINDS = ["lead", "assigned", "project", "task", "comment", "approval", "won", "accepted", "late", "summary"] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 export type NotificationPreferences = { app: Record<NotificationKind, boolean> };
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {

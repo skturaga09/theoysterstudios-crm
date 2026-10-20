@@ -130,9 +130,9 @@ export function AgreementPrintRoute() {
   );
 }
 
-type PrintableDoc = Pick<Invoice, "id" | "number" | "issuedAt" | "companyId" | "supply" | "lines" | "payments" | "sent" | "seller" | "buyer" | "cancelled" | "credits"> & { dueAt?: string };
+export type PrintableDoc = Pick<Invoice, "id" | "number" | "issuedAt" | "companyId" | "supply" | "lines" | "payments" | "sent" | "seller" | "buyer" | "cancelled" | "credits"> & { dueAt?: string };
 
-function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; credit?: { invoiceNumber: string; invoiceIssuedAt: string; reason: string }; quote?: Quote }) {
+export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; credit?: { invoiceNumber: string; invoiceIssuedAt: string; reason: string }; quote?: Quote }) {
   const navigate = useNavigate();
   const co = useCrm((s) => s.companies.find((c) => c.id === inv?.companyId));
   const workspace = useWorkspace();

@@ -25,7 +25,7 @@ import {
 } from "@pinnacle/shared";
 import { Avatar, Button, Checkbox, cn, Input, Pill, Segmented, Select, StrikeText, Textarea, toast } from "@pinnacle/ui";
 import { ArrowLeft, ChevronDown, ExternalLink, FolderKanban, FolderPlus, MessageSquare, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
@@ -35,6 +35,7 @@ import { useAccess, useCrm } from "../../data/store";
 import type { Project, Task } from "../../data/types";
 import { usePref } from "../../lib/hooks";
 import { api } from "../../lib/api";
+import { IS_DEMO } from "../../lib/demo";
 
 const DELIVERABLE_LABEL: Record<DeliverableStatus, string> = { pending: "Pending", in_progress: "In progress", delivered: "Delivered" };
 const PRIORITY_TONE: Record<Priority, "mute" | "warn" | "risk"> = { low: "mute", normal: "mute", high: "warn", urgent: "risk" };
@@ -183,6 +184,7 @@ export function ProjectRoute() {
             <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Notes</h2>
             <Textarea key={p.id} rows={4} defaultValue={p.notes ?? ""} placeholder="Brief, special requests, things to remember…" onBlur={(e) => e.target.value.trim() !== (p.notes ?? "") && set({ notes: e.target.value.trim() || undefined })} />
           </section>
+          <ClientPortal p={p} canShare={canEdit} />
           <Links p={p} set={set} />
         </aside>
         </fieldset>
@@ -379,9 +381,9 @@ function Comments({ t }: { t: Task }) {
     <div className="flex flex-col gap-2">
       {(t.comments ?? []).map((c) => (
         <div key={c.id} className="flex gap-2">
-          <Avatar name={members.find((m) => m.id === c.authorId)?.name ?? "Support"} size="sm" />
+          <Avatar name={(c.authorId === "client" ? `${c.authorName ?? "Client"} (client)` : (members.find((m) => m.id === c.authorId)?.name ?? "Support"))} size="sm" />
           <div className="min-w-0 flex-1">
-            <div className="text-[11.5px] text-ink-3">{members.find((m) => m.id === c.authorId)?.name ?? "Support"} · {fmtAgo(c.at)}</div>
+            <div className="text-[11.5px] text-ink-3">{(c.authorId === "client" ? `${c.authorName ?? "Client"} (client)` : (members.find((m) => m.id === c.authorId)?.name ?? "Support"))} · {fmtAgo(c.at)}</div>
             <p className="t-dense m-0 whitespace-pre-wrap">{c.body}</p>
           </div>
         </div>
@@ -553,5 +555,86 @@ export function ProjectList({ projects }: { projects: Project[] }) {
         );
       })}
     </ul>
+  );
+}
+
+/** The client's private link to this project: progress, approvals, deliverables and payments — no account needed. */
+function ClientPortal({ p, canShare }: { p: Project; canShare: boolean }) {
+  const s = useCrm();
+  const [link, setLink] = useState<{ url?: string; lastViewedAt?: string; loaded: boolean }>({ loaded: IS_DEMO });
+  const [busy, setBusy] = useState(false);
+  const deal = s.deals.find((d) => d.id === p.dealId);
+  const contact = s.contacts.find((c) => c.id === deal?.contactId) ?? s.contacts.find((c) => c.companyId === p.companyId && c.phone);
+  const site = window.location.origin;
+  useEffect(() => {
+    if (IS_DEMO) return;
+    api<{ token?: string; lastViewedAt?: string }>(`/projects/${p.id}/portal`).then(
+      (r) => setLink({ url: r.token ? `${site}/portal/${r.token}` : undefined, lastViewedAt: r.lastViewedAt, loaded: true }),
+      () => setLink({ loaded: true }),
+    );
+  }, [p.id, site]);
+  const make = async (reset = false) => {
+    setBusy(true);
+    try {
+      if (IS_DEMO) setLink({ url: `${site}/portal/demo`, loaded: true });
+      else {
+        const r = await api<{ url: string; lastViewedAt?: string }>(`/projects/${p.id}/portal`, { method: "POST", body: { origin: site, reset } });
+        setLink({ url: r.url, lastViewedAt: r.lastViewedAt, loaded: true });
+      }
+      toast(reset ? "New link made — the old one no longer works" : "Client link ready");
+    } catch (e) {
+      toast(`Couldn't make the link — ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const off = async () => {
+    setBusy(true);
+    try {
+      if (!IS_DEMO) await api(`/projects/${p.id}/portal`, { method: "DELETE" });
+      setLink({ loaded: true });
+      toast("Client link turned off");
+    } catch (e) {
+      toast(`Couldn't turn it off — ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!link.loaded) return null;
+  const message = link.url && `Hello${contact ? ` ${contact.name.split(" ")[0]}` : ""}! Here's your private page for ${p.name} — see progress, approve items and check payments any time: ${link.url}`;
+  return (
+    <section>
+      <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Client portal</h2>
+      {link.url ? (
+        <div className="flex flex-col gap-2">
+          <span className="flex gap-2">
+            <Input readOnly value={link.url} onFocus={(e) => e.target.select()} aria-label="Client link" className="h-8 flex-1 font-mono text-[11px]" />
+            <Button size="sm" onClick={() => void navigator.clipboard.writeText(link.url!).then(() => toast("Copied"))}>Copy</Button>
+          </span>
+          <span className="flex flex-wrap items-center gap-2">
+            {contact?.phone && (
+              <Button size="sm" variant="ghost" asChild>
+                <a href={`https://wa.me/${contact.phone.replace(/\D/g, "").replace(/^(\d{10})$/, "91$1")}?text=${encodeURIComponent(message!)}`} target="_blank" rel="noreferrer"><MessageSquare strokeWidth={1.5} /> Send on WhatsApp</a>
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" asChild><a href={link.url} target="_blank" rel="noreferrer"><ExternalLink strokeWidth={1.5} /> Preview</a></Button>
+          </span>
+          <p className="t-meta m-0 text-ink-3">{link.lastViewedAt ? `Client last opened it ${fmtAgo(link.lastViewedAt)}.` : "Not opened yet."} Anyone with the link can see this project's progress, approvals, deliverables and payments — never internal notes, crew, costs or staff comments.</p>
+          {canShare && (
+            <span className="flex gap-3">
+              <button className="t-meta text-ink-3 hover:text-ink" disabled={busy} onClick={() => void make(true)}>Replace link</button>
+              <button className="t-meta text-risk hover:underline" disabled={busy} onClick={() => void off()}>Turn off</button>
+            </span>
+          )}
+        </div>
+      ) : canShare ? (
+        <>
+          <p className="t-meta m-0 mb-2 text-ink-3">A private page for the client: progress, items to approve, deliverables and payments. No account needed.</p>
+          <Button size="sm" disabled={busy} onClick={() => void make()}>Create client link</Button>
+        </>
+      ) : (
+        <p className="t-meta m-0 text-ink-3">No client link yet. An admin or project manager can create one.</p>
+      )}
+    </section>
   );
 }

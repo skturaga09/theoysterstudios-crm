@@ -298,3 +298,20 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   cached for a year — their names change every build). In the app, a failed screen load from an old release
   reloads once (`vite:preloadError` + the router's error screen, `lib/stale.ts`; a 30-second guard stops loops);
   any other failure shows "This page didn't load" with a Reload button instead of a blank screen.
+
+## Phase 4: client portal (20 Oct 2026)
+
+- **Access:** one private link per project (`/portal/<token>`, `portalLinks`), no client account — shared on
+  WhatsApp like a gallery link. 48-character random token; admins and project managers create, replace (old link
+  stops) or turn it off from the project page. Email sign-in for clients can replace this later (it needs outbound
+  email). The portal is its own small app outside the sign-in gate (`routes/portal`), mobile-first.
+- **What the client sees** (`portalView()` builds an allow-list, never the raw records): project name, business,
+  status, dates, functions, overall progress (done/total, no task list), items the studio marked for client
+  approval (with only the client's own notes), deliverables with links, the content-calendar link, the payment
+  schedule (paid / invoiced / due / upcoming) and sent invoices — viewable and printable like the tax invoice,
+  with a Pay button when a Razorpay link is open. Never internal tasks, notes, crew, owners, costs, profit, staff
+  comments or internal file links (the Drive folder is for the team).
+- **Approvals:** Approve, or Request changes with a note (required), signed with a name the device remembers.
+  The task's approval updates, the decision is added as a client comment (shown as "<name> (client)") and the
+  task's assignee and the project manager are notified (`approval`, a new switchable notification kind).
+  Only the link's own project's approval items can be decided; approved items are final.

@@ -178,7 +178,8 @@ export type Task = {
   status?: TaskStatus;
   approval?: Approval;
   links?: { label: string; url: string }[];
-  comments?: { id: ID; authorId: ID; body: string; at: ISO }[];
+  /** `authorId: "client"` = left by the client in the portal, with the name they gave. */
+  comments?: { id: ID; authorId: ID; authorName?: string; body: string; at: ISO }[];
 };
 
 /** Work for a confirmed client: a wedding (with its functions) or a marketing engagement. */

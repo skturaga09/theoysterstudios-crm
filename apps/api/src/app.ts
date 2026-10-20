@@ -45,6 +45,7 @@ import { notify, type Notification, type NotificationPreferencesDoc } from "./no
 import { createPaymentLink, handleRazorpayWebhook, validRazorpaySignature, type RazorpayKeys } from "./razorpay";
 import { handleWhatsAppWebhook, sendReminder, sendText, type WhatsAppKeys } from "./whatsapp";
 import { feedFor, toIcs } from "./calendar";
+import { portalView, type PortalLink } from "./portal";
 import { createCreditNote, createInvoice, financialYear, nextNumber } from "./invoices";
 import { createDriveFolder, shareWithDomain, exchangeGoogleCode, googleAccessToken, googleAuthorizeUrl, revokeGoogle, syncGoogle, type GoogleAccount } from "./google";
 import { sendInstagram, authorizeUrl, exchangeCode, handleWebhook, newVerifyToken, subscribeMessages, validSignature, type Fetch, type InstagramIntegration, type SetupKeys } from "./instagram";
@@ -121,7 +122,7 @@ export function buildApp({
    * the team list. Checked per request, so removing someone cuts access immediately.
    */
   app.addHook("onRequest", async (req, reply) => {
-    if (PUBLIC.has(req.url.split("?")[0]!) || req.url.startsWith("/public/calendar/")) return;
+    if (PUBLIC.has(req.url.split("?")[0]!) || req.url.startsWith("/public/calendar/") || req.url.startsWith("/public/portal/")) return;
     const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
     const claims = token ? await verify(token).catch(() => undefined) : undefined;
     if (!claims?.email || !claims.email_verified) return reply.code(401).send({ error: "Sign in with Google" });
@@ -757,6 +758,68 @@ export function buildApp({
     if (!member) return reply.code(404).type("text/plain").send("This calendar address is no longer valid.");
     const site = `https://${req.headers["x-forwarded-host"] ?? req.headers.host}`;
     return reply.type("text/calendar; charset=utf-8").header("cache-control", "private, max-age=900").send(toIcs(`Oyster CRM — ${member.name}`, await feedFor(db, member as Doc, site)));
+  });
+
+  /* ---------- Client portal: one private link per project, no client account ---------- */
+  const portalLinks = db.collection<PortalLink>("portalLinks");
+  const portalUrl = (site: string, token: string) => `${site}/portal/${token}`;
+  const visibleProject = async (req: FastifyRequest, id: string) => {
+    const mine = access(req, "projects") === "own" ? await crewProjects(req) : undefined;
+    if (access(req, "projects") === "none" || (mine && !mine.some((p) => p._id === id))) return null;
+    return db.collection<Doc>("projects").findOne({ _id: id });
+  };
+  app.get<{ Params: { id: string } }>("/projects/:id/portal", async (req, reply) => {
+    if (!(await visibleProject(req, req.params.id))) return reply.code(404).send({ error: "Not found" });
+    const link = await portalLinks.findOne({ projectId: req.params.id });
+    return link ? { token: link._id, createdAt: link.createdAt, lastViewedAt: link.lastViewedAt } : {};
+  });
+  // Admins and project managers share, replace or turn off the link.
+  app.post<{ Params: { id: string } }>("/projects/:id/portal", { preHandler: mayChange("projects", false) }, async (req, reply) => {
+    const { origin: site, reset } = z.object({ origin, reset: z.boolean().optional() }).parse(req.body);
+    if (!(await db.collection<Doc>("projects").countDocuments({ _id: req.params.id }, { limit: 1 }))) return reply.code(404).send({ error: "Not found" });
+    if (reset) await portalLinks.deleteMany({ projectId: req.params.id });
+    let link = await portalLinks.findOne({ projectId: req.params.id });
+    if (!link) await portalLinks.insertOne((link = { _id: newVerifyToken() + newVerifyToken(), projectId: req.params.id, createdAt: now(), createdBy: req.member._id }));
+    return { token: link._id, url: portalUrl(site, link._id), createdAt: link.createdAt, lastViewedAt: link.lastViewedAt };
+  });
+  app.delete<{ Params: { id: string } }>("/projects/:id/portal", { preHandler: mayChange("projects", false) }, async (req, reply) => {
+    await portalLinks.deleteMany({ projectId: req.params.id });
+    return reply.code(204).send();
+  });
+
+  const portalToken = z.string().regex(/^[\w-]{40,80}$/);
+  app.get<{ Params: { token: string } }>("/public/portal/:token", async (req, reply) => {
+    const token = portalToken.safeParse(req.params.token);
+    const link = token.success ? await portalLinks.findOne({ _id: token.data }) : null;
+    const view = link && (await portalView(db, link.projectId, await getWorkspace()));
+    if (!link || !view) return reply.code(404).send({ error: "This link is no longer active. Ask the studio for a new one." });
+    // Remember when the client last looked (at most every 10 minutes).
+    if (!link.lastViewedAt || Date.now() - +new Date(link.lastViewedAt) > 600_000) await portalLinks.updateOne({ _id: link._id }, { $set: { lastViewedAt: now() } });
+    return reply.header("cache-control", "private, no-store").send(view);
+  });
+  app.post<{ Params: { token: string; taskId: string } }>("/public/portal/:token/approvals/:taskId", async (req, reply) => {
+    const token = portalToken.safeParse(req.params.token);
+    const link = token.success ? await portalLinks.findOne({ _id: token.data }) : null;
+    if (!link) return reply.code(404).send({ error: "This link is no longer active. Ask the studio for a new one." });
+    const { decision, note, name } = z
+      .object({ decision: z.enum(["approved", "changes"]), note: z.string().trim().max(1000).optional(), name: z.string().trim().max(80).optional() })
+      .refine((x) => x.decision === "approved" || !!x.note, { message: "Say what you'd like changed", path: ["note"] })
+      .parse(req.body);
+    const tasksCol = db.collection<Doc>("tasks");
+    const task = await tasksCol.findOne({ _id: req.params.taskId, projectId: link.projectId });
+    if (!task || !task.approval || task.approval === "none") return reply.code(404).send({ error: "Not found" });
+    if (task.approval === "approved") return reply.code(409).send({ error: "This is already approved" });
+    const project = await db.collection<Doc>("projects").findOne({ _id: link.projectId });
+    const client = (await db.collection<Doc>("companies").findOne({ _id: String(project?.companyId) }))?.name as string | undefined;
+    const by = name || client || "Client";
+    const comment = { id: new ObjectId().toHexString(), authorId: "client", authorName: by, body: decision === "approved" ? `Approved${note ? `: ${note}` : ""}` : `Changes requested: ${note}`, at: now() };
+    await tasksCol.updateOne({ _id: task._id }, { $set: { approval: decision }, $push: { comments: comment } as never });
+    await notify(db, [task.assigneeId as string | undefined, project?.managerId as string | undefined], {
+      kind: "approval",
+      text: decision === "approved" ? `${by} approved “${task.title}”` : `${by} asked for changes on “${task.title}”: ${note!.slice(0, 120)}`,
+      link: `/projects/${link.projectId}`,
+    });
+    return { ok: true, approval: decision };
   });
 
   /* ---------- Notifications (mine) ---------- */

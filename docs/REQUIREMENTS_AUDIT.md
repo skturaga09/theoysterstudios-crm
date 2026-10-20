@@ -29,9 +29,12 @@ The current responsive web CRM covers Phases 1–3 from the requirements. Phase 
 - Project pages now include confirmed value, invoiced revenue, money received, outstanding balance, project costs, actual/estimated profit and linked communication history for roles allowed to see them.
 - Deal file lists now show the client's real proposals, agreements, contracts, briefs and Drive links instead of sample filenames.
 
-## Intentionally future (Phase 4)
+## Phase 4 delivered
 
-- Client login/portal, client-side approvals and client-visible content-calendar views.
+- Client portal by private project link: progress, functions, client approvals (approve / request changes), deliverables, content calendar, payment schedule, invoices with online payment. See DECISIONS.md → Phase 4.
+
+## Intentionally future
+
 - Native mobile applications; the current deliverable is the responsive web app requested for the first version.
 - Advanced analytics, accounting-software integrations, additional marketing platforms and AI features.
 - Electronic signatures and a client-side signing workflow. Accepted quotations now generate a printable service agreement with scope, fees, payment schedule, terms and signature blocks; e-signing still needs a product and compliance decision.
