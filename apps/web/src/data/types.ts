@@ -65,6 +65,14 @@ export type Deal = {
   createdAt: ISO;
   wonAt?: ISO;
   lostReason?: string;
+  /** Lead details from the client's brief. */
+  service?: string;
+  location?: string;
+  /** Wedding / event date (photography), YYYY-MM-DD. */
+  eventDate?: string;
+  requirements?: string;
+  /** When to follow up next; null/absent = none scheduled. */
+  nextFollowUpAt?: ISO | null;
 };
 
 export type Intent = "quote" | "meeting" | "question" | "other";

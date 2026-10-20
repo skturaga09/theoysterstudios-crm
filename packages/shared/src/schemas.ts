@@ -3,10 +3,11 @@
  * web bundle doesn't ship zod until forms need it (M1+).
  */
 import { z } from "zod";
-import { BUSINESSES, CHANNELS, HEALTHS, ROLES, STAGES } from "./domain";
+import { BUSINESSES, CHANNELS, HEALTHS, ROLES } from "./domain";
 import { gstState, GSTIN_RE } from "./gst";
 
-export const StageSchema = z.enum([...STAGES, "lost"]);
+/** A stage id from the deal's business pipeline (checked against it by the API). */
+export const StageSchema = z.string().trim().regex(/^[a-z0-9-]{1,30}$/, "Invalid stage");
 export const ChannelSchema = z.enum(CHANNELS);
 export const HealthSchema = z.enum(HEALTHS);
 export const RoleSchema = z.enum(ROLES);
@@ -80,6 +81,14 @@ export const CreateDealSchema = z.object({
   nextStep: optionalText(240),
   position: z.number().int().nonnegative().optional(),
   business: BusinessSchema.optional(),
+  /** Lead details from the client's brief. */
+  service: optionalText(120),
+  location: optionalText(120),
+  /** Wedding / event date (photography), YYYY-MM-DD. */
+  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date").optional(),
+  requirements: optionalText(2000),
+  /** When to follow up next; null clears it. */
+  nextFollowUpAt: iso.nullable().optional(),
 });
 export const UpdateDealSchema = CreateDealSchema.partial().extend({
   lostReason: optionalText(240),
@@ -194,3 +203,21 @@ export const UpdateConversationSchema = z.object({
   dealId: id.nullable().optional(),
   contactId: id.nullable().optional(),
 });
+
+/* ---------- Pipelines (Settings → Pipelines & stages, admins) ---------- */
+export const PipelineStageSchema = z.object({
+  id: StageSchema,
+  label: z.string().trim().min(1, "Every stage needs a name").max(40),
+  kind: z.enum(["open", "won", "lost"]),
+  probability: z.number().min(0).max(1),
+});
+export const PipelineSchema = z
+  .array(PipelineStageSchema)
+  .min(3)
+  .max(20)
+  .refine((st) => new Set(st.map((s) => s.id)).size === st.length, "Two stages share an id")
+  .refine((st) => st.filter((s) => s.kind === "won").length === 1 && st.filter((s) => s.kind === "lost").length === 1, "Keep exactly one Confirmed (won) and one Lost stage")
+  // Their ids are fixed ("won", "lost") so "is this deal still open?" never needs the pipeline; only their names change.
+  .refine((st) => st.every((s) => (s.kind === "won" ? s.id === "won" : s.kind === "lost" ? s.id === "lost" : s.id !== "won" && s.id !== "lost")), "The Confirmed and Lost stages keep their ids")
+  .refine((st) => st.some((s) => s.kind === "open"), "Keep at least one open stage");
+export const PipelinesSchema = z.object({ photography: PipelineSchema, marketing: PipelineSchema });

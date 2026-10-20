@@ -1,8 +1,7 @@
-import { invoiceTotals, STAGES, type Stage } from "@pinnacle/shared";
+import { invoiceTotals, type Pipelines } from "@pinnacle/shared";
+import { probabilityOf } from "./pipeline";
 import type { Deal, Invoice, InvoiceStatus, Task } from "./types";
 
-export const PROBABILITY: Record<Stage, number> = { new: 0.1, qualified: 0.25, proposal: 0.5, negotiation: 0.75, won: 1, lost: 0 };
-export const OPEN_STAGES = STAGES.filter((s) => s !== "won") as Stage[];
 
 export const isOpen = (d: Deal) => d.stage !== "won" && d.stage !== "lost";
 export const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
@@ -24,14 +23,14 @@ const startOfToday = () => {
   return d;
 };
 
-export function pipelineMetrics(deals: Deal[]) {
+export function pipelineMetrics(deals: Deal[], pipelines: Pipelines) {
   const open = deals.filter(isOpen);
   const som = startOfMonth();
   const wonThisMonth = deals.filter((d) => d.stage === "won" && d.wonAt && new Date(d.wonAt) >= som);
   return {
     openCount: open.length,
     openPaise: sum(open.map((d) => d.valuePaise)),
-    weightedPaise: Math.round(sum(open.map((d) => d.valuePaise * PROBABILITY[d.stage]))),
+    weightedPaise: Math.round(sum(open.map((d) => d.valuePaise * probabilityOf(pipelines, d)))),
     wonPaise: sum(wonThisMonth.map((d) => d.valuePaise)),
     wonCount: wonThisMonth.length,
   };

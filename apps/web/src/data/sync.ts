@@ -1,6 +1,6 @@
 import { api } from "../lib/api";
 import { useCrm } from "./store";
-import type { RoutingRule } from "@pinnacle/shared";
+import type { Pipelines, RoutingRule } from "@pinnacle/shared";
 import type { ChannelStatus } from "./seed";
 import type { Workspace } from "@pinnacle/shared/schemas";
 import type { Activity, Company, Contact, Conversation, CreditNote, Deal, Invoice, Member, Task } from "./types";
@@ -45,7 +45,7 @@ export function channelsFrom(s: IntegrationStatus): ChannelStatus[] {
  * activity, Inbox conversations (from the connected channels) and channel status. Lead history starts empty.
  */
 export async function loadCrm() {
-  const [workspace, members, companies, contacts, deals, invoices, tasks, activities, routing, creditNotes, conversations, integrations] = await Promise.all([
+  const [workspace, members, companies, contacts, deals, invoices, tasks, activities, routing, creditNotes, conversations, integrations, pipelines] = await Promise.all([
     api<Workspace>("/workspace"),
     api<Member[]>("/members"),
     api<Company[]>("/companies"),
@@ -58,6 +58,7 @@ export async function loadCrm() {
     api<CreditNote[]>("/credit-notes"),
     api<Conversation[]>("/conversations"),
     api<IntegrationStatus>("/integrations"),
+    api<Pipelines>("/pipelines"),
   ]);
   useCrm.setState(() => ({
     workspace,
@@ -69,6 +70,7 @@ export async function loadCrm() {
     tasks,
     activities,
     routing: routing.rules,
+    pipelines,
     creditNotes,
     conversations,
     leads: [],

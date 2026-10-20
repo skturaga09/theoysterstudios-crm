@@ -3,7 +3,7 @@
  * deals, invoices, tasks and activity (see sync.ts); mutations update the screen first, then save to the API
  * and roll back if that fails. The inbox is still local-only until the channels are connected.
  */
-import { formatCompact, STAGE_LABEL, type Business, type BusinessView, type RoutingRule, type Stage } from "@pinnacle/shared";
+import { formatCompact, type Business, type BusinessView, type RoutingRule, type Stage, DEFAULT_PIPELINES, stageIn, type Pipelines } from "@pinnacle/shared";
 import { create } from "zustand";
 import {
   ACTIVITIES,
@@ -43,6 +43,8 @@ interface CrmState {
   businessView: BusinessView;
   setBusinessView: (v: BusinessView) => void;
   workspace: Workspace;
+  /** Each business's stages (Settings → Pipelines & stages). */
+  pipelines: Pipelines;
   /** Connected lead channels and their health. Sample statuses in the demo; none until integrations exist. */
   channels: ChannelStatus[];
   /** Lead routing rules, in priority order. */
@@ -148,6 +150,7 @@ const raw = create<CrmState>((set, get) => ({
     }
   },
   workspace: SAMPLE_WORKSPACE,
+  pipelines: DEFAULT_PIPELINES,
   channels: CHANNEL_STATUS,
   routing: SAMPLE_ROUTING,
   setRouting: (rules) => {
@@ -189,7 +192,7 @@ const raw = create<CrmState>((set, get) => ({
             type: stage === "won" ? "won" : "stage",
             dealId: id,
             companyId: deal.companyId,
-            text: stage === "won" ? `marked ${deal.title} as Won · ${formatCompact(deal.valuePaise)}` : `moved ${deal.title} to ${STAGE_LABEL[stage]}`,
+            text: stage === "won" ? `confirmed ${deal.title} · ${formatCompact(deal.valuePaise)}` : `moved ${deal.title} to ${stageIn(get().pipelines, deal.business, stage).label}`,
           })
         : undefined;
     set({ deals, activities: entry ? [entry.activity, ...prevActs] : prevActs });

@@ -1,5 +1,5 @@
-import { fmtAgo, STAGE_LABEL, STAGES, type Stage, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
-import { Avatar, Button, ChannelChip, Input, Menu, MenuContent, MenuItem, MenuTrigger, MoneyText, Select, Sheet, StageMeter, Textarea, toast } from "@pinnacle/ui";
+import { fmtAgo, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
+import { Avatar, Button, ChannelChip, Input, Menu, MenuContent, MenuItem, MenuTrigger, MoneyText, Select, Sheet, Textarea, toast } from "@pinnacle/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Building2, ChevronDown, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -12,12 +12,13 @@ import { ME_ID } from "../../data/seed";
 import { useCanEdit, useCrm, useIsManager } from "../../data/store";
 import type { Company, Deal } from "../../data/types";
 import { changeStage } from "../../lib/actions";
+import { DealStage } from "../../components/deal/deal-stage";
+import { runFor, stageRank } from "../../data/pipeline";
 import { api, ApiError } from "../../lib/api";
 import { useCreateAction } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 
 type Row = Company & { best?: Deal; openValue: number; ownerName: string; last: number };
-const STAGE_RANK: Record<Stage, number> = { new: 1, qualified: 2, proposal: 3, negotiation: 4, won: 5, lost: 0 };
 const TAGS = ["Priority", "Retainer", "Rebrand", "Films", "Packaging", "At risk"];
 
 export const Monogram = ({ name }: { name: string }) => (
@@ -35,7 +36,7 @@ export function CompaniesRoute() {
       s.companies.map((c) => {
         const deals = s.deals.filter((d) => d.companyId === c.id);
         const open = deals.filter(isOpen);
-        const best = [...(open.length ? open : deals)].sort((a, b) => STAGE_RANK[b.stage] - STAGE_RANK[a.stage] || b.valuePaise - a.valuePaise)[0];
+        const best = [...(open.length ? open : deals)].sort((a, b) => stageRank(s.pipelines, b) - stageRank(s.pipelines, a) || b.valuePaise - a.valuePaise)[0];
         return {
           ...c,
           best,
@@ -63,7 +64,7 @@ export function CompaniesRoute() {
         </span>
       ),
     },
-    { id: "stage", header: "Best deal", accessorFn: (r) => (r.best ? STAGE_RANK[r.best.stage] : -1), cell: ({ row: { original: c } }) => (c.best ? <StageMeter stage={c.best.stage} /> : <span className="text-ink-3">—</span>) },
+    { id: "stage", header: "Best deal", accessorFn: (r) => (r.best ? stageRank(s.pipelines, r.best) : -1), cell: ({ row: { original: c } }) => (c.best ? <DealStage deal={c.best} /> : <span className="text-ink-3">—</span>) },
     { id: "value", header: "Open value", accessorKey: "openValue", meta: { align: "right" }, cell: ({ row: { original: c } }) => (c.openValue ? <MoneyText paise={c.openValue} /> : <span className="text-ink-3">—</span>) },
     { id: "owner", header: "Owner", accessorKey: "ownerName", cell: ({ row: { original: c } }) => <span className="flex items-center gap-2"><Avatar name={c.ownerName} me={c.ownerId === ME_ID} /> <span className="text-ink-2">{c.ownerName}</span></span> },
     { id: "last", header: "Last activity", accessorKey: "last", cell: ({ row: { original: c } }) => <span className="font-mono text-[12px] text-ink-2">{fmtAgo(c.lastActivityAt)}</span> },
@@ -89,7 +90,7 @@ export function CompaniesRoute() {
         title="Companies"
         actions={
           <>
-            <Button onClick={() => useUi.getState().openComposer("deal")}>New deal</Button>
+            <Button onClick={() => useUi.getState().openComposer("deal")}>New lead</Button>
             <Button variant="ink" onClick={() => useUi.getState().openComposer("company")}><Plus strokeWidth={1.5} /> New company</Button>
           </>
         }
@@ -115,19 +116,23 @@ export function CompaniesRoute() {
             <Menu>
               <MenuTrigger asChild><BulkButton>Change stage <ChevronDown size={13} strokeWidth={1.5} /></BulkButton></MenuTrigger>
               <MenuContent>
-                {STAGES.map((st) => (
-                  <MenuItem
-                    key={st}
-                    onSelect={() => {
-                      const targets = rows.filter((r) => ids.includes(r.id) && r.best && isOpen(r.best));
-                      targets.forEach((r) => useCrm.getState().moveDeal(r.best!.id, st));
-                      toast(`${targets.length} best deals moved to ${STAGE_LABEL[st]}`);
-                      clear();
-                    }}
-                  >
-                    {STAGE_LABEL[st]}
-                  </MenuItem>
-                ))}
+                {s.businessView === "all" ? (
+                  <p className="t-meta m-0 max-w-[240px] px-3 py-2 text-ink-3">Pick Photography or Marketing in the top bar first — each has its own stages.</p>
+                ) : (
+                  runFor(s.pipelines, s.businessView).map((st) => (
+                    <MenuItem
+                      key={st.id}
+                      onSelect={() => {
+                        const targets = rows.filter((r) => ids.includes(r.id) && r.best && isOpen(r.best));
+                        targets.forEach((r) => useCrm.getState().moveDeal(r.best!.id, st.id));
+                        toast(`${targets.length} best deals moved to ${st.label}`);
+                        clear();
+                      }}
+                    >
+                      {st.label}
+                    </MenuItem>
+                  ))
+                )}
               </MenuContent>
             </Menu>
             <Menu>
@@ -243,7 +248,7 @@ function CompanyDetail({ c }: { c: Row }) {
               <button onClick={() => useUi.getState().openDeal(d.id)} className="flex w-full items-center gap-3 border-b border-line py-2.5 text-left hover:bg-hover">
                 <span className="min-w-0 flex-1">
                   <span className="t-dense block font-medium">{d.title}</span>
-                  <StageMeter stage={d.stage} />
+                  <DealStage deal={d} />
                 </span>
                 <ChannelChip channel={d.channel} />
                 <MoneyText paise={d.valuePaise} />

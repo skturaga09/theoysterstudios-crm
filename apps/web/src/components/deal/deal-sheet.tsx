@@ -38,7 +38,7 @@ export function DealSheet() {
       {deal && (
         <div className="-mt-2 flex flex-col gap-6">
           <DealHeading deal={deal} />
-          <StageBar dealId={deal.id} stage={deal.stage} />
+          <StageBar dealId={deal.id} stage={deal.stage} business={deal.business} />
           <NextStep key={deal.id + (deal.nextStep ?? "")} deal={deal} />
           <section>
             <h3 className="t-eyebrow m-0 mb-1 text-ink-3">Properties</h3>

@@ -1,30 +1,11 @@
-import { CHANNEL_LABEL, CHANNELS, fmtDay, formatCompact, HEALTH_LABEL, type Channel, type Health, type Stage } from "@pinnacle/shared";
-import {
-  Avatar,
-  Button,
-  ChannelChip,
-  cn,
-  HealthDot,
-  Menu,
-  MenuContent,
-  MenuItem,
-  MenuLabel,
-  MenuSeparator,
-  MenuTrigger,
-  MoneyText,
-  Segmented,
-  StageMeter,
-  Table,
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-} from "@pinnacle/ui";
+import { CHANNEL_LABEL, CHANNELS, fmtDay, formatCompact, HEALTH_LABEL, type Channel, type Health, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
+import { Avatar, Button, ChannelChip, cn, HealthDot, Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger, MoneyText, Segmented, Table, TBody, TD, TH, THead, TR } from "@pinnacle/ui";
 import { ChevronDown, Columns3, List, Plus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PageHeader } from "../../components/page-header";
-import { isOpen, PROBABILITY } from "../../data/derive";
+import { isOpen } from "../../data/derive";
+import { probabilityOf, stageRank, stagesFor } from "../../data/pipeline";
+import { DealStage } from "../../components/deal/deal-stage";
 import { ME_ID } from "../../data/seed";
 import { useCrm } from "../../data/store";
 import type { Deal } from "../../data/types";
@@ -121,7 +102,13 @@ export function PipelineRoute() {
   const visible = useMemo(() => applyFilters(deals, filters), [deals, filters]);
   const open = visible.filter(isOpen);
   const pipeline = open.reduce((a, d) => a + d.valuePaise, 0);
-  const weighted = open.reduce((a, d) => a + d.valuePaise * PROBABILITY[d.stage], 0);
+  const pipelines = useCrm((s) => s.pipelines);
+  const weighted = open.reduce((a, d) => a + d.valuePaise * probabilityOf(pipelines, d), 0);
+  // The board shows one business's stages: the one being viewed, or the tab picked here when viewing both.
+  const businessView = useCrm((s) => s.businessView);
+  const [boardTab, setBoardTab] = usePref<Business>("pipeline.business", "photography");
+  const boardBusiness: Business = businessView === "all" ? boardTab : businessView;
+  const boardDeals = visible.filter((d) => (d.business ?? "photography") === boardBusiness);
   const set = (patch: Filters) => {
     setFilters((f) => ({ ...f, ...patch }));
     setViewName("Custom");
@@ -145,7 +132,7 @@ export function PipelineRoute() {
               ]}
             />
             <Button variant="ink" onClick={() => useUi.getState().openComposer("deal")}>
-              <Plus strokeWidth={1.5} /> New deal
+              <Plus strokeWidth={1.5} /> New lead
             </Button>
           </>
         }
@@ -203,22 +190,25 @@ export function PipelineRoute() {
         )}
       </div>
 
-      {view === "board" ? <Board deals={visible} /> : <DealTable deals={visible} />}
+      {view === "board" && businessView === "all" && (
+        <Segmented label="Board for" value={boardTab} onChange={setBoardTab} options={BUSINESSES.map((b) => ({ value: b, label: BUSINESS_LABEL[b] }))} className="mb-4" />
+      )}
+      {view === "board" ? <Board deals={boardDeals} stages={stagesFor(pipelines, boardBusiness)} business={boardBusiness} /> : <DealTable deals={visible} />}
     </>
   );
 }
 
 type SortKey = "company" | "stage" | "value" | "close" | "owner";
-const STAGE_RANK: Record<Stage, number> = { new: 0, qualified: 1, proposal: 2, negotiation: 3, won: 4, lost: 5 };
 
 function DealTable({ deals }: { deals: Deal[] }) {
   const companies = useCrm((s) => s.companies);
   const members = useCrm((s) => s.members);
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: "close", dir: 1 });
   const name = (d: Deal) => companies.find((c) => c.id === d.companyId)?.name ?? "";
+  const pipelines = useCrm((s) => s.pipelines);
   const rows = useMemo(() => {
     const val = (d: Deal) =>
-      sort.key === "company" ? name(d) : sort.key === "stage" ? STAGE_RANK[d.stage] : sort.key === "value" ? d.valuePaise : sort.key === "owner" ? d.ownerId : +new Date(d.closeAt);
+      sort.key === "company" ? name(d) : sort.key === "stage" ? stageRank(pipelines, d) : sort.key === "value" ? d.valuePaise : sort.key === "owner" ? d.ownerId : +new Date(d.closeAt);
     return [...deals].sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sort.dir);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deals, sort, companies]);
@@ -253,7 +243,7 @@ function DealTable({ deals }: { deals: Deal[] }) {
                   <div className="font-medium">{name(d)}</div>
                   <div className="text-[11.5px] text-ink-3">{d.title}</div>
                 </TD>
-                <TD><StageMeter stage={d.stage} /></TD>
+                <TD><DealStage deal={d} /></TD>
                 <TD align="right"><MoneyText paise={d.valuePaise} /></TD>
                 <TD numeric className="text-ink-2">{fmtDay(d.closeAt)}</TD>
                 <TD className="hidden md:table-cell"><ChannelChip channel={d.channel} /></TD>

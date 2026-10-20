@@ -1,4 +1,4 @@
-import { CHANNEL_MONOGRAM, STAGE_LABEL } from "@pinnacle/shared";
+import { CHANNEL_MONOGRAM, stageIn } from "@pinnacle/shared";
 import { useTheme, type CommandGroup } from "@pinnacle/ui";
 import { Building2, CheckSquare, Contrast, FileText, KanbanSquare, MessageSquare, Palette, Phone, Plus, User } from "lucide-react";
 import { useNavigate } from "react-router";
@@ -30,7 +30,7 @@ export function useCommandGroups(): CommandGroup[] {
     {
       heading: "Actions",
       items: [
-        { id: "a-deal", label: "New deal", icon: <Plus strokeWidth={1.5} />, hint: "C", onSelect: () => useUi.getState().openComposer("deal") },
+        { id: "a-deal", label: "New lead", icon: <Plus strokeWidth={1.5} />, hint: "C", onSelect: () => useUi.getState().openComposer("deal") },
         { id: "a-call", label: "Log call", icon: <Phone strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("call") },
         { id: "a-company", label: "New company", icon: <Building2 strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("company") },
         { id: "a-contact", label: "New contact", icon: <User strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("contact") },
@@ -45,7 +45,7 @@ export function useCommandGroups(): CommandGroup[] {
         id: d.id,
         label: `${coName(d.companyId)} — ${d.title}`,
         icon: <KanbanSquare strokeWidth={1.5} />,
-        hint: STAGE_LABEL[d.stage],
+        hint: stageIn(s.pipelines, d.business, d.stage).label,
         onSelect: () => useUi.getState().openDeal(d.id),
       })),
     },

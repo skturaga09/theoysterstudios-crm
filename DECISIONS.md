@@ -179,3 +179,13 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   a memoised filter over the store, so every screen respects it without its own code; writes go to the whole
   store. Records without a business show in every view (e.g. a new DM) so nothing is missed.
 - **Inbox fix:** the "create a deal" fields now show for real conversations (they only appeared on samples).
+- **Pipelines per business** (`pipelines/pipelines`, Settings → Pipelines & stages, admins): ordered stages
+  `{id, label, kind: open|won|lost, probability}`, starting from the client's list (New lead → Contacted →
+  Qualified → Proposal sent → Negotiation → Confirmed → Lost). Won/Lost ids stay `won`/`lost` (only renamed), so
+  "is it open?" never needs the pipeline. The API checks a deal's stage against its business's list, records
+  `wonAt` on reaching won, and refuses to drop a stage that still has deals. Probability now comes from the stage.
+  The board shows one business; viewing Both, it gets Photography / Marketing tabs.
+- **Leads:** New lead creates the client (company or couple), the contact (phone/email) and the deal with
+  service, budget, location, event date (photography), requirements and `nextFollowUpAt`. New sources: phone,
+  google, event, other. Home → Lead follow-ups (Overdue / Today / Upcoming 7 days, by IST day); logging a call,
+  WhatsApp or email sets the next follow-up; Done on the deal clears it. Clearing optional fields: PATCH `null`.

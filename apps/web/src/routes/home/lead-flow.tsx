@@ -37,7 +37,7 @@ function buildGraph(leads: Lead[], days: number) {
   const stages = STAGE_ORDER.filter((s) => recent.some((l) => l.stage === s));
   const nodes: NodeX[] = [
     ...channels.map((c, i) => ({ id: c, kind: "channel" as const, label: CHANNEL_LABEL[c].replace(" Lead Ads", ""), short: CHANNEL_MONOGRAM[c], order: i })),
-    ...stages.map((s, i) => ({ id: `s:${s}`, kind: "stage" as const, label: STAGE_LABEL[s], short: STAGE_LABEL[s].slice(0, 3), order: i })),
+    ...stages.map((s, i) => ({ id: `s:${s}`, kind: "stage" as const, label: STAGE_LABEL[s] ?? s, short: (STAGE_LABEL[s] ?? s).slice(0, 3), order: i })),
   ];
   const links: LinkX[] = [];
   for (const [k, v] of counts) {

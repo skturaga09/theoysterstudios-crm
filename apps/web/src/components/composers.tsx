@@ -1,4 +1,4 @@
-import { BUSINESS_LABEL, BUSINESSES, CHANNEL_LABEL, CHANNELS, formatCompact, formatFull, gstState, invoiceTotals, lakh, rupees, STAGE_LABEL, STAGES, type Business, type Channel, type Stage } from "@pinnacle/shared";
+import { BUSINESS_LABEL, BUSINESSES, CHANNEL_LABEL, CHANNELS, formatCompact, formatFull, gstState, invoiceTotals, lakh, rupees, type Business, type Channel, type Stage, SERVICES, stageIn } from "@pinnacle/shared";
 import { Button, Input, Select, Sheet, Textarea, toast } from "@pinnacle/ui";
 import { Plus, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -8,6 +8,7 @@ import { defaultBusiness, defaultOwnerId, useCrm, useIsManager } from "../data/s
 import type { Company, Contact, Deal, Invoice } from "../data/types";
 import { api, save } from "../lib/api";
 import { useUi } from "../lib/ui-store";
+import { runFor } from "../data/pipeline";
 
 function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
@@ -25,19 +26,23 @@ const plusDays = (n: number) => {
   return d.toISOString().slice(0, 10);
 };
 
-function NewDealForm({ stage, onDone }: { stage?: string; onDone: () => void }) {
+/** New lead, laid out like the client's brief. Creates the client (company or couple) and contact with it. */
+function NewDealForm({ stage, business: initialBusiness, onDone }: { stage?: string; business?: Business; onDone: () => void }) {
   const isManager = useIsManager();
   const s = useCrm();
-  const [company, setCompany] = useState("");
-  const [title, setTitle] = useState("");
-  const [value, setValue] = useState("");
-  const [st, setSt] = useState<Stage>((stage as Stage) ?? "new");
+  const [business, setBusiness] = useState<Business>(initialBusiness ?? defaultBusiness());
+  const run = runFor(s.pipelines, business);
+  const [f, setF] = useState({ client: "", person: "", phone: "", email: "", service: "", value: "", location: "", eventDate: "", requirements: "", followUp: plusDays(1) });
+  const [st, setSt] = useState<Stage>(stage ?? "new");
   const [owner, setOwner] = useState(defaultOwnerId);
-  const [channel, setChannel] = useState<Channel>("referral");
-  const [business, setBusiness] = useState<Business>(defaultBusiness);
+  const [channel, setChannel] = useState<Channel>("instagram");
   const [close, setClose] = useState(plusDays(30));
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  const photo = business === "photography";
+  // A stage from the other business's list isn't valid here: fall back to its first stage.
+  const stageId = run.some((x) => x.id === st) ? st : run[0]!.id;
 
   return (
     <form
@@ -46,43 +51,67 @@ function NewDealForm({ stage, onDone }: { stage?: string; onDone: () => void }) 
       onSubmit={async (e) => {
         e.preventDefault();
         if (busy) return;
-        const v = parseFloat(value);
-        if (!company.trim() || !title.trim()) return setError("Add a company and a deal name.");
-        if (Number.isNaN(v) || v <= 0) return setError("Enter the deal value in lakh, for example 7 or 7.5.");
+        const v = f.value.trim() ? parseFloat(f.value) : 0;
+        if (!f.client.trim()) return setError(photo ? "Add the couple's or client's name." : "Add the client's name.");
+        if (!f.phone.trim() && !f.email.trim()) return setError("Add a phone number or an email so the team can follow up.");
+        if (Number.isNaN(v) || v < 0) return setError("Enter the budget in lakh, for example 2 or 2.5 — or leave it blank.");
         setBusy(true);
-        let newCompany: Company | undefined;
+        const created: string[] = [];
         try {
-          let co = s.companies.find((c) => c.name.toLowerCase() === company.trim().toLowerCase());
-          if (!co) co = newCompany = await api<Company>("/companies", { method: "POST", body: { name: company.trim(), domain: "—", industry: "—", city: "—", ownerId: owner, tags: ["New"], business } });
+          let co = s.companies.find((c) => c.name.toLowerCase() === f.client.trim().toLowerCase());
+          const newCompany = !co;
+          if (!co) {
+            co = await api<Company>("/companies", { method: "POST", body: { name: f.client.trim(), domain: "", industry: photo ? "Wedding" : "", city: f.location.trim(), ownerId: owner, tags: ["New"], business } });
+            created.push(`/companies/${co.id}`);
+          }
+          const email = f.email.trim().toLowerCase();
+          let contact = email ? s.contacts.find((c) => c.email === email) : undefined;
+          let newContact: Contact | undefined;
+          if (!contact) {
+            contact = newContact = await api<Contact>("/contacts", {
+              method: "POST",
+              body: { name: f.person.trim() || f.client.trim(), companyId: co.id, title: "", city: f.location.trim(), ownerId: owner, source: channel, business, ...(email && { email }), ...(f.phone.trim() && { phone: f.phone.trim() }) },
+            });
+            created.push(`/contacts/${contact.id}`);
+          }
           const deal = await api<Deal>("/deals", {
             method: "POST",
             body: {
-              title: title.trim(),
+              title: f.service.trim() || (photo ? "Wedding enquiry" : "Enquiry"),
               companyId: co.id,
-              stage: st,
+              contactId: contact.id,
+              stage: stageId,
               valuePaise: lakh(v),
-              closeAt: new Date(close + "T10:00:00").toISOString(),
+              closeAt: new Date(`${photo && f.eventDate ? f.eventDate : close}T10:00:00`).toISOString(),
               ownerId: owner,
               channel,
               health: "ok",
-              position: s.deals.filter((d) => d.stage === st).length,
+              position: s.deals.filter((d) => d.stage === stageId).length,
               business,
+              ...(f.service.trim() && { service: f.service.trim() }),
+              ...(f.location.trim() && { location: f.location.trim() }),
+              ...(photo && f.eventDate && { eventDate: f.eventDate }),
+              ...(f.requirements.trim() && { requirements: f.requirements.trim() }),
+              ...(f.followUp && { nextFollowUpAt: `${f.followUp}T10:00:00+05:30` }),
             },
           });
-          useCrm.setState((x) => ({ companies: newCompany ? [newCompany, ...x.companies] : x.companies, deals: [...x.deals, deal] }));
+          useCrm.setState((x) => ({
+            companies: newCompany ? [co!, ...x.companies] : x.companies,
+            contacts: newContact ? [newContact, ...x.contacts] : x.contacts,
+            deals: [...x.deals, deal],
+          }));
           const undo = () => {
             const before = useCrm.getState();
-            useCrm.setState((x) => ({ deals: x.deals.filter((d) => d.id !== deal.id), companies: x.companies.filter((c) => c.id !== newCompany?.id) }));
-            save(
-              Promise.all([api(`/deals/${deal.id}`, { method: "DELETE" }), newCompany && api(`/companies/${newCompany.id}`, { method: "DELETE" })]),
-              () => useCrm.setState({ deals: before.deals, companies: before.companies }),
+            useCrm.setState((x) => ({ deals: x.deals.filter((d) => d.id !== deal.id), companies: x.companies.filter((c) => !created.includes(`/companies/${c.id}`)), contacts: x.contacts.filter((c) => !created.includes(`/contacts/${c.id}`)) }));
+            save(Promise.all([api(`/deals/${deal.id}`, { method: "DELETE" }), ...[...created].reverse().map((p) => api(p, { method: "DELETE" }))]), () =>
+              useCrm.setState({ deals: before.deals, companies: before.companies, contacts: before.contacts }),
             );
           };
-          toast(`Deal created in ${STAGE_LABEL[st]} · ${formatCompact(deal.valuePaise)}`, { action: { label: "Undo", onClick: undo } });
+          toast(`Lead added in ${run.find((x) => x.id === stageId)?.label ?? stageId}${v ? ` · ${formatCompact(deal.valuePaise)}` : ""}`, { action: { label: "Undo", onClick: undo } });
           onDone();
         } catch (err) {
-          if (newCompany) void api(`/companies/${newCompany.id}`, { method: "DELETE" }).catch(() => {});
-          setError(`Couldn't create the deal — ${(err as Error).message}`);
+          await Promise.all([...created].reverse().map((p) => api(p, { method: "DELETE" }).catch(() => {})));
+          setError(`Couldn't add the lead — ${(err as Error).message}`);
         } finally {
           setBusy(false);
         }
@@ -93,37 +122,44 @@ function NewDealForm({ stage, onDone }: { stage?: string; onDone: () => void }) 
           {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_LABEL[b]}</option>)}
         </Select>
       </Field>
-      <Field label="Company" hint="Pick an existing company or type a new name.">
-        <Input list="company-options" value={company} onChange={(e) => setCompany(e.target.value)} autoFocus placeholder="Atlas Athletic" />
-        <datalist id="company-options">
-          {s.companies.map((c) => <option key={c.id} value={c.name} />)}
-        </datalist>
-      </Field>
-      <Field label="Deal name">
-        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Brand refresh" />
+      <Field label={photo ? "Couple or client" : "Client / company"} hint="Pick an existing client or type a new name.">
+        <Input list="company-options" value={f.client} onChange={set("client")} autoFocus placeholder={photo ? "Riya & Arjun" : "Halcyon Hotels"} />
+        <datalist id="company-options">{s.companies.map((c) => <option key={c.id} value={c.name} />)}</datalist>
       </Field>
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Value (₹ lakh)">
-          <Input inputMode="decimal" value={value} onChange={(e) => setValue(e.target.value)} placeholder="7.0" className="font-mono" />
+        <Field label="Contact person"><Input value={f.person} onChange={set("person")} placeholder={photo ? "Riya Mehta" : "Name"} /></Field>
+        <Field label="Phone"><Input type="tel" value={f.phone} onChange={set("phone")} placeholder="+91 98765 43210" className="font-mono" /></Field>
+        <Field label="Email"><Input type="email" value={f.email} onChange={set("email")} placeholder="riya@gmail.com" className="font-mono" /></Field>
+        <Field label="Location"><Input value={f.location} onChange={set("location")} placeholder={photo ? "Udaipur" : "Bengaluru"} /></Field>
+        <Field label="Service">
+          <Input list="service-options" value={f.service} onChange={set("service")} placeholder={SERVICES[business][0]} />
+          <datalist id="service-options">{SERVICES[business].map((x) => <option key={x} value={x} />)}</datalist>
         </Field>
-        <Field label="Expected close">
-          <Input type="date" value={close} onChange={(e) => setClose(e.target.value)} className="font-mono" />
-        </Field>
-        <Field label="Stage">
-          <Select value={st} onChange={(e) => setSt(e.target.value as Stage)}>
-            {STAGES.map((x) => <option key={x} value={x}>{STAGE_LABEL[x]}</option>)}
+        <Field label="Budget (₹ lakh)"><Input inputMode="decimal" value={f.value} onChange={set("value")} placeholder="2.5" className="font-mono" /></Field>
+        {photo ? (
+          <Field label="Event date"><Input type="date" value={f.eventDate} onChange={set("eventDate")} className="font-mono" /></Field>
+        ) : (
+          <Field label="Decision expected by"><Input type="date" value={close} onChange={(e) => setClose(e.target.value)} className="font-mono" /></Field>
+        )}
+        <Field label="Next follow-up"><Input type="date" value={f.followUp} onChange={set("followUp")} className="font-mono" /></Field>
+        <Field label="Source">
+          <Select value={channel} onChange={(e) => setChannel(e.target.value as Channel)}>
+            {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}
           </Select>
         </Field>
-        <Field label="Owner">
-          <Select value={owner} onChange={(e) => setOwner(e.target.value)} disabled={!isManager} title={isManager ? undefined : "Only admins and managers can assign to someone else"}>
-            {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        <Field label="Stage">
+          <Select value={stageId} onChange={(e) => setSt(e.target.value)}>
+            {run.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
           </Select>
         </Field>
       </div>
-      <Field label="Source">
-        <Select value={channel} onChange={(e) => setChannel(e.target.value as Channel)}>
-          {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}
+      <Field label="Assigned to">
+        <Select value={owner} onChange={(e) => setOwner(e.target.value)} disabled={!isManager} title={isManager ? undefined : "Only admins and managers can assign to someone else"}>
+          {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </Select>
+      </Field>
+      <Field label="Requirements">
+        <Textarea rows={3} value={f.requirements} onChange={set("requirements")} placeholder={photo ? "Functions, number of guests, style they like…" : "Goals, channels, timeline…"} />
       </Field>
       {error && <p role="alert" className="t-meta m-0 text-risk">{error}</p>}
     </form>
@@ -182,6 +218,8 @@ function LogCallForm({ dealId, onDone }: { dealId?: string; onDone: () => void }
   const [deal, setDeal] = useState(dealId ?? s.deals[0]?.id ?? "");
   const [mins, setMins] = useState("20");
   const [notes, setNotes] = useState("");
+  const [kind, setKind] = useState<"call" | "whatsapp" | "email">("call");
+  const [next, setNext] = useState(plusDays(3));
   return (
     <form
       id="composer-form"
@@ -190,8 +228,11 @@ function LogCallForm({ dealId, onDone }: { dealId?: string; onDone: () => void }
         e.preventDefault();
         const d = s.deals.find((x) => x.id === deal);
         if (!d) return;
-        s.addActivity({ type: "call", dealId: d.id, companyId: d.companyId, text: `logged a call · ${mins} min`, body: notes.trim() || undefined });
-        toast("Call logged");
+        const what = kind === "call" ? `logged a call · ${mins} min` : kind === "whatsapp" ? "logged a WhatsApp conversation" : "logged an email";
+        s.addActivity({ type: kind === "email" ? "email" : "call", dealId: d.id, companyId: d.companyId, text: what, body: notes.trim() || undefined });
+        // The next follow-up replaces the one just done; clearing the date means none is planned.
+        s.updateDeal(d.id, { nextFollowUpAt: next ? `${next}T10:00:00+05:30` : null });
+        toast(next ? `Logged · next follow-up ${next.split("-").reverse().slice(0, 2).join("/")}` : "Logged");
         onDone();
       }}
     >
@@ -200,8 +241,22 @@ function LogCallForm({ dealId, onDone }: { dealId?: string; onDone: () => void }
           {s.deals.map((d) => <option key={d.id} value={d.id}>{s.companies.find((c) => c.id === d.companyId)?.name} — {d.title}</option>)}
         </Select>
       </Field>
-      <Field label="Duration (minutes)">
-        <Input inputMode="numeric" value={mins} onChange={(e) => setMins(e.target.value)} className="font-mono" />
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="How">
+          <Select value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
+            <option value="call">Phone call</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="email">Email</option>
+          </Select>
+        </Field>
+        {kind === "call" ? (
+          <Field label="Duration (minutes)">
+            <Input inputMode="numeric" value={mins} onChange={(e) => setMins(e.target.value)} className="font-mono" />
+          </Field>
+        ) : <span />}
+      </div>
+      <Field label="Next follow-up" hint="Clear it if no follow-up is planned.">
+        <Input type="date" value={next} onChange={(e) => setNext(e.target.value)} className="font-mono" />
       </Field>
       <Field label="Notes">
         <Textarea autoFocus value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What was agreed, and what happens next?" />
@@ -315,7 +370,7 @@ function NewInvoiceForm({ dealId, invoiceId, onDone }: { dealId?: string; invoic
       <Field label="Deal" hint="Optional. Links the invoice to the deal's page.">
         <Select value={deal} onChange={(e) => setDeal(e.target.value)} disabled={!co}>
           <option value="">None</option>
-          {s.deals.filter((d) => d.companyId === companyId).map((d) => <option key={d.id} value={d.id}>{d.title} · {STAGE_LABEL[d.stage]}</option>)}
+          {s.deals.filter((d) => d.companyId === companyId).map((d) => <option key={d.id} value={d.id}>{d.title} · {stageIn(s.pipelines, d.business, d.stage).label}</option>)}
         </Select>
       </Field>
       <div className="grid grid-cols-2 gap-3">
@@ -506,8 +561,8 @@ function NewContactForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-const TITLES = { deal: "New deal", task: "Add task", call: "Log call", invoice: "New invoice", company: "New company", contact: "New contact" } as const;
-const SUBMIT = { deal: "Create deal", task: "Add task", call: "Log call", invoice: "Create draft invoice", company: "Add company", contact: "Add contact" } as const;
+const TITLES = { deal: "New lead", task: "Add task", call: "Log a conversation", invoice: "New invoice", company: "New company", contact: "New contact" } as const;
+const SUBMIT = { deal: "Add lead", task: "Add task", call: "Log call", invoice: "Create draft invoice", company: "Add company", contact: "Add contact" } as const;
 
 export function Composers() {
   const c = useUi((s) => s.composer);
@@ -526,7 +581,7 @@ export function Composers() {
         )
       }
     >
-      {c?.kind === "deal" && <NewDealForm stage={c.stage} onDone={close} />}
+      {c?.kind === "deal" && <NewDealForm stage={c.stage} business={c.business} onDone={close} />}
       {c?.kind === "task" && <NewTaskForm dealId={c.dealId} onDone={close} />}
       {c?.kind === "call" && <LogCallForm dealId={c.dealId} onDone={close} />}
       {c?.kind === "invoice" && <NewInvoiceForm key={c.invoiceId ?? "new"} dealId={c.dealId} invoiceId={c.invoiceId} onDone={close} />}

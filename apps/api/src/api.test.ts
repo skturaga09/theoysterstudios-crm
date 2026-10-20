@@ -73,7 +73,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify, fetch: fakeGoogle });
@@ -489,6 +489,30 @@ describe("api", () => {
     expect((await call("PATCH", `/deals/${d.id}`, { business: "marketing" })).json().business).toBe("marketing");
   });
 
+  it("keeps a pipeline per business; deals must use their business's stages; lead details and follow-ups", async () => {
+    expect((await call("GET", "/pipelines")).json().photography.map((x: { label: string }) => x.label)).toEqual(["New lead", "Contacted", "Qualified", "Proposal sent", "Negotiation", "Confirmed", "Lost"]);
+    const base = { title: "Social media retainer", companyId: c1, valuePaise: 1, closeAt: "2026-12-01T00:00:00+05:30", ownerId: "sr", channel: "phone" };
+    // Marketing gets its own stages.
+    const pipes = (await call("GET", "/pipelines")).json();
+    const marketing = [{ id: "new", label: "Enquiry", kind: "open", probability: 0.1 }, { id: "pitch", label: "Pitch sent", kind: "open", probability: 0.5 }, { id: "won", label: "Signed", kind: "won", probability: 1 }, { id: "lost", label: "Lost", kind: "lost", probability: 0 }];
+    expect((await call("PUT", "/pipelines", { ...pipes, marketing: marketing.filter((x) => x.kind !== "won") })).statusCode).toBe(400); // needs a won stage
+    expect((await call("PUT", "/pipelines", { ...pipes, marketing })).statusCode).toBe(200);
+    expect((await call("POST", "/deals", { ...base, business: "marketing", stage: "contacted" })).statusCode).toBe(422); // not in marketing's list
+    const d = (await call("POST", "/deals", { ...base, business: "marketing", stage: "pitch", service: "Social media management", location: "Pune", requirements: "3 posts a week", nextFollowUpAt: "2026-10-21T10:00:00+05:30" })).json();
+    expect(d).toMatchObject({ stage: "pitch", service: "Social media management", location: "Pune", nextFollowUpAt: "2026-10-21T10:00:00+05:30" });
+    expect((await call("PATCH", `/deals/${d.id}`, { nextFollowUpAt: null })).json().nextFollowUpAt).toBeUndefined(); // follow-up done
+    expect((await call("PATCH", `/deals/${d.id}`, { stage: "won" })).json().wonAt).toBeTruthy(); // reaching "Signed" records when
+    // A stage that still has deals can't be removed.
+    const pitching = (await call("POST", "/deals", { ...base, business: "marketing", stage: "pitch" })).json();
+    const removed = await call("PUT", "/pipelines", { ...pipes, marketing: marketing.filter((x) => x.id !== "pitch") });
+    expect([removed.statusCode, removed.json().error]).toEqual([409, '1 marketing deal is still in "Pitch sent" — move it before removing that stage']);
+    await call("PATCH", `/deals/${pitching.id}`, { stage: "new" });
+    expect((await call("PUT", "/pipelines", { ...pipes, marketing: marketing.filter((x) => x.id !== "pitch") })).statusCode).toBe(200);
+    // Photography deals keep the client's list, including the new "Contacted" stage.
+    expect((await call("POST", "/deals", { ...base, business: "photography", stage: "contacted", eventDate: "2027-02-14" })).json().eventDate).toBe("2027-02-14");
+    await call("PUT", "/pipelines", pipes);
+  });
+
   it("deletes records and keeps a deal's board position", async () => {
     const d = (await call("POST", "/deals", { title: "Film", companyId: "c1", valuePaise: 1, closeAt: "2026-11-30T00:00:00+05:30", ownerId: "sr", channel: "web", position: 3 })).json();
     expect(d.position).toBe(3);
@@ -500,7 +524,7 @@ describe("api", () => {
     const t = (await call("POST", "/tasks", { title: "Send moodboard", dueAt: "2026-10-20T10:00:00+05:30", assigneeId: "sr" })).json();
     expect(t).toMatchObject({ title: "Send moodboard", done: false, remind: false });
     expect((await call("PATCH", `/tasks/${t.id}`, { done: true, doneAt: "2026-10-15T10:00:00+05:30" })).json().done).toBe(true);
-    expect((await call("PATCH", `/tasks/${t.id}`, { done: false, doneAt: null })).json().doneAt).toBeNull();
+    expect((await call("PATCH", `/tasks/${t.id}`, { done: false, doneAt: null })).json().doneAt).toBeUndefined(); // cleared
     expect((await call("POST", "/tasks", { title: "", dueAt: "2026-10-20T10:00:00+05:30", assigneeId: "sr" })).statusCode).toBe(400);
   });
 

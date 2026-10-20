@@ -4,6 +4,7 @@ import {
   Button,
   ChannelChip,
   cn,
+  Input,
   Menu,
   MenuContent,
   MenuItem,
@@ -18,7 +19,8 @@ import { FileText, MoreHorizontal, Paperclip } from "lucide-react";
 import { motion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
-import { invoiceStatus, invoiceTotals, PROBABILITY } from "../../data/derive";
+import { invoiceStatus, invoiceTotals } from "../../data/derive";
+import { probabilityOf } from "../../data/pipeline";
 import { useCanEdit, useCrm, useIsManager } from "../../data/store";
 import type { Deal } from "../../data/types";
 import { changeStage } from "../../lib/actions";
@@ -109,6 +111,7 @@ function Prop({ label, children }: { label: string; children: ReactNode }) {
 export function DealProperties({ deal }: { deal: Deal }) {
   const s = useCrm();
   const company = s.companies.find((c) => c.id === deal.companyId);
+  const contact = s.contacts.find((c) => c.id === deal.contactId);
   const canEdit = useCanEdit(deal.ownerId);
   return (
     // A disabled fieldset disables every control inside: Members can't change other people's deals.
@@ -147,7 +150,7 @@ export function DealProperties({ deal }: { deal: Deal }) {
         </label>
       </Prop>
       <Prop label="">
-        <span className="font-mono text-[12px] text-ink-3 tnum">{formatFull(deal.valuePaise)} · {Math.round(PROBABILITY[deal.stage] * 100)}% · weighted {formatFull(rupees(deal.valuePaise / 100 * PROBABILITY[deal.stage]))}</span>
+        <span className="font-mono text-[12px] text-ink-3 tnum">{formatFull(deal.valuePaise)} · {Math.round(probabilityOf(s.pipelines, deal) * 100)}% · weighted {formatFull(rupees(deal.valuePaise / 100 * probabilityOf(s.pipelines, deal)))}</span>
       </Prop>
       <Prop label="Close date">
         <input
@@ -170,6 +173,54 @@ export function DealProperties({ deal }: { deal: Deal }) {
           {!deal.business && <option value="">Not set</option>}
           {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_LABEL[b]}</option>)}
         </Select>
+      </Prop>
+      <Prop label="Contact">
+        {contact ? (
+          <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
+            <span className="truncate">{contact.name}</span>
+            {contact.phone && <a href={`tel:${contact.phone.replace(/\s/g, "")}`} className="font-mono text-[12px] text-ink-2 hover:text-ink">{contact.phone}</a>}
+            {contact.email && <a href={`mailto:${contact.email}`} className="truncate font-mono text-[12px] text-ink-2 hover:text-ink">{contact.email}</a>}
+          </span>
+        ) : (
+          <span className="text-ink-3">—</span>
+        )}
+      </Prop>
+      <Prop label="Next follow-up">
+        <span className="flex items-center gap-2">
+          <Input
+            type="date"
+            aria-label="Next follow-up"
+            value={deal.nextFollowUpAt ? new Date(deal.nextFollowUpAt).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }) : ""}
+            onChange={(e) => s.updateDeal(deal.id, { nextFollowUpAt: e.target.value ? `${e.target.value}T10:00:00+05:30` : null })}
+            className={cn("h-8 w-[150px] font-mono", deal.nextFollowUpAt && +new Date(deal.nextFollowUpAt) < Date.now() && "text-risk")}
+          />
+          {deal.nextFollowUpAt && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                s.updateDeal(deal.id, { nextFollowUpAt: null });
+                s.addActivity({ type: "call", dealId: deal.id, companyId: deal.companyId, text: "followed up" });
+              }}
+            >
+              Done
+            </Button>
+          )}
+        </span>
+      </Prop>
+      <Prop label="Service">
+        <Input key={`svc-${deal.id}`} defaultValue={deal.service ?? ""} placeholder="—" onBlur={(e) => e.target.value.trim() !== (deal.service ?? "") && s.updateDeal(deal.id, { service: e.target.value.trim() })} className="h-8" />
+      </Prop>
+      <Prop label="Location">
+        <Input key={`loc-${deal.id}`} defaultValue={deal.location ?? ""} placeholder="—" onBlur={(e) => e.target.value.trim() !== (deal.location ?? "") && s.updateDeal(deal.id, { location: e.target.value.trim() })} className="h-8" />
+      </Prop>
+      {(deal.business ?? "photography") === "photography" && (
+        <Prop label="Event date">
+          <Input type="date" aria-label="Event date" value={deal.eventDate ?? ""} onChange={(e) => e.target.value && s.updateDeal(deal.id, { eventDate: e.target.value })} className="h-8 w-[150px] font-mono" />
+        </Prop>
+      )}
+      <Prop label="Requirements">
+        <Textarea key={`req-${deal.id}`} rows={2} defaultValue={deal.requirements ?? ""} placeholder="—" onBlur={(e) => e.target.value.trim() !== (deal.requirements ?? "") && s.updateDeal(deal.id, { requirements: e.target.value.trim() })} />
       </Prop>
       <Prop label="Source">
         <span className="flex items-center gap-2"><ChannelChip channel={deal.channel} /> {CHANNEL_LABEL[deal.channel]}</span>

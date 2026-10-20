@@ -15,6 +15,7 @@ import {
   ImportRequestSchema,
   RecordPaymentSchema,
   RoutingSchema,
+  PipelinesSchema,
   UpdateCompanySchema,
   UpdateContactSchema,
   UpdateDealSchema,
@@ -26,7 +27,7 @@ import {
   WorkspaceSchema,
   type Workspace,
 } from "@pinnacle/shared/schemas";
-import { formatFull, invoiceTotals, type InvoiceMath } from "@pinnacle/shared";
+import { DEFAULT_PIPELINES, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines } from "@pinnacle/shared";
 import { nameFromEmail, SUPPORT_MEMBER, type Member, type Verify } from "./auth";
 import type { Doc } from "./db";
 import { createCreditNote, createInvoice } from "./invoices";
@@ -373,7 +374,16 @@ export function buildApp({
     create: ZodType<Record<string, unknown>>,
     update: ZodType<Record<string, unknown>>,
     defaults: () => Record<string, unknown> = () => ({}),
-    { owned = false, scope }: { owned?: boolean; scope?: (req: FastifyRequest, ownDeals: string[]) => Filter<Doc> } = {},
+    {
+      owned = false,
+      scope,
+      check,
+    }: {
+      owned?: boolean;
+      scope?: (req: FastifyRequest, ownDeals: string[]) => Filter<Doc>;
+      /** Validates (and may complete) a create or change against the record as it would end up; returns an error message. */
+      check?: (next: Record<string, unknown>, existing?: Doc) => Promise<string | undefined>;
+    } = {},
   ) {
     const col = db.collection<Doc>(name);
     const visible = async (req: FastifyRequest): Promise<Filter<Doc>> => {
@@ -398,6 +408,8 @@ export function buildApp({
       const body = create.parse(req.body);
       const denied = memberError(req, body.ownerId);
       if (denied) return reply.code(403).send({ error: denied });
+      const invalid = check && (await check(body));
+      if (invalid) return reply.code(422).send({ error: invalid });
       const doc: Doc = { _id: new ObjectId().toHexString(), ...defaults(), ...body };
       await col.insertOne(doc);
       return reply.code(201).send(out(doc));
@@ -408,7 +420,15 @@ export function buildApp({
       if (!existing) return reply.code(404).send({ error: "Not found" });
       const denied = memberError(req, changes.ownerId, existing.ownerId);
       if (denied) return reply.code(403).send({ error: denied });
-      return out((await col.findOneAndUpdate({ _id: existing._id }, { $set: changes }, { returnDocument: "after" }))!);
+      const invalid = check && (await check(changes, existing));
+      if (invalid) return reply.code(422).send({ error: invalid });
+      // null clears an optional field (e.g. the next follow-up once it's done).
+      const mod: UpdateFilter<Doc> = {};
+      const set = Object.entries(changes).filter(([, v]) => v !== null);
+      const unset = Object.entries(changes).filter(([, v]) => v === null);
+      if (set.length) mod.$set = Object.fromEntries(set);
+      if (unset.length) mod.$unset = Object.fromEntries(unset.map(([k]) => [k, true as const]));
+      return out((await col.findOneAndUpdate({ _id: existing._id }, mod, { returnDocument: "after" }))!);
     });
     app.delete<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
       const existing = await col.findOne({ _id: req.params.id });
@@ -423,7 +443,42 @@ export function buildApp({
   const now = () => new Date().toISOString();
   records("companies", CreateCompanySchema, UpdateCompanySchema, () => ({ lastActivityAt: now() }), { owned: true });
   records("contacts", CreateContactSchema, UpdateContactSchema, () => ({ lastActivityAt: now() }), { owned: true });
-  records("deals", CreateDealSchema, UpdateDealSchema, () => ({ createdAt: now(), position: 0 }), { owned: true, scope: (req) => ({ ownerId: req.member._id }) });
+  /* ---------- Pipelines: each business's stages ---------- */
+  const pipelinesCol = db.collection<{ _id: string } & Pipelines>("pipelines");
+  const getPipelines = async (): Promise<Pipelines> => {
+    const doc = await pipelinesCol.findOne({ _id: "pipelines" });
+    return doc ? { photography: doc.photography, marketing: doc.marketing } : DEFAULT_PIPELINES;
+  };
+  app.get("/pipelines", getPipelines);
+  app.put("/pipelines", { preHandler: adminOnly }, async (req, reply) => {
+    const next = PipelinesSchema.parse(req.body);
+    // A stage can't disappear while deals sit in it: they'd have nowhere to show.
+    for (const business of ["photography", "marketing"] as const) {
+      const ids = new Set(next[business].map((s) => s.id));
+      const stranded = await db.collection<Doc>("deals").find({ ...(business === "photography" ? { $or: [{ business }, { business: { $exists: false } }] } : { business }), stage: { $nin: [...ids] } }, { projection: { stage: 1 } }).toArray();
+      if (stranded.length) {
+        const old = (await getPipelines())[business].find((s) => s.id === stranded[0]!.stage)?.label ?? String(stranded[0]!.stage);
+        return reply.code(409).send({ error: `${stranded.length} ${business} deal${stranded.length === 1 ? " is" : "s are"} still in "${old}" — move ${stranded.length === 1 ? "it" : "them"} before removing that stage` });
+      }
+    }
+    await pipelinesCol.replaceOne({ _id: "pipelines" }, next, { upsert: true });
+    return next;
+  });
+
+  records("deals", CreateDealSchema, UpdateDealSchema, () => ({ createdAt: now(), position: 0 }), {
+    owned: true,
+    scope: (req) => ({ ownerId: req.member._id }),
+    // The stage must exist in the deal's business pipeline; reaching the won stage records when.
+    check: async (next, existing) => {
+      if (next.stage === undefined && next.business === undefined) return undefined;
+      const business = (next.business ?? existing?.business ?? "photography") as Business;
+      const stageId = (next.stage ?? existing?.stage) as string;
+      const stage = (await getPipelines())[business].find((s) => s.id === stageId);
+      if (!stage) return `"${stageId}" isn't a stage in the ${business} pipeline`;
+      if (stage.kind === "won" && !next.wonAt && !existing?.wonAt) next.wonAt = now();
+      return undefined;
+    },
+  });
   records("tasks", CreateTaskSchema, UpdateTaskSchema, () => ({ done: false }), {
     scope: (req, own) => ({ $or: [{ assigneeId: req.member._id }, { dealId: { $in: own } }] }),
   });

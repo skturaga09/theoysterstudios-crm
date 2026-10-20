@@ -29,7 +29,7 @@ export function DealRoute() {
         <span className="ml-auto"><DealMenu deal={deal} /></span>
       </div>
       <DealHeading deal={deal} size="page" />
-      <StageBar dealId={deal.id} stage={deal.stage} />
+      <StageBar dealId={deal.id} stage={deal.stage} business={deal.business} />
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-8">
           <NextStep key={deal.id + (deal.nextStep ?? "")} deal={deal} />

@@ -1,4 +1,4 @@
-import { formatCompact, STAGE_LABEL, type Stage } from "@pinnacle/shared";
+import { formatCompact, type Stage, stageIn } from "@pinnacle/shared";
 import { toast } from "@pinnacle/ui";
 import { canEditNow, useCrm } from "../data/store";
 import { useUi } from "./ui-store";
@@ -17,10 +17,10 @@ export function changeStage(dealId: string, stage: Stage, index?: number) {
   }
   toast(
     stage === "won"
-      ? `Won · ${deal.title} · ${formatCompact(deal.valuePaise)}`
+      ? `${stageIn(useCrm.getState().pipelines, deal.business, "won").label} · ${deal.title} · ${formatCompact(deal.valuePaise)}`
       : stage === "lost"
         ? `Marked lost · ${deal.title}`
-        : `Moved to ${STAGE_LABEL[stage]} · ${deal.title}`,
+        : `Moved to ${stageIn(useCrm.getState().pipelines, deal.business, stage).label} · ${deal.title}`,
     { action: { label: "Undo", onClick: undo } },
   );
 }

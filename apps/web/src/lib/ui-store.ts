@@ -1,3 +1,4 @@
+import type { Business } from "@pinnacle/shared";
 import { create } from "zustand";
 
 type Composer = "deal" | "task" | "call" | "invoice" | "company" | "contact";
@@ -8,8 +9,8 @@ interface UiState {
   openDeal: (id: string) => void;
   closeDeal: () => void;
   /** `invoiceId`: edit that draft instead of creating a new invoice. */
-  composer?: { kind: Composer; dealId?: string; stage?: string; invoiceId?: string };
-  openComposer: (kind: Composer, opts?: { dealId?: string; stage?: string; invoiceId?: string }) => void;
+  composer?: { kind: Composer; dealId?: string; stage?: string; invoiceId?: string; business?: Business };
+  openComposer: (kind: Composer, opts?: { dealId?: string; stage?: string; invoiceId?: string; business?: Business }) => void;
   closeComposer: () => void;
   create?: () => void;
   setCreate: (fn?: () => void) => void;

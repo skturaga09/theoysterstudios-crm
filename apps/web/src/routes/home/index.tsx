@@ -1,29 +1,10 @@
 import { fmtAgo, fmtDay, fmtEyebrow, greeting, type Health } from "@pinnacle/shared";
-import {
-  Avatar,
-  ChannelChip,
-  Checkbox,
-  cn,
-  HealthDot,
-  Ledger,
-  MoneyText,
-  Pill,
-  rise,
-  spring,
-  StageMeter,
-  StrikeText,
-  Table,
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-  type LedgerCell,
-} from "@pinnacle/ui";
+import { Avatar, ChannelChip, Checkbox, cn, HealthDot, Ledger, MoneyText, Pill, rise, spring, StrikeText, Table, TBody, TD, TH, THead, TR, type LedgerCell } from "@pinnacle/ui";
 import { ArrowRight, Waypoints } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router";
+import { DealStage } from "../../components/deal/deal-stage";
 import { EmptyState } from "../../components/empty-state";
 import { closingThisMonth, countWord, invoiceStatus, invoiceTotals, pipelineMetrics, plural, sum, taskGroup } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
@@ -67,7 +48,8 @@ export function HomeRoute() {
   const deals = useCrm((s) => s.deals);
   const summary = useSummary();
   const firstView = useOncePerSession("pinnacle.home.countup");
-  const m = pipelineMetrics(deals);
+  const pipelines = useCrm((s) => s.pipelines);
+  const m = pipelineMetrics(deals, pipelines);
   const leads = useCrm((s) => s.leads);
   const openInvoices = useCrm((s) => s.invoices).filter((i) => ["sent", "partial", "overdue"].includes(invoiceStatus(i)));
   const openInvoicePaise = sum(openInvoices.map((i) => invoiceTotals(i).due));
@@ -102,6 +84,10 @@ export function HomeRoute() {
 
       <motion.div {...r()}>
         <Ledger cells={ledger} countUp={firstView} />
+      </motion.div>
+
+      <motion.div {...r()}>
+        <LeadFollowUps />
       </motion.div>
 
       <motion.div {...r()} className="grid grid-cols-1 gap-x-10 gap-y-10 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
@@ -228,7 +214,7 @@ function ClosingThisMonth() {
                     <div className="font-medium">{companies.find((c) => c.id === d.companyId)?.name}</div>
                     <div className="text-[11.5px] text-ink-3">{d.title}</div>
                   </TD>
-                  <TD className="hidden md:table-cell"><StageMeter stage={d.stage} /></TD>
+                  <TD className="hidden md:table-cell"><DealStage deal={d} /></TD>
                   <TD align="right"><MoneyText paise={d.valuePaise} /></TD>
                   <TD numeric className={overdue ? "text-risk" : "text-ink-2"}>{fmtDay(d.closeAt)}</TD>
                   <TD className="hidden sm:table-cell">{owner && <Avatar name={owner.name} me={owner.id === ME_ID} />}</TD>
@@ -245,6 +231,54 @@ function ClosingThisMonth() {
   );
 }
 
+/** Leads with a follow-up date, split Overdue / Today / Upcoming (next 7 days), so no lead is forgotten. */
+function LeadFollowUps() {
+  const deals = useCrm((s) => s.deals);
+  const companies = useCrm((s) => s.companies);
+  const members = useCrm((s) => s.members);
+  const day = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  const today = day(new Date().toISOString());
+  const weekOut = day(new Date(Date.now() + 7 * 86_400_000).toISOString());
+  const due = deals.filter((d) => d.nextFollowUpAt && d.stage !== "won" && d.stage !== "lost").sort((a, b) => +new Date(a.nextFollowUpAt!) - +new Date(b.nextFollowUpAt!));
+  const groups = [
+    { key: "overdue", title: "Overdue", tone: "risk" as const, rows: due.filter((d) => day(d.nextFollowUpAt!) < today) },
+    { key: "today", title: "Today", tone: "warn" as const, rows: due.filter((d) => day(d.nextFollowUpAt!) === today) },
+    { key: "upcoming", title: "Upcoming", tone: "mute" as const, rows: due.filter((d) => day(d.nextFollowUpAt!) > today && day(d.nextFollowUpAt!) <= weekOut) },
+  ];
+  return (
+    <section aria-labelledby="followups-h">
+      <SectionHead title="Lead follow-ups" meta={`${groups[0]!.rows.length} overdue · ${groups[1]!.rows.length} today`} to="/pipeline" linkLabel="Pipeline" />
+      <div className="grid grid-cols-1 gap-6 border-t border-line pt-3 md:grid-cols-3">
+        {groups.map((g) => (
+          <div key={g.key} className="min-w-0">
+            <h3 className="t-eyebrow m-0 mb-2 flex items-center gap-2 text-ink-3">
+              {g.title} <Pill tone={g.tone}>{g.rows.length}</Pill>
+            </h3>
+            <ul className="m-0 list-none p-0">
+              {g.rows.slice(0, 6).map((d) => {
+                const owner = members.find((m) => m.id === d.ownerId);
+                return (
+                  <li key={d.id}>
+                    <button onClick={() => useUi.getState().openDeal(d.id)} className="flex w-full items-center gap-2.5 border-b border-line py-2 text-left hover:bg-hover">
+                      <span className="min-w-0 flex-1 leading-tight">
+                        <span className="t-dense block truncate font-medium">{companies.find((c) => c.id === d.companyId)?.name ?? d.title}</span>
+                        <span className="block truncate text-[11.5px] text-ink-3">{d.title}{g.key !== "today" ? ` · ${fmtDay(d.nextFollowUpAt!)}` : ""}</span>
+                      </span>
+                      {owner && <Avatar name={owner.name} me={owner.id === ME_ID} size="sm" />}
+                    </button>
+                  </li>
+                );
+              })}
+              {g.rows.length > 6 && <li className="t-meta py-2 text-ink-3">+{g.rows.length - 6} more</li>}
+              {!g.rows.length && <li className="t-meta py-2 text-ink-3">{g.key === "overdue" ? "None — nice." : "Nothing scheduled."}</li>}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function FollowUps() {
   const tasks = useCrm((s) => s.tasks);
   const toggle = useCrm((s) => s.toggleTask);
@@ -257,7 +291,7 @@ function FollowUps() {
   const open = rows.filter((t) => !t.done).length;
   return (
     <section className="min-w-0">
-      <SectionHead title="Follow-ups" meta={`${open} due`} to="/tasks" linkLabel="All tasks" />
+      <SectionHead title="Tasks due" meta={`${open} due`} to="/tasks" linkLabel="All tasks" />
       <ul className="m-0 list-none border-t border-line p-0">
         {rows.map((t) => {
           const g = taskGroup(t);

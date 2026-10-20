@@ -1,5 +1,5 @@
 import { CHANNEL_LABEL, fmtAgo } from "@pinnacle/shared";
-import { Avatar, Button, ChannelChip, Menu, MenuContent, MenuItem, MenuTrigger, MoneyText, Sheet, StageMeter, toast } from "@pinnacle/ui";
+import { Avatar, Button, ChannelChip, Menu, MenuContent, MenuItem, MenuTrigger, MoneyText, Sheet, toast } from "@pinnacle/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Download, Plus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -11,6 +11,7 @@ import { ME_ID } from "../../data/seed";
 import { useCrm, useIsManager } from "../../data/store";
 import type { Contact } from "../../data/types";
 import { api, save } from "../../lib/api";
+import { DealStage } from "../../components/deal/deal-stage";
 import { useCreateAction } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 
@@ -70,7 +71,7 @@ export function ContactsRoute() {
         title="Contacts"
         actions={
           <>
-            <Button onClick={() => useUi.getState().openComposer("deal")}>New deal</Button>
+            <Button onClick={() => useUi.getState().openComposer("deal")}>New lead</Button>
             <Button variant="ink" onClick={() => useUi.getState().openComposer("contact")}><Plus strokeWidth={1.5} /> New contact</Button>
           </>
         }
@@ -127,7 +128,7 @@ export function ContactsRoute() {
               <h3 className="t-eyebrow m-0 mb-2 text-ink-3">Deals · {deals.length}</h3>
               {deals.map((d) => (
                 <button key={d.id} onClick={() => useUi.getState().openDeal(d.id)} className="flex w-full items-center gap-3 border-b border-line py-2.5 text-left hover:bg-hover">
-                  <span className="min-w-0 flex-1"><span className="t-dense block font-medium">{d.title}</span><StageMeter stage={d.stage} /></span>
+                  <span className="min-w-0 flex-1"><span className="t-dense block font-medium">{d.title}</span><DealStage deal={d} /></span>
                   <MoneyText paise={d.valuePaise} />
                 </button>
               ))}

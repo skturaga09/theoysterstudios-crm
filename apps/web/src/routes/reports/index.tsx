@@ -1,10 +1,11 @@
-import { CHANNEL_LABEL, CHANNELS, formatCompact, formatFull, lakh, STAGE_LABEL, type Stage } from "@pinnacle/shared";
+import { CHANNEL_LABEL, CHANNELS, formatCompact, formatFull, lakh } from "@pinnacle/shared";
 import { Avatar, Button, Ledger, Segmented, Table, TBody, TD, TH, THead, TR, Tooltip as Tip, type LedgerCell } from "@pinnacle/ui";
 import { Download } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PageHeader } from "../../components/page-header";
-import { isOpen, PROBABILITY, sum } from "../../data/derive";
+import { isOpen, sum } from "../../data/derive";
+import { probabilityOf, runFor } from "../../data/pipeline";
 import { ME_ID, REVENUE } from "../../data/seed";
 import { useCrm } from "../../data/store";
 import type { Invoice } from "../../data/types";
@@ -13,8 +14,6 @@ import { IS_DEMO } from "../../lib/demo";
 type Range = "month" | "quarter" | "year";
 const DAYS: Record<Range, number> = { month: 30, quarter: 90, year: 365 };
 const MONTHS: Record<Range, number> = { month: 2, quarter: 3, year: 12 };
-const FUNNEL: Stage[] = ["new", "qualified", "proposal", "negotiation", "won"];
-const RANK: Record<Stage, number> = { new: 0, qualified: 1, proposal: 2, negotiation: 3, won: 4, lost: -1 };
 
 function downloadCsv(name: string, rows: (string | number)[][]) {
   const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -63,7 +62,10 @@ export function ReportsRoute() {
   const basis = wonInRange.length ? wonInRange : won;
   const avgDeal = basis.length ? Math.round(sum(basis.map((d) => d.valuePaise)) / basis.length) : 0;
   const cycle = basis.length ? Math.round(sum(basis.map((d) => (+new Date(d.wonAt!) - +new Date(d.createdAt)) / 86_400_000)) / basis.length) : 0;
-  const forecast = Math.round(sum(s.deals.filter(isOpen).map((d) => d.valuePaise * PROBABILITY[d.stage])));
+  const forecast = Math.round(sum(s.deals.filter(isOpen).map((d) => d.valuePaise * probabilityOf(s.pipelines, d))));
+  // The funnel follows one pipeline: the business being viewed (photography's when viewing both).
+  const run = runFor(s.pipelines, s.businessView === "all" ? undefined : s.businessView);
+  const rank = (id: string) => run.findIndex((x) => x.id === id);
 
   // The demo's comparisons, goal and trend lines are illustrative; the live app shows only what the data supports.
   const ledger: LedgerCell[] = IS_DEMO
@@ -93,7 +95,7 @@ export function ReportsRoute() {
     .sort((a, b) => b.rate - a.rate);
   const maxRate = Math.max(...byChannel.map((r) => r.rate), 0.01);
 
-  const funnel = FUNNEL.map((st) => ({ st, n: leads.filter((l) => l.stage !== "lost" ? RANK[l.stage] >= RANK[st] : st === "new").length }));
+  const funnel = run.map((st, i) => ({ st: st.id, label: st.label, n: leads.filter((l) => (l.stage !== "lost" ? rank(l.stage) >= i : i === 0)).length }));
 
   const reps = s.members
     .map((m) => {
@@ -200,7 +202,7 @@ export function ReportsRoute() {
           <ChartHead
             title="Stage funnel"
             meta="Leads that reached each stage"
-            onExport={() => downloadCsv("stage-funnel", [["Stage", "Leads"], ...funnel.map((f) => [STAGE_LABEL[f.st], f.n])])}
+            onExport={() => downloadCsv("stage-funnel", [["Stage", "Leads"], ...funnel.map((f) => [f.label, f.n])])}
           />
           <ol className="m-0 flex list-none flex-col gap-1 border-t border-line p-0 pt-4">
             {funnel.map((f, i) => {
@@ -215,7 +217,7 @@ export function ReportsRoute() {
                     </div>
                   )}
                   <div className="grid grid-cols-[112px_minmax(0,1fr)_48px] items-center gap-3">
-                    <span className="text-[12.5px] text-ink-2">{STAGE_LABEL[f.st]}</span>
+                    <span className="text-[12.5px] text-ink-2">{f.label}</span>
                     <span className={f.st === "won" ? "h-5 rounded-r-[4px] bg-ok" : "h-5 rounded-r-[4px] bg-ink"} style={{ width: `${Math.max(1.5, (f.n / (funnel[0]!.n || 1)) * 100)}%`, opacity: f.st === "won" ? 1 : 1 - i * 0.14 }} />
                     <span className="text-right font-mono text-[12px] tnum">{f.n}</span>
                   </div>

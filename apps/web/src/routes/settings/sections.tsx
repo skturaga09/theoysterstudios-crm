@@ -1,11 +1,10 @@
-import { CHANNEL_LABEL, CHANNELS, formatCompact, gstState, lakh, parseCsv, STAGE_LABEL, STAGES, toCsv, type Channel, type RoutingRule, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
+import { CHANNEL_LABEL, CHANNELS, formatCompact, gstState, lakh, parseCsv, toCsv, type Channel, type RoutingRule, BUSINESS_LABEL, BUSINESSES, type Business, type PipelineStage, type Pipelines } from "@pinnacle/shared";
 import type { Workspace } from "@pinnacle/shared/schemas";
 import { Button, ChannelChip, cn, Input, Pill, Segmented, Select, toast } from "@pinnacle/ui";
 import { ArrowDown, ArrowRight, ArrowUp, Download, Plus, RefreshCw, Trash2, Unplug, Upload } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useSearchParams } from "react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { PROBABILITY } from "../../data/derive";
 import { CHANNEL_STATUS, type ChannelStatus } from "../../data/seed";
 import { IS_DEMO } from "../../lib/demo";
 import { channelsFrom, type IntegrationStatus } from "../../data/sync";
@@ -137,25 +136,99 @@ export function WorkspaceRoute() {
 
 /* ---------- Pipelines ---------- */
 export function PipelineSettingsRoute() {
-  const deals = useCrm((s) => s.deals);
+  const saved = useCrm((s) => s.pipelines);
+  const allDeals = useCrm.getState().deals; // counts cover both businesses whatever the view
+  const canEdit = useMe().role === "admin";
+  const view = useCrm((s) => s.businessView);
+  const [business, setBusiness] = useState<Business>(view === "all" ? "photography" : view);
+  const [draft, setDraft] = useState<Pipelines>(saved);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string>();
+  const stages = draft[business];
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const inUse = (id: string) => allDeals.filter((d) => (d.business ?? "photography") === business && d.stage === id).length;
+  const put = (next: PipelineStage[]) => {
+    setDraft({ ...draft, [business]: next });
+    setError(undefined);
+  };
+  const open = stages.filter((s) => s.kind === "open");
+  const fixed = stages.filter((s) => s.kind !== "open");
+  // Open stages in order, then Confirmed and Lost at the end.
+  const setOpen = (next: PipelineStage[]) => put([...next, ...fixed]);
+  const change = (id: string, patch: Partial<PipelineStage>) => put(stages.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+
   return (
     <>
-      <SettingsHeader title="Pipelines & stages" body="Stages every deal moves through. Probability drives the weighted forecast on Home and Reports." />
+      <SettingsHeader title="Pipelines & stages" body="Each business has its own stages. Probability drives the weighted forecast; Confirmed creates the client and marks the deal won." />
+      <Segmented label="Business" value={business} onChange={(b) => setBusiness(b)} options={BUSINESSES.map((b) => ({ value: b, label: BUSINESS_LABEL[b] }))} className="mb-4" />
+      {!canEdit && <p className="t-dense mb-4 rounded-card bg-sunken px-4 py-3 text-ink-2">Only admins can change the stages.</p>}
       <ol className="m-0 list-none p-0">
-        {[...STAGES, "lost" as const].map((s, i) => (
-          <li key={s} className="flex items-center gap-4 border-b border-line py-3">
-            <span className="w-6 font-mono text-[11px] text-ink-3">{s === "lost" ? "—" : i + 1}</span>
-            <span className="t-dense flex-1 font-medium">{STAGE_LABEL[s]}</span>
-            <span className="font-mono text-[11.5px] text-ink-3">{deals.filter((d) => d.stage === s).length} deals</span>
-            <label className="flex items-center gap-2">
-              <span className="sr-only">Probability for {STAGE_LABEL[s]}</span>
-              <Input defaultValue={Math.round(PROBABILITY[s] * 100)} disabled={s === "won" || s === "lost"} className="h-8 w-16 text-right font-mono" />
-              <span className="font-mono text-[12px] text-ink-3">%</span>
-            </label>
-          </li>
-        ))}
+        {stages.map((s) => {
+          const i = open.indexOf(s);
+          const n = inUse(s.id);
+          return (
+            <li key={s.id} className="flex flex-wrap items-center gap-3 border-b border-line py-3">
+              <span className="w-6 font-mono text-[11px] text-ink-3">{s.kind === "open" ? i + 1 : s.kind === "won" ? "✓" : "—"}</span>
+              <Input aria-label="Stage name" value={s.label} disabled={!canEdit} onChange={(e) => change(s.id, { label: e.target.value })} className="h-8 min-w-0 flex-1 basis-[160px]" />
+              <span className="w-16 font-mono text-[11.5px] text-ink-3">{n} {n === 1 ? "deal" : "deals"}</span>
+              <label className="flex items-center gap-1.5">
+                <span className="sr-only">Probability for {s.label}</span>
+                <Input
+                  inputMode="numeric"
+                  value={Math.round(s.probability * 100)}
+                  disabled={!canEdit || s.kind !== "open"}
+                  onChange={(e) => change(s.id, { probability: Math.min(100, Math.max(0, Number(e.target.value.replace(/\D/g, "")) || 0)) / 100 })}
+                  className="h-8 w-14 text-right font-mono"
+                />
+                <span className="font-mono text-[12px] text-ink-3">%</span>
+              </label>
+              {canEdit && (
+                <span className="flex w-[100px] justify-end">
+                  {s.kind === "open" && (
+                    <>
+                      <Button size="icon-sm" variant="ghost" aria-label={`Move ${s.label} up`} disabled={i === 0} onClick={() => { const next = [...open]; [next[i - 1], next[i]] = [next[i]!, next[i - 1]!]; setOpen(next); }}><ArrowUp strokeWidth={1.5} /></Button>
+                      <Button size="icon-sm" variant="ghost" aria-label={`Move ${s.label} down`} disabled={i === open.length - 1} onClick={() => { const next = [...open]; [next[i], next[i + 1]] = [next[i + 1]!, next[i]!]; setOpen(next); }}><ArrowDown strokeWidth={1.5} /></Button>
+                      <Button size="icon-sm" variant="ghost" aria-label={`Remove ${s.label}`} title={n ? "Move its deals to another stage first" : undefined} disabled={!!n || open.length === 1} onClick={() => setOpen(open.filter((x) => x.id !== s.id))}><Trash2 strokeWidth={1.5} /></Button>
+                    </>
+                  )}
+                </span>
+              )}
+            </li>
+          );
+        })}
       </ol>
-      <p className="t-meta mt-4 text-ink-3">Renaming and adding stages arrives with the API (M6). Won and Lost are fixed.</p>
+      {canEdit && (
+        <>
+          <Button size="sm" variant="ghost" className="mt-3" onClick={() => setOpen([...open, { id: `s${Date.now().toString(36)}`, label: "New stage", kind: "open", probability: 0.5 }])}>
+            <Plus strokeWidth={1.5} /> Add stage
+          </Button>
+          {error && <p role="alert" className="t-meta mt-3 text-risk">{error}</p>}
+          <div className="flex justify-end gap-2 pt-4">
+            {dirty && <Button variant="ghost" onClick={() => { setDraft(saved); setError(undefined); }}>Discard</Button>}
+            <Button
+              variant="ink"
+              disabled={!dirty || busy}
+              onClick={async () => {
+                if (Object.values(draft).some((list) => list.some((x) => !x.label.trim()))) return setError("Every stage needs a name.");
+                setBusy(true);
+                try {
+                  const next = IS_DEMO ? draft : await api<Pipelines>("/pipelines", { method: "PUT", body: draft });
+                  useCrm.setState({ pipelines: next });
+                  setDraft(next);
+                  toast("Stages saved");
+                } catch (e) {
+                  setError((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? "Saving…" : "Save stages"}
+            </Button>
+          </div>
+        </>
+      )}
+      <p className="t-meta mt-4 text-ink-3">Confirmed and Lost can be renamed but not removed. A stage can be removed once no deals are in it.</p>
     </>
   );
 }
@@ -169,6 +242,10 @@ const ABOUT: Record<Channel, string> = {
   whatsapp: "Messages to your WhatsApp Business number, once the WhatsApp Business API is set up.",
   web: "Enquiries from a form on your website.",
   referral: "",
+  phone: "",
+  google: "",
+  event: "",
+  other: "",
 };
 /** Which one-time setup a channel needs. Gmail and Calendar share the Google Workspace setup. */
 const SETUP_FOR: Partial<Record<Channel, "google" | "meta">> = { gmail: "google", calendar: "google", instagram: "meta" };

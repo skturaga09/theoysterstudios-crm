@@ -276,7 +276,7 @@ function mulberry32(a: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const CH_WEIGHT: Record<Channel, number> = { instagram: 38, gmail: 22, whatsapp: 26, web: 14, facebook: 18, calendar: 7, referral: 6 };
+const CH_WEIGHT: Record<Channel, number> = { instagram: 38, gmail: 22, whatsapp: 26, web: 14, facebook: 18, calendar: 7, referral: 6, phone: 0, google: 0, event: 0, other: 0 };
 /** Older leads have had time to progress; recent ones sit near New. */
 function stageFor(r: number, ageDays: number, ch: Channel): Stage {
   const maturity = Math.min(1, ageDays / 60);
@@ -342,3 +342,10 @@ for (const c of COMPANIES) c.business = DEALS.find((d) => d.companyId === c.id)?
 for (const p of CONTACTS) p.business = COMPANIES.find((c) => c.id === p.companyId)?.business;
 for (const inv of INVOICES) inv.business = DEALS.find((d) => d.id === inv.dealId)?.business ?? COMPANIES.find((c) => c.id === inv.companyId)?.business;
 for (const t of TASKS) t.business = DEALS.find((d) => d.id === t.dealId)?.business;
+
+/* Demo: follow-ups — one overdue, two today, three upcoming — on open deals. */
+DEALS.filter((d) => d.stage !== "won" && d.stage !== "lost")
+  .slice(0, 6)
+  .forEach((d, i) => {
+    d.nextFollowUpAt = at([-1, 0, 0, 1, 3, 5][i]!, 11);
+  });

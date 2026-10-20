@@ -1,4 +1,4 @@
-import { fmtDay, formatCompact, STAGE_LABEL, type Stage, BUSINESS_SHORT } from "@pinnacle/shared";
+import { fmtDay, formatCompact, type Stage, BUSINESS_SHORT, type Business, type PipelineStage } from "@pinnacle/shared";
 import { Avatar, ChannelChip, cn, HealthDot, MoneyText } from "@pinnacle/ui";
 import {
   closestCorners,
@@ -24,7 +24,6 @@ import type { Deal } from "../../data/types";
 import { changeStage } from "../../lib/actions";
 import { useUi } from "../../lib/ui-store";
 
-const COLUMNS: Stage[] = ["new", "qualified", "proposal", "negotiation", "won"];
 
 /** Column totals tween when deals move in or out. */
 function TweenMoney({ paise }: { paise: number }) {
@@ -46,7 +45,10 @@ function TweenMoney({ paise }: { paise: number }) {
   return <span ref={ref} className="font-mono text-[11.5px] text-ink-2 tnum">{formatCompact(paise)}</span>;
 }
 
-export function Board({ deals }: { deals: Deal[] }) {
+/** One business's pipeline: a column per stage, Lost folded at the end. */
+export function Board({ deals, stages, business }: { deals: Deal[]; stages: PipelineStage[]; business: Business }) {
+  const COLUMNS = stages.filter((s) => s.kind !== "lost");
+  const label = (id: Stage) => stages.find((s) => s.id === id)?.label ?? id;
   const [activeId, setActiveId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<Stage | null>(null);
   const [lostOpen, setLostOpen] = useState(false);
@@ -62,8 +64,8 @@ export function Board({ deals }: { deals: Deal[] }) {
     if (sid.startsWith("col:")) return sid.slice(4) as Stage;
     return deals.find((d) => d.id === sid)?.stage ?? null;
   };
-  const totals = [...COLUMNS, "lost" as Stage].map((s) => byStage(s).reduce((a, d) => a + d.valuePaise, 0));
-  const maxTotal = Math.max(...totals.slice(0, 5), 1);
+  const totals = [...COLUMNS.map((s) => s.id), "lost" as Stage].map((s) => byStage(s).reduce((a, d) => a + d.valuePaise, 0));
+  const maxTotal = Math.max(...totals.slice(0, -1), 1);
   const active = deals.find((d) => d.id === activeId);
 
   const onStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
@@ -94,8 +96,8 @@ export function Board({ deals }: { deals: Deal[] }) {
       accessibility={{
         announcements: {
           onDragStart: ({ active }) => `Picked up ${deals.find((d) => d.id === active.id)?.title}.`,
-          onDragOver: ({ over }) => (over ? `Over ${STAGE_LABEL[stageOf(over.id) ?? "new"]}.` : ""),
-          onDragEnd: ({ over }) => (over ? `Moved to ${STAGE_LABEL[stageOf(over.id) ?? "new"]}.` : "Cancelled."),
+          onDragOver: ({ over }) => (over ? `Over ${label(stageOf(over.id) ?? "new")}.` : ""),
+          onDragEnd: ({ over }) => (over ? `Moved to ${label(stageOf(over.id) ?? "new")}.` : "Cancelled."),
           onDragCancel: () => "Cancelled.",
         },
       }}
@@ -103,9 +105,9 @@ export function Board({ deals }: { deals: Deal[] }) {
       <div className="-mx-4 overflow-x-auto px-4 pb-4 md:-mx-8 md:px-8">
         <div className="flex min-w-max items-start gap-3">
           {COLUMNS.map((s, i) => (
-            <Column key={s} stage={s} deals={byStage(s)} total={totals[i]!} share={totals[i]! / maxTotal} highlight={overStage === s && activeId !== null && active?.stage !== s} />
+            <Column key={s.id} stage={s.id} name={s.label} business={business} deals={byStage(s.id)} total={totals[i]!} share={totals[i]! / maxTotal} highlight={overStage === s.id && activeId !== null && active?.stage !== s.id} />
           ))}
-          <LostColumn deals={byStage("lost")} open={lostOpen} onToggle={() => setLostOpen((o) => !o)} highlight={overStage === "lost" && activeId !== null} total={totals[5]!} />
+          <LostColumn deals={byStage("lost")} open={lostOpen} onToggle={() => setLostOpen((o) => !o)} highlight={overStage === "lost" && activeId !== null} total={totals.at(-1)!} />
         </div>
       </div>
       <DragOverlay dropAnimation={{ duration: 220, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }}>
@@ -119,12 +121,12 @@ export function Board({ deals }: { deals: Deal[] }) {
   );
 }
 
-function Column({ stage, deals, total, share, highlight }: { stage: Stage; deals: Deal[]; total: number; share: number; highlight: boolean }) {
+function Column({ stage, name, business, deals, total, share, highlight }: { stage: Stage; name: string; business: Business; deals: Deal[]; total: number; share: number; highlight: boolean }) {
   const { setNodeRef } = useDroppable({ id: `col:${stage}` });
   return (
     <section
       ref={setNodeRef}
-      aria-label={`${STAGE_LABEL[stage]}: ${deals.length} deals`}
+      aria-label={`${name}: ${deals.length} deals`}
       className={cn(
         "flex w-[272px] shrink-0 flex-col rounded-panel bg-sunken p-2 transition-[background-color,box-shadow] duration-150",
         highlight && "bg-signal-wash shadow-[inset_0_0_0_1.5px_var(--signal)]",
@@ -132,12 +134,12 @@ function Column({ stage, deals, total, share, highlight }: { stage: Stage; deals
     >
       <header className="px-1.5 pt-1 pb-2.5">
         <div className="flex items-center gap-2">
-          <h2 className={cn("m-0 text-[12.5px] font-medium", stage === "won" && "text-ok")}>{STAGE_LABEL[stage]}</h2>
+          <h2 className={cn("m-0 text-[12.5px] font-medium", stage === "won" && "text-ok")}>{name}</h2>
           <span className="font-mono text-[11px] text-ink-3 tnum">{deals.length}</span>
           <span className="ml-auto"><TweenMoney paise={total} /></span>
           <button
-            aria-label={`New deal in ${STAGE_LABEL[stage]}`}
-            onClick={() => useUi.getState().openComposer("deal", { stage })}
+            aria-label={`New lead in ${name}`}
+            onClick={() => useUi.getState().openComposer("deal", { stage, business })}
             className="-mr-1 grid size-6 place-items-center rounded-control text-ink-3 hover:bg-hover hover:text-ink"
           >
             <Plus size={14} strokeWidth={1.5} />
@@ -218,6 +220,8 @@ function SortableCard({ deal }: { deal: Deal }) {
   );
 }
 
+const istDay = (iso: string) => new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
 const DealCard = memo(function DealCard({ deal, lifted }: { deal: Deal; lifted?: boolean }) {
   const company = useCrm((s) => s.companies.find((c) => c.id === deal.companyId));
   const owner = useCrm((s) => s.members.find((m) => m.id === deal.ownerId));
@@ -241,7 +245,13 @@ const DealCard = memo(function DealCard({ deal, lifted }: { deal: Deal; lifted?:
       {showBusiness && deal.business && <div className="mt-1 pl-4 font-mono text-[10.5px] tracking-wide text-ink-3 uppercase">{BUSINESS_SHORT[deal.business]}</div>}
       <div className="mt-3 flex items-center gap-2 pl-4">
         <MoneyText paise={deal.valuePaise} className="text-[13px]" />
-        <span className={cn("font-mono text-[11px]", overdue ? "text-risk" : "text-ink-3")}>{fmtDay(deal.closeAt)}</span>
+        <span className={cn("font-mono text-[11px]", overdue ? "text-risk" : "text-ink-3")}>{fmtDay(deal.eventDate ?? deal.closeAt)}</span>
+        {/* Due today or overdue, by calendar day in India. */}
+        {deal.nextFollowUpAt && istDay(deal.nextFollowUpAt) <= istDay(new Date().toISOString()) && (
+          <span className={cn("font-mono text-[10.5px]", istDay(deal.nextFollowUpAt) < istDay(new Date().toISOString()) ? "text-risk" : "text-warn")} title={`Follow up ${fmtDay(deal.nextFollowUpAt)}`}>
+            follow up
+          </span>
+        )}
         {owner && <Avatar name={owner.name} me={owner.id === ME_ID} size="sm" className="ml-auto" />}
       </div>
     </article>
