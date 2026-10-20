@@ -1,6 +1,7 @@
-import { BUSINESS_LABEL, BUSINESS_SHORT, formatFull, invoiceTotals, istDay, profitAndLoss } from "@pinnacle/shared";
-import { Button, Ledger, Table, TBody, TD, TH, THead, TR } from "@pinnacle/ui";
+import { BUSINESS_LABEL, BUSINESS_SHORT, formatFull, invoiceTotals, istDay, profitAndLoss, registerTable, salesRegister } from "@pinnacle/shared";
+import { Button, Ledger, Select, Table, TBody, TD, TH, THead, toast, TR } from "@pinnacle/ui";
 import { Download, Printer } from "lucide-react";
+import { useState } from "react";
 import { Navigate } from "react-router";
 import { PageHeader } from "../../components/page-header";
 import { useAccess, useCrm } from "../../data/store";
@@ -10,6 +11,47 @@ const monthLabel = (m: string) => new Date(`${m}-01T12:00:00Z`).toLocaleDateStri
 const margin = (profit: number, revenue: number) => (revenue > 0 ? `${Math.round((profit / revenue) * 100)}%` : "—");
 /** Indian financial year start (1 April) for a day, as "2026-04". */
 const fyStart = (day: string) => (Number(day.slice(5, 7)) >= 4 ? `${day.slice(0, 4)}-04` : `${Number(day.slice(0, 4)) - 1}-04`);
+
+/**
+ * The GST sales register for the CA: every sent invoice and credit note in a month (or a financial year), one row
+ * per SAC, split B2B / B2CS / CDNR / CDNUR as GSTR-1 asks. Always the whole studio (one GSTIN), whatever the
+ * business switch shows.
+ */
+function GstRegister() {
+  const today = istDay(new Date());
+  const months = Array.from({ length: 13 }, (_, i) => {
+    const d = new Date(`${today.slice(0, 7)}-15T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() - i);
+    return d.toISOString().slice(0, 7);
+  });
+  const [period, setPeriod] = useState(months[1]!); // last month: what's usually being filed
+  const fy = fyStart(today);
+  const range = (): [string, string] => {
+    if (period === "fy") return [`${fy}-01`, today];
+    const [y, m] = period.split("-").map(Number) as [number, number];
+    return [`${period}-01`, new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)];
+  };
+  const download = () => {
+    const { invoices, creditNotes } = useCrm.getState(); // whole studio, not the business view
+    const [from, to] = range();
+    const rows = salesRegister({ invoices, creditNotes }, from, to);
+    if (!rows.length) return toast("No sent invoices or credit notes in that period");
+    downloadCsv(`gst-sales-register-${period === "fy" ? `FY-${fy.slice(0, 4)}` : period}`, registerTable(rows));
+  };
+  return (
+    <section className="flex flex-wrap items-center gap-3 rounded-card bg-sunken p-4 print:hidden">
+      <div className="min-w-0 flex-1 basis-[260px]">
+        <h2 className="t-dense m-0 font-medium">GST sales register for your CA</h2>
+        <p className="t-meta m-0 text-ink-3">Every sent invoice and credit note, one row per SAC, split for GSTR-1 (B2B, B2CS, credit notes). Opens in Excel; Tally and the GST offline tool take it from there.</p>
+      </div>
+      <Select aria-label="Period" value={period} onChange={(e) => setPeriod(e.target.value)} className="w-[170px]">
+        {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+        <option value="fy">This financial year</option>
+      </Select>
+      <Button variant="ink" onClick={download}><Download strokeWidth={1.5} /> Download</Button>
+    </section>
+  );
+}
 
 /**
  * Profit and loss, before GST and on an accrual basis (revenue when invoiced): by month, by expense category and
@@ -71,6 +113,8 @@ export function ProfitRoute() {
           </span>
         }
       />
+
+      <GstRegister />
 
       <section>
         <h2 className="t-eyebrow m-0 mb-3 text-ink-2">This financial year (from April)</h2>

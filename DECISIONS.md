@@ -315,3 +315,23 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   The task's approval updates, the decision is added as a client comment (shown as "<name> (client)") and the
   task's assignee and the project manager are notified (`approval`, a new switchable notification kind).
   Only the link's own project's approval items can be decided; approved items are final.
+
+## Phase 5 (first part, 20 Oct 2026)
+
+- **In-app help** for Razorpay and WhatsApp now matches the client guide: number choice (a new number recommended;
+  the Business app and this Cloud API setup can't share one), same Meta app as Instagram (one Meta App secret
+  signs both), system-user permanent token, WhatsApp payment method, the reminder template with sample values and
+  language `en`, Test → Live for Razorpay (webhooks are per mode), a ₹1 test then a credit note (the test takes a
+  real GST serial). Each panel has an "If something doesn't work" list.
+- **Installable app:** a web manifest (name, icons from the logo, standalone, shortcuts to Inbox/Tasks/Calendar)
+  so phones can "Add to Home screen". Deliberately **no service worker**: it would cache old releases, the problem
+  fixed above; Chrome and Safari install without one. Native app-store apps stay a separate decision.
+- **Growth reports** (Reports, bottom; follow the business switch and the date range): per source — leads,
+  confirmed, conversion (confirmed ÷ closed), confirmed value, invoiced, average booking, days to confirm; the
+  season (12 months of enquiries, bookings and weddings per month); lost reasons; and for owners/Finance what ad
+  spend ("Ad spend" expenses) buys, blended across sources. `packages/shared/src/analytics.ts`, tested.
+- **GST sales register** (Profit & loss → "GST sales register for your CA"): sent invoices and credit notes for a
+  month or the financial year, one row per SAC, GSTR-1 sections B2B / B2CS / CDNR / CDNUR, place of supply,
+  IGST / CGST / SGST, credit notes negative; always the whole studio regardless of the business switch.
+  `packages/shared/src/gstr1.ts`, tested. Not a direct GST-portal upload or Tally sync — those need the CA's
+  choice of format.

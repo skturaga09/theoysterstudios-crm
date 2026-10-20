@@ -216,26 +216,34 @@ const metaSteps = (site: string, verifyToken: string): Step[] => [
 ];
 
 const whatsappSteps = (site: string, verifyToken: string): Step[] => [
-  { id: "w-product", title: "Add WhatsApp to your Meta app", body: <>developers.facebook.com → your CRM app → Add products → <strong>WhatsApp</strong> → Set up. Choose the studio's Meta Business portfolio.</> },
-  { id: "w-number", title: "Add and verify the studio's phone number", body: <>WhatsApp → API Setup → Add phone number. Complete Meta's display-name review and copy the <strong>Phone number ID</strong> shown on that page.</> },
-  { id: "w-token", title: "Create a permanent access token", body: <>Business settings → Users → System users → create an Admin system user, add the CRM app and WhatsApp account, then generate a token with <strong>whatsapp_business_messaging</strong> and <strong>whatsapp_business_management</strong>. Paste it below.</> },
+  {
+    id: "w-choose-number",
+    title: "Choose the phone number",
+    body: <>In this setup a number can't be on the WhatsApp Business app and the CRM at the same time. Recommended: a <strong>new number for the CRM</strong> (the current number keeps working in the app). Or move the current number: delete its WhatsApp account in the Business app first — old chats stay only on that phone. The number must receive one SMS or call for a code (landlines: choose the call).</>,
+  },
+  { id: "w-product", title: "Add WhatsApp to the same Meta app as Instagram", body: <>developers.facebook.com → My Apps → <em>The Oyster Studios CRM</em> → Add products → <strong>WhatsApp</strong> → Set up → business portfolio <strong>The Oyster Studios</strong>. Use this same app: the CRM checks Instagram and WhatsApp messages with one Meta App secret.</> },
+  { id: "w-number", title: "Add and verify the number", body: <>WhatsApp → API Setup → Add phone number: display name (the studio's name as clients see it; Meta reviews it), category, number, then the code. If asked for a 6-digit two-step PIN, set one and keep it in the studio's password manager. Copy the <strong>Phone number ID</strong> under the number (a long number, not the phone number) and paste it below.</> },
+  { id: "w-billing", title: "Add a payment method for WhatsApp", body: <>WhatsApp Manager → Payment settings. Meta charges a small amount per payment-reminder message (replies within 24 hours of a client's message are free); without a card, reminders fail.</> },
+  { id: "w-token", title: "Create a permanent access token", body: <>business.facebook.com → Settings → Users → System users → Add: name <em>CRM</em>, role <strong>Admin</strong>. Assign assets: the app <em>The Oyster Studios CRM</em> and the studio's WhatsApp account, both full control. Generate new token → that app → expiry <strong>Never</strong> → tick <strong>whatsapp_business_messaging</strong> and <strong>whatsapp_business_management</strong>. Copy it (starts EA — shown once) and paste it below. Don't use the temporary token on API Setup; it stops after 24 hours.</> },
   {
     id: "w-webhook",
     title: "Send incoming messages to the CRM",
-    body: verifyToken ? <>WhatsApp → Configuration → Webhook. Callback URL:<Copyable value={`${site}/api/integrations/whatsapp/webhook`} />Verify token:<Copyable value={verifyToken} />Verify and save, then subscribe to the <strong>messages</strong> field.</> : <>Open this step again after the keys below have loaded.</>,
+    body: verifyToken ? <>In the Meta app: WhatsApp → Configuration → Webhook → Edit. Callback URL:<Copyable value={`${site}/api/integrations/whatsapp/webhook`} />Verify token:<Copyable value={verifyToken} />Verify and save, then Webhook fields → Manage → subscribe to <strong>messages</strong>. The app must be <strong>Live</strong> (it already is if Instagram is connected).</> : <>Save the keys below first; this step's values appear once they're saved.</>,
   },
   {
     id: "w-template",
     title: "Submit the payment reminder template",
-    body: <>WhatsApp Manager → Message templates → Create template. Category: <strong>Utility</strong>; name: <strong>payment_reminder</strong>; language: English. Body:<Copyable value="Hello {{1}}, this is a reminder from {{2}}: {{3}} of {{4}} is due by {{5}}." />Submit it to Meta, then paste the approved template name and language below.</>,
+    body: <>WhatsApp Manager → Message templates → Create template. Category <strong>Utility</strong>, name <strong>payment_reminder</strong>, language <strong>English</strong>, no buttons, header or footer. Body, exactly — five blanks in this order:<Copyable value="Hello {{1}}, this is a friendly reminder from {{2}}. {{3}} of {{4}} is due by {{5}}. If you have already paid, please ignore this message. Thank you!" />Sample values: Riya · The Oyster Studios · Booking advance for Riya &amp; Arjun wedding · ₹1,18,000 · 25 October 2026. Approval takes minutes to about 24 hours; then enter template <strong>payment_reminder</strong> and language <strong>en</strong> below.</>,
   },
+  { id: "w-test", title: "Test it with a teammate's phone", body: <>Send "hi" to the studio number: it appears in Inbox within about 30 seconds, and a reply from Inbox arrives on the phone. On a deal with a payment schedule and that phone as the contact, <strong>Remind</strong> should say "WhatsApp reminder sent".</> },
 ];
 
 const razorpaySteps = (site: string): Step[] => [
-  { id: "r-account", title: "Open the studio's Razorpay account", body: <>Sign in at dashboard.razorpay.com and finish account activation before using Live keys.</> },
-  { id: "r-keys", title: "Create API keys", body: <>Account &amp; Settings → API Keys → Generate Key. Copy the Key ID and Key secret and paste them below. Start with Test mode if you want to make a trial payment.</> },
-  { id: "r-webhook", title: "Create the payment webhook", body: <>Account &amp; Settings → Webhooks → Add New Webhook. URL:<Copyable value={`${site}/api/integrations/razorpay/webhook`} />Create a strong webhook secret and paste the same value below. Subscribe to <strong>payment_link.paid</strong>.</> },
-  { id: "r-test", title: "Make one test payment", body: <>From a sent test invoice, create a Payment link and complete it with Razorpay's test payment details. Confirm the invoice changes to Paid only once.</> },
+  { id: "r-account", title: "Sign in to the studio's Razorpay account", body: <>dashboard.razorpay.com. If it isn't activated yet, finish activation (business PAN, GST certificate, bank account): Live keys need it; Test mode works straight away. Switch the dashboard to <strong>Test mode</strong> for the first run.</> },
+  { id: "r-keys", title: "Create API keys", body: <>Account &amp; Settings → API Keys → Generate Key. Paste the <strong>Key ID</strong> (rzp_test_…) and <strong>Key secret</strong> below straight away — Razorpay shows the secret only once.</> },
+  { id: "r-webhook", title: "Create the payment webhook", body: <>Make a long random phrase (20+ characters) as the webhook secret. Account &amp; Settings → Webhooks → Add New Webhook. URL:<Copyable value={`${site}/api/integrations/razorpay/webhook`} />Secret: that phrase. Active events: only <strong>payment_link.paid</strong>. Save, then paste the same phrase below.</> },
+  { id: "r-test", title: "Make one ₹1 test payment", body: <>Mark a ₹1 test invoice as sent, click <strong>Payment link</strong>, pay with the test card or UPI details Razorpay shows. The invoice should turn <strong>Paid</strong> within a minute, once. The test invoice used a real number in the GST series: raise a credit note for it.</> },
+  { id: "r-live", title: "Go live", body: <>Switch Razorpay to <strong>Live mode</strong>, generate Live keys (rzp_live_…) and add the webhook again — Test and Live webhooks are separate. Paste the Live Key ID, Key secret and webhook secret below, over the test ones.</> },
 ];
 
 export const setupProgress = (state: SetupState, kind: "google" | "meta" | "whatsapp" | "razorpay") => {
@@ -394,12 +402,29 @@ export function MetaSetup({ state, connected }: { state: SetupState; connected: 
   );
 }
 
+/** "If something doesn't work": the common causes and fixes, folded away under each panel. */
+function Troubleshooting({ items }: { items: [string, string][] }) {
+  return (
+    <details className="mt-4 rounded-panel border border-line px-4 py-3">
+      <summary className="t-dense cursor-pointer font-medium">If something doesn't work</summary>
+      <dl className="m-0 mt-3 grid gap-x-4 gap-y-2 t-meta sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+        {items.map(([seen, fix]) => (
+          <div key={seen} className="contents">
+            <dt className="font-medium text-ink">{seen}</dt>
+            <dd className="m-0 text-ink-2">{fix}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
+
 /** WhatsApp Cloud API keys, webhook and approved reminder template. */
 export function WhatsAppSetup({ state, connected }: { state: SetupState; connected: boolean }) {
   const site = window.location.origin;
   return (
     <div className="mt-4">
-      <p className="t-meta m-0 mb-3 text-ink-3">For your Meta Business admin · about 25 minutes. Incoming messages and Inbox replies use the Cloud API; payment reminders use the approved template below.</p>
+      <p className="t-meta m-0 mb-3 text-ink-3">For your Meta Business admin · about 60 minutes, plus Meta's template approval. Incoming messages and Inbox replies use the Cloud API; payment reminders use the approved template. Paste keys only here — never send them to anyone.</p>
       <Steps steps={whatsappSteps(site, state.keys?.webhookVerifyToken ?? "")} done={state.done} toggle={state.toggle} />
       <KeysForm
         keys={state.keys}
@@ -415,6 +440,16 @@ export function WhatsAppSetup({ state, connected }: { state: SetupState; connect
       <p className={cn("t-dense m-0 mt-4 rounded-panel border px-4 py-3", connected ? "border-ok/30 bg-ok-wash text-ok" : "border-line bg-surface text-ink-2")}>
         {connected ? "WhatsApp Cloud API is connected. New messages will arrive in Inbox and replies can be sent during the 24-hour window." : "Save the Phone number ID, permanent token and Meta App secret to connect WhatsApp."}
       </p>
+      <Troubleshooting
+        items={[
+          ["“Verify and save” fails in Meta", "Save the keys here first, reload this panel and copy the verify token again."],
+          ["Messages don't reach Inbox", "Subscribe the webhook to messages; add WhatsApp to the same Meta app as Instagram; the app must be Live."],
+          ["“More than 24 hours since they last wrote”", "WhatsApp's free reply window has closed. Use Remind (the template) or call; replies reopen when the client writes."],
+          ["Remind fails", "The template must be approved and match exactly (payment_reminder, en); add a WhatsApp payment method; the contact needs a phone number."],
+          ["Remind opens WhatsApp instead of sending", "WhatsApp isn't connected here yet — the message is typed for you to press send."],
+          ["Everything stopped after a day", "The temporary API Setup token was used. Create the system-user token and paste it."],
+        ]}
+      />
     </div>
   );
 }
@@ -424,7 +459,7 @@ export function RazorpaySetup({ state, ready, webhook }: { state: SetupState; re
   const site = window.location.origin;
   return (
     <div className="mt-4">
-      <p className="t-meta m-0 mb-3 text-ink-3">For the studio's Razorpay owner · about 10 minutes. The CRM creates links only for sent invoices and records signed webhook payments once.</p>
+      <p className="t-meta m-0 mb-3 text-ink-3">For the studio's Razorpay owner · about 30 minutes (account activation can take a few working days). The CRM creates links only for sent invoices and records each payment once. Paste keys only here — never send them to anyone.</p>
       <Steps steps={razorpaySteps(site)} done={state.done} toggle={state.toggle} />
       <KeysForm
         keys={state.keys}
@@ -438,6 +473,15 @@ export function RazorpaySetup({ state, ready, webhook }: { state: SetupState; re
       <p className={cn("t-dense m-0 mt-4 rounded-panel border px-4 py-3", ready && webhook ? "border-ok/30 bg-ok-wash text-ok" : "border-line bg-surface text-ink-2")}>
         {ready && webhook ? "Razorpay is ready for payment links and signed payment webhooks." : ready ? "API keys are saved. Add the webhook secret to finish setup." : "Save the Key ID, Key secret and webhook secret to connect Razorpay."}
       </p>
+      <Troubleshooting
+        items={[
+          ["“Connect Razorpay first”", "Paste the Key ID and Key secret above and save."],
+          ["“Mark the invoice as sent first”", "Payment links are only for sent invoices: check the draft, mark it sent, try again."],
+          ["Client paid but the invoice isn't Paid", "Razorpay → Webhooks shows failed deliveries. Re-paste the same secret in both places; tick payment_link.paid in the mode you're using (Test or Live)."],
+          ["Razorpay says authentication failed", "The Key ID and secret are from different pairs or modes. Generate a fresh pair and paste both."],
+          ["A key may have leaked", "Regenerate the keys and change the webhook secret in Razorpay, then paste the new values here; the old ones stop at once."],
+        ]}
+      />
     </div>
   );
 }

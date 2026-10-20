@@ -8,3 +8,5 @@ export * from "./csv";
 export * from "./projects";
 export * from "./dashboard";
 export * from "./finance";
+export * from "./analytics";
+export * from "./gstr1";

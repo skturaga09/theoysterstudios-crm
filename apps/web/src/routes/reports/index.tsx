@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { downloadCsv } from "../../lib/download";
 import { PageHeader } from "../../components/page-header";
+import { GrowthReports } from "./growth";
 import { isOpen, sum } from "../../data/derive";
 import { probabilityOf, runFor } from "../../data/pipeline";
 import { ME_ID, REVENUE } from "../../data/seed";
@@ -261,6 +262,8 @@ export function ReportsRoute() {
           </TBody>
         </Table>
       </section>
+
+      <GrowthReports since={since} rangeLabel={{ month: "Last 30 days", quarter: "Last quarter", year: "Last 12 months" }[range]} />
     </div>
   );
 }
