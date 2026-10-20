@@ -3,6 +3,7 @@ import { useMe } from "../data/store";
 import {
   BarChart3,
   Building2,
+  CalendarDays,
   CheckSquare,
   FileSignature,
   FileText,
@@ -28,6 +29,7 @@ export const NAV: NavSection[] = [
       { to: "/", label: "Home", icon: Home, shortcut: "G H" },
       { to: "/inbox", label: "Inbox", icon: Inbox, count: "inbox", shortcut: "G I", area: "sales" },
       { to: "/pipeline", label: "Pipeline", icon: KanbanSquare, count: "pipeline", shortcut: "G P", area: "sales" },
+      { to: "/calendar", label: "Calendar", icon: CalendarDays },
       { to: "/projects", label: "Projects", icon: FolderKanban },
       { to: "/tasks", label: "Tasks", icon: CheckSquare, count: "tasks" },
     ],

@@ -170,3 +170,15 @@ async function fetchProfile(f: Fetch, token: string, igsid: string): Promise<{ n
     return {};
   }
 }
+
+/** Replies to someone on Instagram (allowed within 24 hours of their last message). */
+export async function sendInstagram(f: Fetch, token: string, igsid: string, text: string) {
+  const res = await f("https://graph.instagram.com/v21.0/me/messages", {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({ recipient: { id: igsid }, message: { text } }),
+  });
+  const out = (await res.json().catch(() => ({}))) as { message_id?: string; error?: { message?: string } };
+  if (!res.ok || !out.message_id) throw new Error(out.error?.message ?? `Instagram answered ${res.status}`);
+  return out.message_id;
+}

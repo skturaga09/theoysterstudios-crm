@@ -40,9 +40,13 @@ import {
 import { DEFAULT_FINANCE, DEFAULT_SAC, gstState, invoiceTotals as totalsOf, istDay, type FinanceSettings, accessOf, ROLE_LABEL, roleOf, type Area, DEFAULT_PIPELINES, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines } from "@pinnacle/shared";
 import { nameFromEmail, SUPPORT_MEMBER, type Member, type Verify } from "./auth";
 import type { Doc } from "./db";
+import { notify, type Notification } from "./notifications";
+import { createPaymentLink, handleRazorpayWebhook, validRazorpaySignature, type RazorpayKeys } from "./razorpay";
+import { handleWhatsAppWebhook, sendReminder, sendText, type WhatsAppKeys } from "./whatsapp";
+import { feedFor, toIcs } from "./calendar";
 import { createCreditNote, createInvoice, financialYear, nextNumber } from "./invoices";
 import { exchangeGoogleCode, googleAuthorizeUrl, revokeGoogle, syncGoogle, type GoogleAccount } from "./google";
-import { authorizeUrl, exchangeCode, handleWebhook, newVerifyToken, subscribeMessages, validSignature, type Fetch, type InstagramIntegration, type SetupKeys } from "./instagram";
+import { sendInstagram, authorizeUrl, exchangeCode, handleWebhook, newVerifyToken, subscribeMessages, validSignature, type Fetch, type InstagramIntegration, type SetupKeys } from "./instagram";
 
 /** `_id` → `id`, matching the web app's types. */
 const out = ({ _id, ...rest }: { _id: string } & object) => ({ id: _id, ...rest });
@@ -102,14 +106,14 @@ export function buildApp({
     });
   }
   /** Called by Meta or by a browser coming back from Instagram sign-in — no CRM login; each checks its own proof. */
-  const PUBLIC = new Set(["/healthz", "/integrations/instagram/webhook", "/integrations/instagram/callback", "/integrations/google/callback", "/public/privacy-info"]);
+  const PUBLIC = new Set(["/healthz", "/integrations/razorpay/webhook", "/integrations/whatsapp/webhook", "/integrations/instagram/webhook", "/integrations/instagram/callback", "/integrations/google/callback", "/public/privacy-info"]);
 
   /**
    * Every route except /healthz needs a Google sign-in (Firebase ID token) whose verified email is on
    * the team list. Checked per request, so removing someone cuts access immediately.
    */
   app.addHook("onRequest", async (req, reply) => {
-    if (PUBLIC.has(req.url.split("?")[0]!)) return;
+    if (PUBLIC.has(req.url.split("?")[0]!) || req.url.startsWith("/public/calendar/")) return;
     const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
     const claims = token ? await verify(token).catch(() => undefined) : undefined;
     if (!claims?.email || !claims.email_verified) return reply.code(401).send({ error: "Sign in with Google" });
@@ -207,8 +211,15 @@ export function buildApp({
     metaAppSecretSaved: !!k?.metaAppSecret,
     // Not a secret from admins: they paste it into Meta so Meta can prove it's talking to this CRM.
     webhookVerifyToken: String(k?.webhookVerifyToken ?? ""),
+    razorpayKeyId: String(k?.razorpayKeyId ?? ""),
+    razorpayKeySecretSaved: !!k?.razorpayKeySecret,
+    razorpayWebhookSecretSaved: !!k?.razorpayWebhookSecret,
+    whatsappPhoneNumberId: String(k?.whatsappPhoneNumberId ?? ""),
+    whatsappTokenSaved: !!k?.whatsappToken,
+    whatsappReminderTemplate: String(k?.whatsappReminderTemplate ?? ""),
+    whatsappTemplateLanguage: String(k?.whatsappTemplateLanguage ?? ""),
   });
-  const getKeys = async () => ((await setupCol.findOne({ _id: "keys" })) ?? {}) as SetupKeys;
+  const getKeys = async () => ((await setupCol.findOne({ _id: "keys" })) ?? {}) as SetupKeys & RazorpayKeys & WhatsAppKeys;
   app.get("/setup/keys", { preHandler: adminOnly }, async () => {
     if (!(await getKeys()).webhookVerifyToken) await setupCol.updateOne({ _id: "keys" }, { $set: { webhookVerifyToken: newVerifyToken() } }, { upsert: true });
     return keysView(await setupCol.findOne({ _id: "keys" }));
@@ -232,6 +243,8 @@ export function buildApp({
     const accounts = await googleAccounts.find({}, { projection: { email: 1, connectedBy: 1, connectedAt: 1, lastSyncAt: 1, error: 1 } }).sort({ email: 1 }).toArray();
     return {
       instagram: ig ? { connected: true, username: ig.username, lastEventAt: ig.lastEventAt, tokenExpiresAt: ig.tokenExpiresAt, connectedAt: ig.connectedAt } : { connected: false },
+      razorpay: { ready: !!keys.razorpayKeyId && !!keys.razorpayKeySecret, webhook: !!keys.razorpayWebhookSecret },
+      whatsapp: { connected: !!keys.whatsappPhoneNumberId && !!keys.whatsappToken, lastEventAt: (await db.collection<Doc>("integrations").findOne({ _id: "whatsapp" }))?.lastEventAt as string | undefined },
       google: { ready: !!(keys as { googleClientId?: string }).googleClientId && !!(keys as { googleClientSecret?: string }).googleClientSecret, accounts: accounts.map(({ _id: _, ...a }) => a) },
     };
   });
@@ -325,6 +338,28 @@ export function buildApp({
     if (!validSignature(raw, req.headers["x-hub-signature-256"] as string | undefined, [keys.metaAppSecret, keys.instagramAppSecret])) return reply.code(401).send({ error: "Bad signature" });
     return handleWebhook(db, f, req.body as Parameters<typeof handleWebhook>[2]);
   });
+  /* ---------- WhatsApp Cloud API (the studio's own Meta app and number) ---------- */
+  app.get("/integrations/whatsapp/webhook", async (req, reply) => {
+    const q = req.query as Record<string, string | undefined>;
+    const token = (await getKeys()).webhookVerifyToken;
+    if (q["hub.mode"] === "subscribe" && token && q["hub.verify_token"] === token) return reply.type("text/plain").send(q["hub.challenge"] ?? "");
+    return reply.code(403).send({ error: "Verify token doesn't match" });
+  });
+  app.post("/integrations/whatsapp/webhook", async (req, reply) => {
+    const keys = await getKeys();
+    const raw = (req.raw as { rawBody?: string | Buffer }).rawBody;
+    if (!validSignature(raw, req.headers["x-hub-signature-256"] as string | undefined, [keys.metaAppSecret])) return reply.code(401).send({ error: "Bad signature" });
+    return handleWhatsAppWebhook(db, keys, req.body as Parameters<typeof handleWhatsAppWebhook>[2]);
+  });
+
+  /* ---------- Razorpay (the studio's own account): paid links record themselves ---------- */
+  app.post("/integrations/razorpay/webhook", async (req, reply) => {
+    const keys = await getKeys();
+    const raw = (req.raw as { rawBody?: string | Buffer }).rawBody;
+    if (!validRazorpaySignature(raw, req.headers["x-razorpay-signature"] as string | undefined, keys.razorpayWebhookSecret)) return reply.code(401).send({ error: "Bad signature" });
+    return handleRazorpayWebhook(db, req.body as Parameters<typeof handleRazorpayWebhook>[1]);
+  });
+
   /** What the public privacy page needs: who the studio is and how to reach them. */
   app.get("/public/privacy-info", async () => {
     const w = await getWorkspace();
@@ -347,10 +382,39 @@ export function buildApp({
     const unset = Object.entries(changes).filter(([, v]) => v === null);
     if (set.length) update.$set = Object.fromEntries(set);
     if (unset.length) update.$unset = Object.fromEntries(unset.map(([k]) => [k, true as const]));
-    const doc = await conversationsCol.findOneAndUpdate({ _id: req.params.id }, update, { returnDocument: "after" });
+    const doc = await conversationsCol.findOneAndUpdate({ _id: req.params.id }, update, { returnDocument: "before" });
     if (!doc) return reply.code(404).send({ error: "Not found" });
+    if (changes.assigneeId && changes.assigneeId !== doc.assigneeId)
+      await notify(db, [changes.assigneeId], { kind: "lead", text: `${req.member.name} gave you the conversation with ${doc.name}`, link: `/inbox/${doc._id}` }, req.member._id);
+    Object.assign(doc, changes);
+    for (const [k, v] of Object.entries(changes)) if (v === null) delete (doc as Record<string, unknown>)[k];
     const { _id, externalId: _, ...c } = doc;
     return { id: _id, ...c };
+  });
+
+  /** Reply from the Inbox: goes out on WhatsApp or Instagram (within their 24-hour window) and joins the thread. */
+  app.post<{ Params: { id: string } }>("/conversations/:id/reply", { preHandler: mayChange("sales") }, async (req, reply) => {
+    const { body } = z.object({ body: z.string().trim().min(1, "Write a reply").max(4000) }).parse(req.body);
+    const c = await conversationsCol.findOne({ _id: req.params.id });
+    if (!c) return reply.code(404).send({ error: "Not found" });
+    const keys = await getKeys();
+    let id: string;
+    try {
+      if (c.channel === "whatsapp") {
+        if (!keys.whatsappPhoneNumberId || !keys.whatsappToken) return reply.code(409).send({ error: "WhatsApp isn't connected yet — set it up in Settings → Integrations" });
+        id = await sendText(f, keys, String(c.externalId), body);
+      } else if (c.channel === "instagram") {
+        const ig = await integrations.findOne({ _id: "instagram" });
+        if (!ig) return reply.code(409).send({ error: "Instagram isn't connected" });
+        id = await sendInstagram(f, ig.accessToken, String(c.externalId), body);
+      } else return reply.code(409).send({ error: "Reply to emails and bookings from Gmail or Calendar" });
+    } catch (e) {
+      return reply.code(502).send({ error: (e as Error).message });
+    }
+    const message = { id, direction: "out", body, at: now(), authorId: req.member._id };
+    const saved = await conversationsCol.findOneAndUpdate({ _id: c._id }, { $push: { messages: message } as never, $set: { lastMessageAt: message.at, unread: false } }, { returnDocument: "after" });
+    const { _id, externalId: _, ...rest } = saved!;
+    return { id: _id, ...rest };
   });
 
   /* ---------- Lead routing (one ordered list of rules) ---------- */
@@ -422,7 +486,7 @@ export function buildApp({
       /** Validates (and may complete) a create or change against the record as it would end up; returns an error message. */
       check?: (next: Record<string, unknown>, existing?: Doc) => Promise<string | undefined>;
       /** Runs after a create or change is saved (e.g. a confirmed deal makes its company a client). */
-      after?: (saved: Doc) => Promise<void>;
+      after?: (saved: Doc, req: FastifyRequest, existing?: Doc) => Promise<void>;
     },
   ) {
     const col = db.collection<Doc>(name);
@@ -453,7 +517,7 @@ export function buildApp({
       if (invalid) return reply.code(422).send({ error: invalid });
       const doc: Doc = { _id: new ObjectId().toHexString(), ...(await defaults()), ...body };
       await col.insertOne(doc);
-      await after?.(doc);
+      await after?.(doc, req);
       return reply.code(201).send(out(doc));
     });
     app.patch<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
@@ -471,7 +535,7 @@ export function buildApp({
       if (set.length) mod.$set = Object.fromEntries(set);
       if (unset.length) mod.$unset = Object.fromEntries(unset.map(([k]) => [k, true as const]));
       const saved = (await col.findOneAndUpdate({ _id: existing._id }, mod, { returnDocument: "after" }))!;
-      await after?.(saved);
+      await after?.(saved, req, existing);
       return out(saved);
     });
     app.delete<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
@@ -540,7 +604,10 @@ export function buildApp({
       return undefined;
     },
     // A lead that's confirmed makes its company (or couple) a client — no need to create the client again.
-    after: async (deal) => onConfirmed(deal),
+    after: async (deal, req, existing) => {
+      await onConfirmed(deal);
+      if (deal.ownerId !== existing?.ownerId) await notify(db, [String(deal.ownerId)], { kind: "assigned", text: `${req.member.name} gave you the lead “${deal.title}”`, link: `/deals/${deal._id}` }, req.member._id);
+    },
   });
   /** A confirmed deal makes its company a client (once) and starts its project. */
   async function onConfirmed(deal: Doc) {
@@ -576,6 +643,12 @@ export function buildApp({
   }
   records("projects", CreateProjectSchema, UpdateProjectSchema, () => ({ createdAt: now() }), {
     area: "projects",
+    // Tell people when they're put on a project (in the crew or as its manager).
+    after: async (p, req, existing) => {
+      const was = new Set([existing?.managerId, ...((existing?.crew as { memberId: string }[] | undefined) ?? []).map((c) => c.memberId)]);
+      const now_ = [p.managerId as string | undefined, ...((p.crew as { memberId: string }[] | undefined) ?? []).map((c) => c.memberId)];
+      await notify(db, now_.filter((m) => !was.has(m)), { kind: "project", text: `${req.member.name} put you on the project “${p.name}”`, link: `/projects/${p._id}` }, req.member._id);
+    },
     scope: async (req) => {
       const mine = await crewProjects(req);
       return mine && { _id: { $in: mine.map((p) => p._id) } };
@@ -590,6 +663,10 @@ export function buildApp({
       if (mine) return { $or: [{ assigneeId: me }, { projectId: { $in: mine.map((p) => p._id) } }] };
       const own = await ownDealIds(req);
       return own && { $or: [{ assigneeId: me }, { dealId: { $in: own } }] };
+    },
+    after: async (t, req, existing) => {
+      if (t.assigneeId !== existing?.assigneeId)
+        await notify(db, [String(t.assigneeId)], { kind: "task", text: `${req.member.name} gave you a task: ${t.title}`, link: t.projectId ? `/projects/${t.projectId}` : "/tasks" }, req.member._id);
     },
     // Admins and project managers run every task; everyone else updates the ones given to them.
     write: (req, next, existing) => {
@@ -609,7 +686,36 @@ export function buildApp({
     const { body } = TaskCommentSchema.parse(req.body);
     const comment = { id: new ObjectId().toHexString(), authorId: req.member._id, body, at: now() };
     const saved = await db.collection<Doc>("tasks").findOneAndUpdate({ $and: [{ _id: req.params.id }, await tasks.visible(req)] }, { $push: { comments: comment } } as never, { returnDocument: "after" });
-    return saved ? reply.code(201).send(out(saved)) : reply.code(404).send({ error: "Not found" });
+    if (!saved) return reply.code(404).send({ error: "Not found" });
+    await notify(db, [String(saved.assigneeId)], { kind: "comment", text: `${req.member.name} commented on “${saved.title}”: ${body.slice(0, 120)}`, link: saved.projectId ? `/projects/${saved.projectId}` : "/tasks" }, req.member._id);
+    return reply.code(201).send(out(saved));
+  });
+
+  /* ---------- Calendar feed: a private address per person for Google/Apple Calendar ---------- */
+  const feeds = db.collection<{ _id: string; memberId: string; createdAt: string }>("calendarFeeds");
+  const feedUrl = (site: string, token: string) => `${site}/api/public/calendar/${token}.ics`;
+  app.post("/calendar/feed", async (req) => {
+    const { origin: site, reset } = z.object({ origin, reset: z.boolean().optional() }).parse(req.body);
+    if (reset) await feeds.deleteMany({ memberId: req.member._id });
+    let feed = await feeds.findOne({ memberId: req.member._id });
+    if (!feed) await feeds.insertOne((feed = { _id: newVerifyToken() + newVerifyToken(), memberId: req.member._id, createdAt: now() }));
+    return { url: feedUrl(site, feed._id) };
+  });
+  app.get<{ Params: { file: string } }>("/public/calendar/:file", async (req, reply) => {
+    const feed = await feeds.findOne({ _id: req.params.file.replace(/\.ics$/, "") });
+    const member = feed && (feed.memberId === "support" ? { ...SUPPORT_MEMBER } : await members.findOne({ _id: feed.memberId, status: { $ne: "removed" } }));
+    if (!member) return reply.code(404).type("text/plain").send("This calendar address is no longer valid.");
+    const site = `https://${req.headers["x-forwarded-host"] ?? req.headers.host}`;
+    return reply.type("text/calendar; charset=utf-8").header("cache-control", "private, max-age=900").send(toIcs(`Oyster CRM — ${member.name}`, await feedFor(db, member as Doc, site)));
+  });
+
+  /* ---------- Notifications (mine) ---------- */
+  const notifications = db.collection<Notification>("notifications");
+  app.get("/notifications", async (req) => (await notifications.find({ memberId: req.member._id }).sort({ at: -1 }).limit(50).toArray()).map(out));
+  app.post("/notifications/read", async (req) => {
+    const { ids } = z.object({ ids: z.array(z.string()).max(200).optional() }).parse(req.body ?? {});
+    await notifications.updateMany({ memberId: req.member._id, read: false, ...(ids && { _id: { $in: ids } }) }, { $set: { read: true } });
+    return { ok: true };
   });
 
   /* ---------- Finance: packages, payment plans, quotations, schedules, expenses ---------- */
@@ -632,7 +738,7 @@ export function buildApp({
     owned: true,
     scope: async (req) => ((await ownDealIds(req)) ? { ownerId: req.member._id } : undefined),
     check: async (_next, existing) => (existing?.status === "accepted" ? "An accepted quotation can't change — make a new one" : undefined),
-    after: async (q) => {
+    after: async (q, req) => {
       if (q.status !== "accepted" || q.appliedAt || !q.dealId) return;
       // Accepting confirms the booking: the deal takes the quoted value and payment schedule, and becomes won.
       const deals = db.collection<Doc>("deals");
@@ -645,6 +751,7 @@ export function buildApp({
       const saved = (await deals.findOneAndUpdate({ _id: deal._id }, { $set }, { returnDocument: "after" }))!;
       await onConfirmed(saved);
       await db.collection<Doc>("quotes").updateOne({ _id: q._id }, { $set: { appliedAt: now() } });
+      await notify(db, [String(deal.ownerId), ...(await db.collection<Doc>("members").find({ role: { $in: ["admin", "finance"] }, status: { $ne: "removed" } }).toArray()).map((m) => m._id)], { kind: "accepted", text: `${deal.title}: quotation ${q.number} accepted — booking confirmed`, link: `/deals/${deal._id}` }, req.member._id);
     },
   });
 
@@ -690,6 +797,60 @@ export function buildApp({
     const next = schedule.map((m) => (m.id === item.id ? { ...m, invoiceId: invoice._id } : m));
     const saved = (await deals.findOneAndUpdate({ _id: deal._id }, { $set: { schedule: next } }, { returnDocument: "after" }))!;
     return reply.code(201).send({ invoice: out(invoice), deal: out(saved) });
+  });
+
+  /** A Razorpay link for what's still due on a sent invoice; the client pays online and it records itself. */
+  app.post<{ Params: { id: string } }>("/invoices/:id/payment-link", { preHandler: mayChange("finance", false) }, async (req, reply) => {
+    const keys = await getKeys();
+    if (!keys.razorpayKeyId || !keys.razorpayKeySecret) return reply.code(409).send({ error: "Connect Razorpay first in Settings → Integrations" });
+    const inv = await db.collection<Doc>("invoices").findOne({ _id: req.params.id });
+    if (!inv) return reply.code(404).send({ error: "Not found" });
+    if (!inv.sent || inv.cancelled) return reply.code(409).send({ error: "Mark the invoice as sent first" });
+    const due = totalsOf(inv as unknown as Parameters<typeof totalsOf>[0]).due;
+    if (due <= 0) return reply.code(409).send({ error: "Nothing is due on this invoice" });
+    const old = inv.paymentLink as { url: string; amountPaise: number; status: string } | undefined;
+    if (old && old.status === "created" && old.amountPaise === due) return { paymentLink: old };
+    const deal = inv.dealId ? await db.collection<Doc>("deals").findOne({ _id: String(inv.dealId) }) : null;
+    const person = await db.collection<Doc>("contacts").findOne(deal?.contactId ? { _id: String(deal.contactId) } : { companyId: String(inv.companyId) });
+    try {
+      const link = await createPaymentLink(f, { razorpayKeyId: keys.razorpayKeyId, razorpayKeySecret: keys.razorpayKeySecret }, {
+        invoiceId: inv._id,
+        number: String(inv.number),
+        amountPaise: due,
+        name: String((inv.buyer as { name?: string } | undefined)?.name || person?.name || "Client"),
+        email: person?.email as string | undefined,
+        phone: person?.phone ? String(person.phone).replace(/[^\d+]/g, "") : undefined,
+      });
+      const paymentLink = { ...link, amountPaise: due, status: "created", createdAt: now() };
+      await db.collection<Doc>("invoices").updateOne({ _id: inv._id }, { $set: { paymentLink } });
+      return { paymentLink };
+    } catch (e) {
+      return reply.code(502).send({ error: `Razorpay: ${(e as Error).message}` });
+    }
+  });
+
+  /** Sends a payment stage's reminder as the approved WhatsApp template, to the deal's contact. */
+  app.post<{ Params: { id: string; item: string } }>("/deals/:id/schedule/:item/remind", async (req, reply) => {
+    const keys = await getKeys();
+    if (!keys.whatsappPhoneNumberId || !keys.whatsappToken) return reply.code(409).send({ error: "WhatsApp isn't connected yet" });
+    const deal = await db.collection<Doc>("deals").findOne({ _id: req.params.id });
+    const item = ((deal?.schedule as { id: string; label: string; amountPaise: number; dueDate?: string; invoiceId?: string }[] | undefined) ?? []).find((m) => m.id === req.params.item);
+    if (!deal || !item) return reply.code(404).send({ error: "Not found" });
+    const sales = access(req, "sales");
+    if (!(access(req, "finance") === "edit" || sales === "edit" || (sales === "own" && deal.ownerId === req.member._id))) return reply.code(403).send({ error: denied(req, "sales") });
+    const person = await db.collection<Doc>("contacts").findOne(deal.contactId ? { _id: String(deal.contactId) } : { companyId: String(deal.companyId), phone: { $exists: true } });
+    if (!person?.phone) return reply.code(422).send({ error: "Add the client's phone number first" });
+    const inv = item.invoiceId ? await db.collection<Doc>("invoices").findOne({ _id: item.invoiceId }) : null;
+    const owed = inv ? totalsOf(inv as unknown as Parameters<typeof totalsOf>[0]).due : Math.round(item.amountPaise * 1.18);
+    const studio = (await getWorkspace()).studioName;
+    const due = item.dueDate ? new Date(`${item.dueDate}T12:00:00+05:30`).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "soon";
+    try {
+      await sendReminder(f, keys, String(person.phone), [String(person.name).split(" ")[0] || "there", studio, `${item.label} for ${deal.title}`, formatFull(owed), due]);
+    } catch (e) {
+      return reply.code(502).send({ error: (e as Error).message });
+    }
+    await db.collection<Doc>("activities").insertOne({ _id: new ObjectId().toHexString(), type: "note", dealId: deal._id, companyId: deal.companyId, actorId: req.member._id, at: now(), text: `sent a WhatsApp payment reminder: ${item.label}, ${formatFull(owed)}` });
+    return { ok: true };
   });
 
   // Expenses and profit are for Owners and Finance only.

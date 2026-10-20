@@ -2,6 +2,7 @@ import { BUSINESS_SHORT, type BusinessView } from "@pinnacle/shared";
 import { Button, Kbd, Segmented, Select, useCommandMenu } from "@pinnacle/ui";
 import { useAccess, useCrm } from "../data/store";
 import { useUi } from "../lib/ui-store";
+import { NotificationsBell } from "./notifications";
 import { Menu, Plus, Search } from "lucide-react";
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {
@@ -24,6 +25,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
       </button>
       <div className="ml-auto flex items-center gap-2">
         <BusinessSwitch />
+        <NotificationsBell />
         <Button
           variant="ink"
           size="sm"

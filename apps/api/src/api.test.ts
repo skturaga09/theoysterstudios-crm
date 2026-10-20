@@ -4,6 +4,7 @@ import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createHmac } from "node:crypto";
 import { buildApp } from "./app";
+import { leadAlerts, morningSummary } from "./notifications";
 import { ensureAdmin, type Verify } from "./auth";
 import { syncGoogle } from "./google";
 import { refreshToken } from "./instagram";
@@ -15,6 +16,7 @@ const SUPPORT = "dev@gmail.com";
 /** Stand-in for Google: "ok:<email>" is a verified sign-in, "unverified:<email>" isn't, anything else is a bad token. */
 /** Stand-in for Instagram's servers: records calls and answers like the real endpoints. */
 const igCalls: string[] = [];
+const sent: { url: string; body: Record<string, unknown> }[] = [];
 const fakeInstagram: typeof fetch = async (input, init) => {
   const url = String(input);
   igCalls.push(`${init?.method ?? "GET"} ${url.split("?")[0]}`);
@@ -24,7 +26,19 @@ const fakeInstagram: typeof fetch = async (input, init) => {
   if (url.startsWith("https://graph.instagram.com/refresh_access_token")) return ok({ access_token: "RENEWED-TOKEN", token_type: "bearer", expires_in: 5184000 });
   if (url.startsWith("https://graph.instagram.com/me/subscribed_apps")) return ok({ success: true });
   if (url.startsWith("https://graph.instagram.com/me?")) return ok({ user_id: "17841400000000001", username: "theoysterstudios" });
+  if (url.startsWith("https://graph.instagram.com/v21.0/me/messages")) return ok({ recipient_id: "x", message_id: `ig-out-${igCalls.length}` });
   if (url.startsWith("https://graph.instagram.com/")) return ok({ name: "Riya Mehta", username: "riya.m" }); // a DM sender's profile
+  // Razorpay and WhatsApp Cloud API stand-ins: record the request bodies too.
+  if (url === "https://api.razorpay.com/v1/payment_links") {
+    sent.push({ url, body: JSON.parse(String(init?.body)) });
+    return ok({ id: `plink_${sent.length}`, short_url: `https://rzp.io/i/test${sent.length}` });
+  }
+  if (url.startsWith("https://graph.facebook.com/v21.0/") && url.endsWith("/messages")) {
+    const body = JSON.parse(String(init?.body));
+    sent.push({ url, body });
+    if (body.to === "910000000000") return new Response(JSON.stringify({ error: { code: 131047, message: "Re-engagement message" } }), { status: 400 });
+    return ok({ messages: [{ id: `wamid.${sent.length}` }] });
+  }
   return new Response("{}", { status: 404 });
 };
 
@@ -73,7 +87,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "calendarFeeds"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify, fetch: fakeGoogle });
@@ -656,6 +670,114 @@ describe("api", () => {
     expect((await call("GET", "/expenses", undefined, "ok:pat@gmail.com")).json()).toEqual([]); // Sales don't see costs
     expect((await call("POST", `/deals/${d.id}/schedule/m2/invoice`, undefined, "ok:pat@gmail.com")).statusCode).toBe(403);
     expect((await call("PUT", "/finance-settings", fin, "ok:pat@gmail.com")).statusCode).toBe(403);
+  });
+
+  it("notifies people of work given to them, new leads, late replies and their day", async () => {
+    const nina = (await call("POST", "/members", { email: "nina@gmail.com", role: "pm" })).json().id;
+    const as = "ok:nina@gmail.com";
+    await call("GET", "/me", undefined, as); // signs in: active
+    const mine = async () => (await call("GET", "/notifications", undefined, as)).json() as { id: string; kind: string; text: string; read: boolean }[];
+    expect(await mine()).toEqual([]);
+    const t = (await call("POST", "/tasks", { title: "Colour grade the teaser", dueAt: "2026-10-01T10:00:00+05:30", assigneeId: nina })).json();
+    await call("POST", `/tasks/${t.id}/comments`, { body: "Use the warm LUT" });
+    await call("PATCH", `/tasks/${t.id}`, { status: "in_progress" }, as); // her own change: no notice
+    const list = await mine();
+    expect(list.map((n) => n.kind).sort()).toEqual(["comment", "task"]);
+    expect(list.find((n) => n.kind === "task")!.text).toContain("Colour grade the teaser");
+
+    // New leads go to the assignee; a message waiting past the target alerts them and the owners, once.
+    const now = new Date();
+    const conv = { _id: "conv-late", channel: "whatsapp", externalId: "919800000000", name: "Kavya", handle: "", city: "", unread: true, assigneeId: nina, createdAt: new Date(now.getTime() - 40 * 60_000).toISOString(), lastMessageAt: new Date(now.getTime() - 40 * 60_000).toISOString(), messages: [{ id: "m1", direction: "in", body: "Are you free on 12 Dec?", at: new Date(now.getTime() - 40 * 60_000).toISOString() }] };
+    await deps.db.collection("conversations").insertOne(conv as never);
+    expect(await leadAlerts(deps.db, now, 30)).toBe(2); // new lead + late reply
+    expect(await leadAlerts(deps.db, now, 30)).toBe(0); // not again
+    expect((await mine()).filter((n) => n.kind === "lead" || n.kind === "late")).toHaveLength(2);
+    expect((await call("GET", "/notifications")).json().some((n: { kind: string }) => n.kind === "late")).toBe(true); // owners hear about late replies
+
+    // Morning: her overdue task is in her summary.
+    expect(await morningSummary(deps.db, now)).toBeGreaterThan(0);
+    expect((await mine()).find((n) => n.kind === "summary")!.text).toMatch(/1 task/);
+
+    await call("POST", "/notifications/read", {}, as);
+    expect((await mine()).every((n) => n.read)).toBe(true);
+  }, 60_000);
+
+  it("gives each person a private calendar feed of their weddings, tasks and follow-ups", async () => {
+    const co = (await call("POST", "/companies", { name: "Asha & Rohan", ownerId: "sr", business: "photography" })).json();
+    const d = (await call("POST", "/deals", { title: "Asha & Rohan, wedding", companyId: co.id, valuePaise: 1, closeAt: "2027-03-01T00:00:00+05:30", ownerId: "sr", channel: "web", business: "photography", stage: "won", eventDate: "2027-03-01", location: "Goa; beach" })).json();
+    const { url } = (await call("POST", "/calendar/feed", { origin: "https://crm.example" })).json();
+    expect(url).toMatch(/^https:\/\/crm\.example\/api\/public\/calendar\/[\w-]+\.ics$/);
+    const path = url.replace("https://crm.example/api", "");
+    const res = await app.inject({ method: "GET", url: path }); // no sign-in: the address is the key
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toContain("text/calendar");
+    expect(res.body).toContain("BEGIN:VCALENDAR");
+    expect(res.body).toContain("SUMMARY:Wedding · Asha & Rohan\\, wedding"); // commas escaped
+    expect(res.body).toContain("DTSTART;VALUE=DATE:20270301");
+    expect(res.body).toContain("DESCRIPTION:Goa\\; beach");
+    expect(res.body.split("\r\n").every((l: string) => l.length <= 75)).toBe(true);
+    // A new address cuts off the old one.
+    const again = (await call("POST", "/calendar/feed", { origin: "https://crm.example", reset: true })).json().url;
+    expect(again).not.toBe(url);
+    expect((await app.inject({ method: "GET", url: path })).statusCode).toBe(404);
+    void d;
+  });
+
+  it("takes WhatsApp messages into Inbox, replies within the window, and sends payment reminders", async () => {
+    const keys = { metaAppSecret: "b".repeat(32), whatsappPhoneNumberId: "1098765432101", whatsappToken: `EA${"x".repeat(60)}`, whatsappReminderTemplate: "payment_reminder", whatsappTemplateLanguage: "en" };
+    expect((await call("PUT", "/setup/keys", { ...keys, whatsappToken: "nope" })).statusCode).toBe(400);
+    const saved = (await call("PUT", "/setup/keys", keys)).json();
+    expect(saved).toMatchObject({ whatsappPhoneNumberId: keys.whatsappPhoneNumberId, whatsappTokenSaved: true });
+    expect(JSON.stringify(saved)).not.toContain("xxxx"); // the token never comes back
+    expect((await call("GET", "/integrations")).json().whatsapp.connected).toBe(true);
+
+    const payload = (id: string, text: string) => JSON.stringify({ object: "whatsapp_business_account", entry: [{ changes: [{ field: "messages", value: { metadata: { phone_number_id: keys.whatsappPhoneNumberId }, contacts: [{ wa_id: "919811122233", profile: { name: "Ishita" } }], messages: [{ from: "919811122233", id, timestamp: String(Math.floor(Date.now() / 1000)), type: "text", text: { body: text } }] } }] }] });
+    const post = (body: string, sig = `sha256=${createHmac("sha256", keys.metaAppSecret).update(body).digest("hex")}`) =>
+      app.inject({ method: "POST", url: "/integrations/whatsapp/webhook", payload: body, headers: { "content-type": "application/json", "x-hub-signature-256": sig } });
+    expect((await post(payload("wamid.A", "Hi"), "sha256=00")).statusCode).toBe(401);
+    expect((await post(payload("wamid.A", "Do you shoot in Jaipur?"))).json()).toEqual({ stored: 1 });
+    expect((await post(payload("wamid.A", "Do you shoot in Jaipur?"))).json()).toEqual({ stored: 0 }); // delivered twice, stored once
+    const conv = (await call("GET", "/conversations")).json().find((c: { channel: string; name: string }) => c.channel === "whatsapp" && c.name === "Ishita");
+    expect(conv).toMatchObject({ handle: "+919811122233", unread: true });
+
+    const r = await call("POST", `/conversations/${conv.id}/reply`, { body: "Yes! When is the wedding?" });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().messages.at(-1)).toMatchObject({ direction: "out", body: "Yes! When is the wedding?" });
+    expect(sent.at(-1)!.body).toMatchObject({ to: "919811122233", type: "text" });
+
+    // Reminders: the approved template with the five values, to the deal's contact.
+    const co = (await call("POST", "/companies", { name: "Ishita & Kunal", ownerId: "sr", business: "photography" })).json();
+    const ct = (await call("POST", "/contacts", { name: "Ishita Rao", companyId: co.id, ownerId: "sr", phone: "98111 22233", title: "Bride", source: "whatsapp" })).json();
+    const d = (await call("POST", "/deals", { title: "Ishita & Kunal wedding", companyId: co.id, contactId: ct.id, valuePaise: 1, closeAt: "2027-01-01T00:00:00+05:30", ownerId: "sr", channel: "whatsapp", business: "photography", stage: "won" })).json();
+    await call("PUT", `/deals/${d.id}/schedule`, { schedule: [{ id: "m1", label: "Booking advance", amountPaise: 1_00_000_00, dueDate: "2026-10-25" }] });
+    expect((await call("POST", `/deals/${d.id}/schedule/m1/remind`)).json()).toEqual({ ok: true });
+    const tpl = sent.at(-1)!.body as { to: string; template: { name: string; components: { parameters: { text: string }[] }[] } };
+    expect(tpl.to).toBe("919811122233");
+    expect(tpl.template.name).toBe("payment_reminder");
+    expect(tpl.template.components[0]!.parameters.map((p) => p.text)).toEqual(["Ishita", "The Oyster Studios", "Booking advance for Ishita & Kunal wedding", "₹1,18,000", "25 October 2026"]);
+  });
+
+  it("creates Razorpay payment links for invoices and records the payment when it's paid", async () => {
+    const webhookSecret = "whsec-test-123";
+    await call("PUT", "/setup/keys", { razorpayKeyId: "rzp_test_ABCDEFGH1234", razorpayKeySecret: "s3cr3tKEYabcdefgh1234", razorpayWebhookSecret: webhookSecret });
+    await call("PUT", "/workspace", { ...(await call("GET", "/workspace")).json(), legalName: "The Oyster Studios LLP", gstin: "29ABCDE1234F1Z5", address: "Bengaluru" });
+    const inv = (await call("POST", "/invoices", { companyId: c1, dueAt: "2026-11-13T00:00:00+05:30", supply: "intra", lines: [{ desc: "Advance", sac: "998383", qty: 1, ratePaise: 10_000_00 }] })).json();
+    expect((await call("POST", `/invoices/${inv.id}/payment-link`)).statusCode).toBe(409); // not sent yet
+    await call("POST", `/invoices/${inv.id}/send`);
+    const link = (await call("POST", `/invoices/${inv.id}/payment-link`)).json().paymentLink;
+    expect(link).toMatchObject({ url: expect.stringMatching(/^https:\/\/rzp\.io\//), amountPaise: 11_800_00, status: "created" });
+    expect(sent.at(-1)!.body).toMatchObject({ amount: 11_800_00, currency: "INR", notes: { invoiceId: inv.id } });
+    expect((await call("POST", `/invoices/${inv.id}/payment-link`)).json().paymentLink.id).toBe(link.id); // same link again
+
+    const event = JSON.stringify({ event: "payment_link.paid", payload: { payment_link: { entity: { id: link.id, notes: { invoiceId: inv.id } } }, payment: { entity: { id: "pay_123", amount: 11_800_00, created_at: 1_792_000_000, method: "upi" } } } });
+    const hook = (sig: string) => app.inject({ method: "POST", url: "/integrations/razorpay/webhook", payload: event, headers: { "content-type": "application/json", "x-razorpay-signature": sig } });
+    expect((await hook("00")).statusCode).toBe(401);
+    const sig = createHmac("sha256", webhookSecret).update(event).digest("hex");
+    expect((await hook(sig)).json()).toMatchObject({ recorded: true });
+    expect((await hook(sig)).json()).toMatchObject({ recorded: false }); // retried: recorded once
+    const paid = (await call("GET", "/invoices")).json().find((i: { id: string }) => i.id === inv.id);
+    expect(paid.payments).toEqual([{ at: new Date(1_792_000_000_000).toISOString(), amountPaise: 11_800_00, ref: "pay_123", method: "Razorpay · upi" }]);
+    expect(paid.paymentLink.status).toBe("paid");
   });
 
   it("deletes records and keeps a deal's board position", async () => {

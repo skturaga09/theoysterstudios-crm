@@ -256,6 +256,7 @@ export const SAMPLE_WORKSPACE: Workspace = {
   instagramHandle: "",
   whatsappNumber: "",
   membersSeeAllDeals: true,
+  replyTargetMinutes: 30,
 };
 
 export const INVOICES: Invoice[] = [

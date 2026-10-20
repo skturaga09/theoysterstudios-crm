@@ -12,6 +12,7 @@ import { ensureAdmin, firebaseVerifier } from "./auth";
 import { connect } from "./db";
 import { syncGoogle } from "./google";
 import { refreshToken } from "./instagram";
+import { leadAlerts, morningSummary } from "./notifications";
 
 const MONGODB_URI = defineSecret("MONGODB_URI");
 const ADMIN_EMAIL = defineSecret("ADMIN_EMAIL");
@@ -68,6 +69,10 @@ export const everyMinute = onSchedule(
   { schedule: "every 1 minutes", timeZone: "Asia/Kolkata", region: "asia-south1", secrets: [MONGODB_URI], memory: "256MiB", timeoutSeconds: 55, maxInstances: 1 },
   async () => {
     const { db }: { db: Db } = await getDb();
+    // New leads and replies running late; each alert goes out once, so an overlapping run is harmless.
+    const target = Number((await db.collection<{ _id: string; replyTargetMinutes?: number }>("workspace").findOne({ _id: "studio" }))?.replyTargetMinutes ?? 30);
+    const alerts = await leadAlerts(db, new Date(), target);
+    if (alerts) console.log("lead alerts:", alerts);
     const locks = db.collection<{ _id: string; until: number }>("setup");
     try {
       // Matches only an expired lock; when another run holds it, the upsert collides on _id and throws.
@@ -81,5 +86,14 @@ export const everyMinute = onSchedule(
     } finally {
       await locks.updateOne({ _id: "lock:google" }, { $set: { until: 0 } });
     }
+  },
+);
+
+/** Each morning: everyone's tasks and follow-ups for the day, and payments to invoice for owners and Finance. */
+export const morning = onSchedule(
+  { schedule: "every day 08:30", timeZone: "Asia/Kolkata", region: "asia-south1", secrets: [MONGODB_URI], memory: "256MiB", timeoutSeconds: 120 },
+  async () => {
+    const { db }: { db: Db } = await getDb();
+    console.log("morning summaries:", await morningSummary(db));
   },
 );

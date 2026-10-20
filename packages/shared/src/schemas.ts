@@ -152,6 +152,8 @@ export const WorkspaceSchema = z.object({
   whatsappNumber: optionalField(z.string().transform((v) => v.replace(/[\s-]/g, "")).pipe(z.string().regex(/^\+\d{10,15}$/, "Use international format, e.g. +91 98765 43210"))),
   /** Off: Members see only their own deals (and those deals' tasks, activity and invoices). Admins and Managers always see everything. */
   membersSeeAllDeals: z.boolean().default(true),
+  /** Minutes a lead's message may wait before the assignee and owners are alerted. */
+  replyTargetMinutes: z.number().int().min(5).max(1440).default(30),
 });
 export type Workspace = z.output<typeof WorkspaceSchema>;
 
@@ -214,6 +216,13 @@ export const IntegrationKeysSchema = z.object({
   instagramAppId: optionalField(z.string().regex(/^\d{6,25}$/, "An Instagram App ID is a long number")),
   instagramAppSecret: optionalField(z.string().regex(/^[a-f0-9]{32}$/i, "An Instagram App secret is 32 letters and numbers")),
   metaAppSecret: optionalField(z.string().regex(/^[a-f0-9]{32}$/i, "A Meta App secret is 32 letters and numbers")),
+  razorpayKeyId: optionalField(z.string().regex(/^rzp_(test|live)_[A-Za-z0-9]{8,32}$/, "A Razorpay Key ID starts rzp_live_ (or rzp_test_)")),
+  razorpayKeySecret: optionalField(z.string().regex(/^[A-Za-z0-9]{16,64}$/, "A Razorpay Key secret is letters and numbers")),
+  razorpayWebhookSecret: optionalField(z.string().min(8, "Use at least 8 characters").max(200)),
+  whatsappPhoneNumberId: optionalField(z.string().regex(/^\d{8,25}$/, "The Phone number ID is a long number (not the phone number itself)")),
+  whatsappToken: optionalField(z.string().regex(/^EA[A-Za-z0-9]{40,}$/, "A WhatsApp access token starts with EA")),
+  whatsappReminderTemplate: optionalField(z.string().regex(/^[a-z0-9_]{1,100}$/, "Template names are lowercase letters, numbers and _")),
+  whatsappTemplateLanguage: optionalField(z.string().regex(/^[a-z]{2,3}(_[A-Z]{2})?$/, "A language code like en or en_US")),
 });
 
 export const UpdateConversationSchema = z.object({

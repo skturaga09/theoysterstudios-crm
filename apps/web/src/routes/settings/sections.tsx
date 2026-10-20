@@ -46,7 +46,7 @@ function Switch({ checked, onChange, label }: { checked: boolean; onChange: (v: 
 }
 
 /* ---------- Workspace ---------- */
-type WsField = Exclude<keyof Workspace, "membersSeeAllDeals">;
+type WsField = Exclude<keyof Workspace, "membersSeeAllDeals" | "replyTargetMinutes">;
 const WS_FIELDS: { key: WsField; label: string; hint: string; placeholder?: string; mono?: boolean; group: "studio" | "connections" }[] = [
   { key: "studioName", label: "Studio name", hint: "Shown in the sidebar and to your team.", group: "studio" },
   { key: "legalName", label: "Legal name", hint: "Printed on tax invoices.", placeholder: "The Oyster Studios LLP", group: "studio" },
@@ -116,6 +116,13 @@ export function WorkspaceRoute() {
           <label className="t-dense inline-flex cursor-pointer items-center gap-2">
             <input type="checkbox" checked={form.membersSeeAllDeals} disabled={!canEdit} onChange={(e) => setForm({ ...form, membersSeeAllDeals: e.target.checked })} className="size-4 accent-[var(--ink)]" />
             {form.membersSeeAllDeals ? "Yes — Sales see every lead" : "No — Sales see only their own leads"}
+          </label>
+        </Row>
+
+        <Row label="Reply target" hint="When a lead's message waits longer than this, whoever it's assigned to and the owners get an alert.">
+          <label className="t-dense inline-flex items-center gap-2">
+            <Input inputMode="numeric" value={form.replyTargetMinutes} disabled={!canEdit} onChange={(e) => setForm({ ...form, replyTargetMinutes: Math.min(1440, Number(e.target.value.replace(/\D/g, "")) || 0) })} className="h-8 w-20 text-right font-mono" />
+            minutes
           </label>
         </Row>
 

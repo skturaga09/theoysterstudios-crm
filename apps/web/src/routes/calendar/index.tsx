@@ -1,0 +1,177 @@
+import { addDays, istDay } from "@pinnacle/shared";
+import { Button, cn, Input, Segmented, toast } from "@pinnacle/ui";
+import { CalendarPlus, ChevronLeft, ChevronRight, Copy } from "lucide-react";
+import { useState } from "react";
+import { Link } from "react-router";
+import { PageHeader } from "../../components/page-header";
+import { stageState } from "../../data/finance";
+import { ME_ID } from "../../data/seed";
+import { useAccess, useCrm } from "../../data/store";
+import { api } from "../../lib/api";
+import { IS_DEMO } from "../../lib/demo";
+import { usePref } from "../../lib/hooks";
+
+type Kind = "event" | "enquiry" | "task" | "followup" | "payment" | "deliverable";
+type Item = { id: string; kind: Kind; day: string; title: string; link: string; time?: string };
+
+const KIND: Record<Kind, { label: string; dot: string }> = {
+  event: { label: "Weddings & functions", dot: "bg-signal" },
+  enquiry: { label: "Enquiry dates", dot: "bg-ink-3" },
+  task: { label: "Tasks", dot: "bg-ink" },
+  followup: { label: "Follow-ups", dot: "bg-warn" },
+  payment: { label: "Payments due", dot: "bg-ok" },
+  deliverable: { label: "Deliverables", dot: "bg-risk" },
+};
+const time = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
+
+/** Everything with a date, in one place: weddings and functions, tasks, follow-ups, payments and deliverables. */
+export function CalendarRoute() {
+  const s = useCrm();
+  const canMoney = useAccess("finance") === "edit";
+  const today = istDay(new Date());
+  const [month, setMonth] = useState(today.slice(0, 7));
+  const [picked, setPicked] = useState(today);
+  const [who, setWho] = usePref<"all" | "me">("calendar.who", "all");
+  const [hidden, setHidden] = useState<Set<Kind>>(new Set());
+  const mine = who === "me";
+
+  const items: Item[] = [
+    ...s.projects
+      .filter((p) => !mine || p.managerId === ME_ID || p.crew.some((c) => c.memberId === ME_ID))
+      .flatMap((p) => [
+        ...p.events.filter((e) => e.date).map((e): Item => ({ id: `e-${p.id}-${e.id}`, kind: "event", day: e.date!, title: `${e.name} · ${p.name}${e.venue ? ` · ${e.venue}` : ""}`, link: `/projects/${p.id}` })),
+        ...p.deliverables.filter((d) => d.dueDate && d.status !== "delivered").map((d): Item => ({ id: `d-${p.id}-${d.id}`, kind: "deliverable", day: d.dueDate!, title: `${d.name} · ${p.name}`, link: `/projects/${p.id}` })),
+      ]),
+    ...s.deals
+      .filter((d) => d.eventDate && d.stage !== "won" && d.stage !== "lost" && (!mine || d.ownerId === ME_ID))
+      .map((d): Item => ({ id: `q-${d.id}`, kind: "enquiry", day: d.eventDate!, title: `Enquiry: ${d.title} (not booked)`, link: `/deals/${d.id}` })),
+    ...s.tasks
+      .filter((t) => !t.done && (!mine || t.assigneeId === ME_ID))
+      .map((t): Item => ({ id: `t-${t.id}`, kind: "task", day: istDay(t.dueAt), time: time(t.dueAt), title: t.title, link: t.projectId ? `/projects/${t.projectId}` : "/tasks" })),
+    ...s.deals
+      .filter((d) => d.nextFollowUpAt && d.stage !== "won" && d.stage !== "lost" && (!mine || d.ownerId === ME_ID))
+      .map((d): Item => ({ id: `f-${d.id}`, kind: "followup", day: istDay(d.nextFollowUpAt!), time: time(d.nextFollowUpAt!), title: `Follow up: ${d.title}`, link: `/deals/${d.id}` })),
+    ...(canMoney
+      ? s.deals.flatMap((d) =>
+          (d.schedule ?? [])
+            .filter((m) => m.dueDate && stageState(m, s.invoices) !== "paid")
+            .map((m): Item => ({ id: `p-${d.id}-${m.id}`, kind: "payment", day: m.dueDate!, title: `${m.label} · ${d.title}`, link: `/deals/${d.id}` })),
+        )
+      : []),
+  ].filter((i) => !hidden.has(i.kind));
+
+  // Monday-first grid covering the month.
+  const first = `${month}-01`;
+  const lead = (new Date(`${first}T12:00:00Z`).getUTCDay() + 6) % 7;
+  const start = addDays(first, -lead);
+  const days = Array.from({ length: 42 }, (_, i) => addDays(start, i)).filter((d, i) => i < 35 || d.startsWith(month));
+  const on = (day: string) => items.filter((i) => i.day === day).sort((a, b) => (a.time ?? "").localeCompare(b.time ?? ""));
+  const shift = (n: number) => {
+    const d = new Date(`${first}T12:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() + n);
+    setMonth(d.toISOString().slice(0, 7));
+  };
+  const label = new Date(`${first}T12:00:00Z`).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+
+  return (
+    <>
+      <PageHeader
+        eyebrow={`${items.filter((i) => i.day >= today && i.day <= addDays(today, 6)).length} things in the next 7 days`}
+        title="Calendar"
+        actions={
+          <>
+            <Segmented label="Whose" value={who} onChange={setWho} options={[{ value: "all", label: "Everyone" }, { value: "me", label: "Mine" }]} />
+            <FeedButton />
+          </>
+        }
+      />
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Button size="icon-sm" variant="ghost" aria-label="Previous month" onClick={() => shift(-1)}><ChevronLeft strokeWidth={1.5} /></Button>
+        <h2 className="t-sheet m-0 w-[170px] text-center">{label}</h2>
+        <Button size="icon-sm" variant="ghost" aria-label="Next month" onClick={() => shift(1)}><ChevronRight strokeWidth={1.5} /></Button>
+        <Button size="sm" variant="ghost" onClick={() => { setMonth(today.slice(0, 7)); setPicked(today); }}>Today</Button>
+        <span className="ml-auto flex flex-wrap gap-1.5">
+          {(Object.keys(KIND) as Kind[]).filter((k) => k !== "payment" || canMoney).map((k) => (
+            <button
+              key={k}
+              aria-pressed={!hidden.has(k)}
+              onClick={() => setHidden((h) => { const n = new Set(h); if (n.has(k)) n.delete(k); else n.add(k); return n; })}
+              className={cn("flex items-center gap-1.5 rounded-control px-2 py-1 text-[12px]", hidden.has(k) ? "text-ink-3 line-through" : "bg-sunken text-ink-2")}
+            >
+              <span className={cn("size-2 rounded-full", KIND[k].dot)} /> {KIND[k].label}
+            </button>
+          ))}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-7 border-t border-l border-line">
+        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <div key={d} className="t-eyebrow border-r border-b border-line px-2 py-1.5 text-ink-3">{d}</div>)}
+        {days.map((day) => {
+          const list = on(day);
+          return (
+            <button
+              key={day}
+              onClick={() => setPicked(day)}
+              className={cn("flex min-h-[64px] flex-col items-stretch gap-0.5 border-r border-b border-line p-1 text-left md:min-h-[104px]", !day.startsWith(month) && "bg-sunken/60 text-ink-3", picked === day && "outline-2 -outline-offset-2 outline-ink")}
+            >
+              <span className={cn("font-mono text-[11px]", day === today && "self-start rounded-full bg-ink px-1.5 text-on-ink")}>{Number(day.slice(8))}</span>
+              {/* Phones: dots only; wider screens: the first few titles. */}
+              <span className="flex flex-wrap gap-0.5 md:hidden">{list.slice(0, 6).map((i) => <span key={i.id} className={cn("size-1.5 rounded-full", KIND[i.kind].dot)} />)}</span>
+              <span className="hidden flex-col gap-0.5 md:flex">
+                {list.slice(0, 3).map((i) => (
+                  <span key={i.id} className="flex items-center gap-1 truncate text-[11px] leading-tight">
+                    <span className={cn("size-1.5 shrink-0 rounded-full", KIND[i.kind].dot)} />
+                    <span className="truncate">{i.title}</span>
+                  </span>
+                ))}
+                {list.length > 3 && <span className="text-[11px] text-ink-3">+{list.length - 3} more</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <section className="mt-6">
+        <h2 className="t-eyebrow m-0 mb-2 text-ink-2">{new Date(`${picked}T12:00:00Z`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" })}</h2>
+        <ul className="m-0 list-none border-t border-line p-0">
+          {on(picked).map((i) => (
+            <li key={i.id}>
+              <Link to={i.link} className="flex items-center gap-3 border-b border-line py-2.5 hover:bg-hover">
+                <span className={cn("size-2 shrink-0 rounded-full", KIND[i.kind].dot)} />
+                <span className="t-dense min-w-0 flex-1 truncate">{i.title}</span>
+                <span className="font-mono text-[11.5px] text-ink-3">{i.time ?? KIND[i.kind].label}</span>
+              </Link>
+            </li>
+          ))}
+          {!on(picked).length && <li className="t-dense py-3 text-ink-3">Nothing on this day.</li>}
+        </ul>
+      </section>
+    </>
+  );
+}
+
+/** My private calendar address, to subscribe to in Google Calendar (Other calendars → From URL). */
+function FeedButton() {
+  const [url, setUrl] = useState<string>();
+  const load = async (reset = false) => {
+    if (IS_DEMO) return void toast("Your calendar address is made when you're signed in");
+    try {
+      setUrl((await api<{ url: string }>("/calendar/feed", { method: "POST", body: { origin: window.location.origin, reset } })).url);
+      if (reset) toast("New address made — the old one stops working");
+    } catch (e) {
+      toast(`Couldn't get your calendar address — ${(e as Error).message}`);
+    }
+  };
+  if (!url) return <Button onClick={() => void load()}><CalendarPlus strokeWidth={1.5} /> Add to Google Calendar</Button>;
+  return (
+    <div className="flex w-full flex-col gap-2 rounded-card bg-sunken p-3 md:w-[460px]">
+      <p className="t-meta m-0 text-ink-2">In Google Calendar: <b>Other calendars → + → From URL</b>, paste this, then <b>Add calendar</b>. It updates every few hours. Keep it private — anyone with it can see your items.</p>
+      <span className="flex gap-2">
+        <Input readOnly value={url} onFocus={(e) => e.target.select()} className="h-8 flex-1 font-mono text-[11px]" />
+        <Button size="sm" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Copied"))}><Copy strokeWidth={1.5} /> Copy</Button>
+      </span>
+      <button className="t-meta self-start text-ink-3 hover:text-ink" onClick={() => void load(true)}>Make a new address (stops the old one)</button>
+    </div>
+  );
+}

@@ -23,6 +23,8 @@ const INDEXES: Record<string, IndexDescription[]> = {
   deals: [{ key: { stage: 1, position: 1 } }, { key: { companyId: 1 } }, { key: { ownerId: 1 } }],
   members: [{ key: { email: 1 }, unique: true }],
   tasks: [{ key: { assigneeId: 1, done: 1 } }, { key: { dealId: 1 } }, { key: { projectId: 1 } }],
+  calendarFeeds: [{ key: { memberId: 1 } }],
+  notifications: [{ key: { memberId: 1, at: -1 } }],
   quotes: [{ key: { dealId: 1 } }, { key: { companyId: 1 } }, { key: { ownerId: 1 } }],
   expenses: [{ key: { date: 1 } }, { key: { projectId: 1 } }],
   // One project per confirmed deal; sparse lets projects started by hand have none.

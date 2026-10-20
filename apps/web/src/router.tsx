@@ -20,6 +20,7 @@ const routes: RouteObject[] = [
       { path: "pipeline", lazy: async () => ({ Component: (await import("./routes/pipeline/index")).PipelineRoute }) },
       { path: "deals/:id", lazy: async () => ({ Component: (await import("./routes/deal/index")).DealRoute }) },
       { path: "tasks", lazy: async () => ({ Component: (await import("./routes/tasks/index")).TasksRoute }) },
+      { path: "calendar", lazy: async () => ({ Component: (await import("./routes/calendar/index")).CalendarRoute }) },
       { path: "projects", lazy: async () => ({ Component: (await import("./routes/projects/index")).ProjectsRoute }) },
       { path: "projects/:id", lazy: async () => ({ Component: (await import("./routes/projects/index")).ProjectRoute }) },
       { path: "clients", lazy: async () => ({ Component: (await import("./routes/records/companies")).CompaniesRoute }) },
