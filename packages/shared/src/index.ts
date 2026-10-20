@@ -6,3 +6,4 @@ export * from "./gst";
 export * from "./routing";
 export * from "./csv";
 export * from "./projects";
+export * from "./dashboard";

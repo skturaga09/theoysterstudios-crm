@@ -227,3 +227,9 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   reason. New people default to Team / Freelancer (least access). Old roles are renamed on the person's next
   request: Manager and Member both become Sales. In the UI the menu hides what a role can't open, crew land on
   Tasks, forms a role can't submit say so instead, and project pages are read-only outside one's own tasks.
+- **Owner dashboard** (`/dashboard`, admins only; slice 6): this IST month's sales (new leads, confirmed
+  value, open pipeline, overdue follow-ups, conversion = won ÷ closed), projects (active, weddings in the next
+  30 days, overdue project tasks, tasks awaiting client approval, deliverables due within 7 days or late), money
+  (invoiced incl. GST, received, outstanding, overdue) and a per-person team table. Follows the top bar's
+  business switch; on Both it adds Photography vs Marketing side by side. The numbers come from
+  `ownerSummary()` in shared (pure, tested); computed in the browser from data already loaded.

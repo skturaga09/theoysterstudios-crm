@@ -27,6 +27,7 @@ const routes: RouteObject[] = [
       { path: "companies", element: <Navigate to="/clients" replace /> },
       { path: "contacts", lazy: async () => ({ Component: (await import("./routes/records/contacts")).ContactsRoute }) },
       { path: "invoices", lazy: async () => ({ Component: (await import("./routes/invoices/index")).InvoicesRoute }) },
+      { path: "dashboard", lazy: async () => ({ Component: (await import("./routes/dashboard/index")).DashboardRoute }) },
       { path: "reports", lazy: async () => ({ Component: (await import("./routes/reports/index")).ReportsRoute }) },
       {
         path: "settings",
