@@ -327,6 +327,8 @@ export type ChannelStatus = {
   lastEventMin: number;
   account: string;
   note?: string;
+  /** Connected, but nothing has arrived yet (lastEventMin then counts from connecting). */
+  waiting?: boolean;
 };
 export const CHANNEL_STATUS: ChannelStatus[] = [
   { channel: "gmail", label: "Gmail", status: "ok", lastEventMin: 1, account: "hello@theoysterstudios.in" },

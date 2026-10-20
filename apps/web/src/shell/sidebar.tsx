@@ -109,7 +109,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 </Tooltip>
                 <ChannelChip channel={c.channel} className="h-4 min-w-4" />
                 <span className="flex-1 truncate">{c.label}</span>
-                <span className="font-mono text-[10.5px] text-ink-3 tnum">{fmtMin(c.lastEventMin)}</span>
+                <span className="font-mono text-[10.5px] text-ink-3 tnum" title={c.waiting ? "Connected — no messages received yet" : `Last message ${fmtMin(c.lastEventMin)} ago`}>{c.waiting ? "waiting" : fmtMin(c.lastEventMin)}</span>
               </li>
             ))}
           </ul>

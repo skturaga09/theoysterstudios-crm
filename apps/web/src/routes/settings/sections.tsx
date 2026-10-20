@@ -1,6 +1,6 @@
 import { parseRupees, CHANNEL_LABEL, CHANNELS, DEFAULT_NOTIFICATION_PREFERENCES, formatCompact, gstState, parseCsv, toCsv, type Channel, type NotificationKind, type NotificationPreferences, type RoutingRule, BUSINESS_LABEL, BUSINESSES, type Business, type PipelineStage, type Pipelines } from "@pinnacle/shared";
 import type { Workspace } from "@pinnacle/shared/schemas";
-import { Button, ChannelChip, cn, Input, Pill, Segmented, Select, toast } from "@pinnacle/ui";
+import { Button, ChannelChip, cn, Input, Pill, Segmented, Select, toast, CHANNEL_ICON } from "@pinnacle/ui";
 import { ArrowDown, ArrowRight, ArrowUp, Download, Plus, RefreshCw, Trash2, Unplug, Upload } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useSearchParams } from "react-router";
@@ -14,12 +14,6 @@ import type { Company, Contact } from "../../data/types";
 import { api, ApiError } from "../../lib/api";
 import { fmtMin } from "../../shell/sidebar";
 import { SettingsHeader } from "./layout";
-import gmailIcon from "../../assets/integrations/Gmail_Logo.png";
-import calendarIcon from "../../assets/integrations/google_calendar_new_logo_icon.webp";
-import instagramIcon from "../../assets/integrations/Instagram_icon.png";
-import facebookIcon from "../../assets/integrations/free-facebook-logo.png";
-import whatsappIcon from "../../assets/integrations/whatsapp-logo.webp";
-import websiteIcon from "../../assets/integrations/3d-website-access-icon-png.webp";
 import razorpayIcon from "../../assets/integrations/razorpay-paymentspng.webp";
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
@@ -248,17 +242,8 @@ export function PipelineSettingsRoute() {
 }
 
 /* ---------- Integrations ---------- */
-const INTEGRATION_ICON: Partial<Record<Channel, { src: string; className: string }>> = {
-  gmail: { src: gmailIcon, className: "h-5 w-7" },
-  calendar: { src: calendarIcon, className: "size-8" },
-  instagram: { src: instagramIcon, className: "size-7" },
-  facebook: { src: facebookIcon, className: "size-7" },
-  whatsapp: { src: whatsappIcon, className: "size-9" },
-  web: { src: websiteIcon, className: "size-7" },
-};
-
 function IntegrationIcon({ channel }: { channel: Channel }) {
-  const icon = INTEGRATION_ICON[channel];
+  const icon = CHANNEL_ICON[channel];
   if (!icon) return <ChannelChip channel={channel} className="h-9 min-w-9 text-[11px]" />;
 
   return (
@@ -266,7 +251,7 @@ function IntegrationIcon({ channel }: { channel: Channel }) {
       aria-hidden="true"
       className="inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-control border border-line-2 bg-surface"
     >
-      <img src={icon.src} alt="" className={cn("object-contain", icon.className)} />
+      <img src={icon} alt="" className="size-6 object-contain" />
     </span>
   );
 }
@@ -354,7 +339,7 @@ export function IntegrationsRoute() {
                   <p className="t-meta m-0 mt-1 max-w-[60ch] text-ink-2">{ABOUT[c.channel]}</p>
                   {c.connected && (
                     <p className="m-0 mt-2 font-mono text-[11.5px] text-ink-3">
-                      {c.account} · last event {fmtMin(c.lastEventMin)} ago
+                      {c.account} · {"waiting" in c && c.waiting ? `connected ${fmtMin(c.lastEventMin)} ago · no messages received yet` : `last event ${fmtMin(c.lastEventMin)} ago`}
                     </p>
                   )}
                   {c.connected && c.note && <p className="t-meta m-0 mt-2 rounded-control bg-warn-wash px-3 py-2 text-warn">{c.note}</p>}

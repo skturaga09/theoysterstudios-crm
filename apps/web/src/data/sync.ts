@@ -34,12 +34,17 @@ export function channelsFrom(s: IntegrationStatus): ChannelStatus[] {
       label: "Instagram",
       status: expiring ? "warn" : "ok",
       lastEventMin: minsAgo(ig.lastEventAt ?? ig.connectedAt),
+      waiting: !ig.lastEventAt,
       account: `@${ig.username}`,
-      note: expiring ? "Instagram's access is about to lapse. Click Reconnect to renew it." : undefined,
+      note: expiring
+        ? "Instagram's access is about to lapse. Click Reconnect to renew it."
+        : !ig.lastEventAt
+          ? "No DMs have reached the CRM yet. In your Meta app: Configure webhooks → Verify and save with this CRM's callback URL and verify token, turn on the messages field, and switch the app to Live. In Instagram: Message controls → Connected tools → Allow access to messages. Test from a different Instagram account."
+          : undefined,
     });
   }
   if (s.whatsapp.connected) {
-    out.push({ channel: "whatsapp", label: "WhatsApp", status: "ok", lastEventMin: minsAgo(s.whatsapp.lastEventAt), account: "WhatsApp Cloud API" });
+    out.push({ channel: "whatsapp", label: "WhatsApp", status: "ok", lastEventMin: minsAgo(s.whatsapp.lastEventAt), waiting: !s.whatsapp.lastEventAt, account: "WhatsApp Cloud API" });
   }
   return out;
 }
