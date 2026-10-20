@@ -381,3 +381,11 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   can be set on its own. Completing a client's task also adds "completed …" to their timeline. Shown as "Done by
   Riya · 20 Oct, 4:10 pm" on the Tasks page (Done section newest first; Client grouping has "Show completed"),
   the project checklist and the client card panel ("Recently completed").
+- **Look and feel, client feedback (21 Oct 2026):** channel badges everywhere (Inbox, pipeline, contacts,
+  sidebar channel list, Inbox filters) show the real logos — Instagram, Facebook, WhatsApp, Gmail, Calendar,
+  website — from 64px copies in `packages/ui/src/assets/channels`; referral/phone/event keep a monogram. Client
+  cards are larger (≥290px, 220px photo) with the name set on the photo over a soft fade, a staggered entrance,
+  lift on hover, a slow zoom of the photo, photos fading in, and a self-drawing progress ring (all respect the
+  device's reduced-motion setting); clients without a photo get a rich business-colour panel with large initials.
+  The public enquiry form was redesigned: brand panel, business tiles, service chips, +91 phone, budget ranges,
+  per-field errors and a proper thank-you screen.

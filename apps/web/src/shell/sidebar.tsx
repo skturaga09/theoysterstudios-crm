@@ -1,6 +1,6 @@
 import { ROLE_LABEL, roleOf } from "@pinnacle/shared";
 import { HEALTH_LABEL } from "@pinnacle/shared";
-import { Avatar, Button, cn, Tooltip, useTheme } from "@pinnacle/ui";
+import { Avatar, Button, cn, Tooltip, useTheme, ChannelChip } from "@pinnacle/ui";
 import { signOut } from "firebase/auth";
 import { LogOut, Moon, Sun } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -107,6 +107,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 <Tooltip content={c.note ?? `${HEALTH_LABEL[c.status]} · last event ${fmtMin(c.lastEventMin)} ago`} side="right">
                   <span tabIndex={0} aria-label={`${c.label}: ${HEALTH_LABEL[c.status]}`} className={cn("size-1.5 shrink-0 rounded-full", dot[c.status])} />
                 </Tooltip>
+                <ChannelChip channel={c.channel} className="h-4 min-w-4" />
                 <span className="flex-1 truncate">{c.label}</span>
                 <span className="font-mono text-[10.5px] text-ink-3 tnum">{fmtMin(c.lastEventMin)}</span>
               </li>

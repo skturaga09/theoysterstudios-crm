@@ -1,6 +1,7 @@
 import { addDays, BUSINESS_LABEL, clientJourney, fmtDate, fmtDay, formatCompact, invoiceTotals, istDay, type Milestone } from "@pinnacle/shared";
 import { Avatar, Button, Checkbox, cn, Pill, Sheet, toast } from "@pinnacle/ui";
-import { Camera, Check, ExternalLink, Flag, FolderKanban, MessageCircle, Phone } from "lucide-react";
+import { ArrowRight, Camera, Check, ExternalLink, Flag, FolderKanban, MessageCircle, Phone } from "lucide-react";
+import { motion } from "motion/react";
 import { useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { taskGroup } from "../../data/derive";
@@ -89,7 +90,6 @@ export async function uploadClientPhoto(c: Company, file: File) {
   }
 }
 
-const tint = (c: Company) => (c.business === "marketing" ? "bg-ok-wash text-ok" : "bg-signal-wash text-signal");
 /** "Riya & Arjun" → "R & A"; "Brewhouse 27" → "B2". */
 function initials(name: string) {
   const couple = name.split("&").map((p) => p.trim()).filter(Boolean);
@@ -98,12 +98,24 @@ function initials(name: string) {
 }
 
 /** The photo strip: the client's picture, or their initials on the business colour. Drop a file on it to upload. */
-export function Cover({ company, canUpload, className, children }: { company: Company; canUpload: boolean; className?: string; children?: ReactNode }) {
+/** A rich colour panel for clients without a photo (wedding: the studio's rose; marketing: teal). */
+const panelColour = (c: Company) =>
+  c.business === "marketing"
+    ? "linear-gradient(135deg, color-mix(in srgb, var(--ok) 85%, black), color-mix(in srgb, var(--ok) 45%, black))"
+    : "linear-gradient(135deg, color-mix(in srgb, var(--signal) 90%, black), color-mix(in srgb, var(--signal) 45%, black))";
+
+/**
+ * The photo strip: the client's picture (fades in, zooms slowly on hover), or their initials on the business
+ * colour. Drop a file on it — or use the camera button — to upload.
+ */
+export function Cover({ company, canUpload, className, children, hoverZoom }: { company: Company; canUpload: boolean; className?: string; children?: ReactNode; hoverZoom?: boolean }) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   return (
     <div
-      className={cn("group relative overflow-hidden", !company.photo && tint(company), over && "ring-2 ring-inset ring-ink", className)}
+      className={cn("group/cover relative overflow-hidden", over && "ring-2 ring-inset ring-ink", className)}
+      style={company.photo ? undefined : { background: panelColour(company) }}
       onDragOver={(e) => {
         if (!canUpload) return;
         e.preventDefault();
@@ -117,16 +129,36 @@ export function Cover({ company, canUpload, className, children }: { company: Co
         if (canUpload && f) void uploadClientPhoto(company, f);
       }}
     >
-      {company.photo ? <img src={company.photo} alt="" className="absolute inset-0 size-full object-cover" /> : <span className="absolute inset-0 grid place-items-center font-serif text-[30px] opacity-70">{initials(company.name)}</span>}
+      {company.photo ? (
+        <img
+          key={company.photo}
+          src={company.photo}
+          alt=""
+          onLoad={() => setLoaded(true)}
+          className={cn(
+            "absolute inset-0 size-full object-cover",
+            "motion-safe:transition-[opacity,transform] motion-safe:duration-[900ms] motion-safe:ease-out",
+            loaded ? "scale-100 opacity-100" : "scale-[1.06] opacity-0",
+            hoverZoom && "motion-safe:group-hover/card:scale-[1.07] motion-safe:group-hover/card:duration-[2400ms]",
+          )}
+        />
+      ) : (
+        <span aria-hidden className={cn("absolute inset-0 grid place-items-center font-serif text-[56px] tracking-wide text-white/25 select-none", hoverZoom && "motion-safe:transition-transform motion-safe:duration-[1200ms] motion-safe:group-hover/card:scale-110")}>
+          {initials(company.name)}
+        </span>
+      )}
       {canUpload && (
         <>
           <input ref={input} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadClientPhoto(company, f); e.target.value = ""; }} />
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); input.current?.click(); }}
-            className="absolute top-2 left-2 flex items-center gap-1 rounded-control bg-surface/90 px-2 py-1 text-[11.5px] text-ink opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+            className={cn(
+              "absolute top-3 left-3 z-[2] flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-[12px] text-white backdrop-blur-sm transition-opacity hover:bg-black/60",
+              company.photo ? "opacity-0 group-hover/cover:opacity-100 focus-visible:opacity-100" : "opacity-90",
+            )}
           >
-            <Camera size={13} strokeWidth={1.5} /> {company.photo ? "Change photo" : "Add photo"}
+            <Camera size={14} strokeWidth={1.5} /> {company.photo ? "Change photo" : "Add photo"}
           </button>
         </>
       )}
@@ -135,56 +167,88 @@ export function Cover({ company, canUpload, className, children }: { company: Co
   );
 }
 
+/** Progress ring that draws itself when the card appears. */
 function Ring({ pct }: { pct: number }) {
-  const r = 15, len = 2 * Math.PI * r;
+  const r = 17, len = 2 * Math.PI * r;
   return (
-    <svg width="38" height="38" viewBox="0 0 38 38" role="img" aria-label={`${pct}% of the work done`} className="shrink-0">
-      <circle cx="19" cy="19" r={r} fill="none" stroke="var(--line)" strokeWidth="4" />
-      <circle cx="19" cy="19" r={r} fill="none" stroke="var(--ok)" strokeWidth="4" strokeLinecap="round" strokeDasharray={`${((len * pct) / 100).toFixed(1)} ${len.toFixed(1)}`} transform="rotate(-90 19 19)" />
-      <text x="19" y="23" textAnchor="middle" fontSize="10" fill="var(--ink)">{pct}%</text>
+    <svg width="44" height="44" viewBox="0 0 44 44" role="img" aria-label={`${pct}% of the work done`} className="shrink-0">
+      <circle cx="22" cy="22" r={r} fill="none" stroke="var(--line)" strokeWidth="4" />
+      <motion.circle
+        cx="22" cy="22" r={r} fill="none" stroke="var(--ok)" strokeWidth="4" strokeLinecap="round" transform="rotate(-90 22 22)"
+        strokeDasharray={len}
+        initial={{ strokeDashoffset: len }}
+        animate={{ strokeDashoffset: len - (len * pct) / 100 }}
+        transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.25 }}
+      />
+      <text x="22" y="26" textAnchor="middle" fontSize="11" fontWeight="500" fill="var(--ink)">{pct}%</text>
     </svg>
   );
 }
 
-/** One client as a card: photo, countdown, progress, next milestone and money at a glance. Click → their panel. */
-export function ClientCard({ company, onOpen }: { company: Company; onOpen: () => void }) {
+/** One client as a card: photo with their name, countdown, progress, next milestone and money. Click → their panel. */
+export function ClientCard({ company, onOpen, index = 0 }: { company: Company; onOpen: () => void; index?: number }) {
   const s = useCrm();
   const canEditClient = useCanEdit(company.ownerId);
   const runsProjects = useAccess("projects") === "edit";
   const canUpload = canEditClient || runsProjects;
   const x = clientSummary(company, s);
+  const owner = s.members.find((m) => m.id === company.ownerId);
   return (
-    <div
+    <motion.div
       role="button"
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
-      className={cn("flex cursor-pointer flex-col overflow-hidden rounded-card border border-line bg-surface text-left transition-colors hover:border-line-2 focus-visible:outline-2 focus-visible:outline-ink", x.delivered && "opacity-80")}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: Math.min(index, 12) * 0.05 }}
+      whileHover={{ y: -4 }}
+      className={cn(
+        "group/card flex cursor-pointer flex-col overflow-hidden rounded-[16px] border border-line bg-surface text-left shadow-rest transition-shadow duration-300 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+        x.delivered && "opacity-85",
+      )}
     >
-      <Cover company={company} canUpload={canUpload} className="h-[120px]">
-        <span className="absolute right-2 bottom-2 rounded-control bg-surface/90 px-2 py-0.5 font-mono text-[11px] text-ink">{x.countdown}</span>
-        {x.thisWeek && <span className="absolute top-2 right-2 rounded-control bg-ink px-2 py-0.5 text-[11px] text-on-ink">This week</span>}
+      <Cover company={company} canUpload={canUpload} hoverZoom className="h-[220px]">
+        {/* A soft fade so the name reads on any photo. */}
+        <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
+        <span className="absolute top-3 right-3 z-[1] flex flex-col items-end gap-1.5">
+          <span className="rounded-full bg-black/45 px-2.5 py-1 font-mono text-[11px] text-white backdrop-blur-sm">{x.countdown}</span>
+          {x.thisWeek && <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-black motion-safe:animate-pulse">This week</span>}
+        </span>
+        <span className="absolute inset-x-4 bottom-3.5 z-[1] text-white">
+          <span className="block truncate font-serif text-[22px] leading-tight drop-shadow-sm">{company.name}</span>
+          <span className="block truncate text-[12px] text-white/80">{[company.business && BUSINESS_LABEL[company.business], x.nextEventDate && fmtDate(x.nextEventDate), company.city].filter(Boolean).join(" · ") || " "}</span>
+        </span>
       </Cover>
-      <div className="flex flex-1 flex-col gap-2 p-3">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <div className="flex items-center gap-3">
           <span className="min-w-0 flex-1">
-            <span className="t-dense block truncate font-medium">{company.name}</span>
-            <span className="block truncate text-[11.5px] text-ink-3">{[company.business && BUSINESS_LABEL[company.business], x.nextEventDate && fmtDay(x.nextEventDate), company.city].filter(Boolean).join(" · ") || "—"}</span>
+            <span className="t-eyebrow block text-ink-3">{x.next ? (x.next.late ? "Late" : "Next") : x.delivered ? "Delivered" : "Status"}</span>
+            {x.next ? (
+              <span className={cn("t-dense mt-0.5 flex items-start gap-1.5", x.next.late ? "text-risk" : "text-ink")}>
+                <Flag size={14} strokeWidth={1.5} className="mt-0.5 shrink-0" />
+                <span className="min-w-0">{x.next.label}{x.next.date && <span className="text-ink-3"> · {fmtDay(x.next.date)}</span>}</span>
+              </span>
+            ) : (
+              <span className="t-dense mt-0.5 block text-ink-2">{x.isClient ? "All caught up" : "Lead in progress"}</span>
+            )}
           </span>
           {x.progress !== null && <Ring pct={x.progress} />}
         </div>
-        {x.next && (
-          <p className={cn("m-0 flex items-start gap-1.5 text-[12px]", x.next.late ? "text-risk" : "text-ink-2")}>
-            <Flag size={13} strokeWidth={1.5} className="mt-0.5 shrink-0" /> {x.next.label}{x.next.date && ` · ${fmtDay(x.next.date)}`}{x.next.late && " · late"}
-          </p>
-        )}
-        <span className="mt-auto flex flex-wrap gap-1.5">
+        <span className="flex flex-wrap gap-1.5">
           {x.money && <Pill tone={x.money.tone}>{x.money.text}</Pill>}
           {x.needsApproval > 0 && <Pill tone="warn">{x.needsApproval} awaiting client</Pill>}
           {x.open.length > 0 && <Pill tone="mute">{x.open.length} open {x.open.length === 1 ? "task" : "tasks"}</Pill>}
         </span>
+        <span className="mt-auto flex items-center gap-2 border-t border-line pt-3 text-[12px] text-ink-3">
+          {owner && <Avatar name={owner.name} me={owner.id === ME_ID} size="sm" />}
+          <span className="min-w-0 flex-1 truncate">{owner?.name ?? "Unassigned"}</span>
+          <span className="flex items-center gap-1 text-ink-2 opacity-0 transition-all duration-300 group-hover/card:translate-x-0.5 group-hover/card:opacity-100">
+            Journey <ArrowRight size={13} strokeWidth={1.5} />
+          </span>
+        </span>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

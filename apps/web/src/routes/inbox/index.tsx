@@ -1,4 +1,4 @@
-import { parseRupees, rupeesText, type Channel, CHANNEL_LABEL, CHANNEL_MONOGRAM, fmtAgo, fmtTime, formatCompact, routeLead, BUSINESSES, BUSINESS_SHORT, type Business } from "@pinnacle/shared";
+import { parseRupees, rupeesText, type Channel, CHANNEL_LABEL, fmtAgo, fmtTime, formatCompact, routeLead, BUSINESSES, BUSINESS_SHORT, type Business } from "@pinnacle/shared";
 import {
   Avatar,
   Button,
@@ -108,7 +108,7 @@ export function InboxRoute() {
                 on ? "bg-ink text-on-ink" : "bg-sunken text-ink-2 hover:text-ink",
               )}
             >
-              {c === "all" ? "All" : <span className="font-mono text-[11px] tracking-[0.04em]">{CHANNEL_MONOGRAM[c]}</span>}
+              {c === "all" ? "All" : <><ChannelChip channel={c} className="h-4 min-w-4" /><span className="sr-only">{CHANNEL_LABEL[c]}</span></>}
               <span className={cn("font-mono text-[11px] tnum", on ? "text-on-ink/70" : "text-ink-3")}>{n}</span>
             </button>
           );

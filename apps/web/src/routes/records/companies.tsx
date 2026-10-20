@@ -127,8 +127,8 @@ export function CompaniesRoute() {
             <span className="t-meta text-ink-3">{cards.length} shown · drop a photo on a card to add it</span>
           </div>
           {cards.length ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-3">
-              {cards.map(({ r }) => <ClientCard key={r.id} company={r} onOpen={() => setOpened(r.id)} />)}
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(290px,1fr))] gap-5">
+              {cards.map(({ r }, i) => <ClientCard key={r.id} company={r} index={i} onOpen={() => setOpened(r.id)} />)}
             </div>
           ) : (
             <EmptyState icon={Building2} title="No clients here" body="Try another filter, or switch the top bar to Both businesses." />
