@@ -96,6 +96,8 @@ export type Quote = {
   schedule: ScheduleItem[];
   status: "draft" | "sent" | "accepted" | "declined";
   createdAt: ISO;
+  /** Set when the client signed it online: who, when, from where, and the fingerprint of what they signed. */
+  signature?: { name: string; email?: string; phone?: string; at: ISO; ip: string; userAgent: string; fingerprint: string; method: string };
 };
 
 export type Expense = {

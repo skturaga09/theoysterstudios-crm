@@ -1,7 +1,10 @@
 import { BUSINESS_SHORT, fmtDate, formatFull, invoiceTotals, scheduleFrom, type ScheduleItem } from "@pinnacle/shared";
 import { Button, Input, MoneyText, Pill, Segmented, Select, Textarea, toast } from "@pinnacle/ui";
 import { ArrowLeft, FileSignature, Plus, Printer, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
+import { api } from "../../lib/api";
+import { IS_DEMO } from "../../lib/demo";
 import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
 import { acceptQuote, sacFor, updateQuote } from "../../data/finance";
@@ -52,6 +55,57 @@ export function QuotesRoute() {
   );
 }
 
+/**
+ * The client's link to read and sign this quotation as a service agreement. Signing accepts it and confirms the
+ * booking; editing the quotation after sharing means the client must reload and sign the new version.
+ */
+function SignLink({ q, contactPhone }: { q: Quote; contactPhone?: string }) {
+  const [url, setUrl] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const make = async (reset = false) => {
+    setBusy(true);
+    try {
+      const link = IS_DEMO ? `${window.location.origin}/sign/demo` : (await api<{ url: string }>(`/quotes/${q.id}/sign-link`, { method: "POST", body: { origin: window.location.origin, reset } })).url;
+      setUrl(link);
+      if (q.status === "draft") useCrm.setState((s) => ({ quotes: s.quotes.map((x) => (x.id === q.id ? { ...x, status: "sent" } : x)) }));
+      toast(reset ? "New signing link — the old one no longer works" : "Signing link ready");
+    } catch (e) {
+      toast(`Couldn't make the link — ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const message = url && `Hello! Here is your agreement from The Oyster Studios for review and signature. Please read it and sign online: ${url}`;
+  return (
+    <section className="mb-6 flex flex-col gap-2 rounded-card bg-sunken p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="min-w-0 flex-1">
+          <span className="t-dense block font-medium">Sign online</span>
+          <span className="t-meta text-ink-3">The client reads the agreement on their phone, types their name and signs. That accepts this quotation and confirms the booking. Name, time, IP and a fingerprint of the exact document are recorded.</span>
+        </span>
+        {!url && <Button variant="ink" disabled={busy} onClick={() => void make()}><FileSignature strokeWidth={1.5} /> Get it signed online</Button>}
+      </div>
+      {url && (
+        <>
+          <span className="flex gap-2">
+            <Input readOnly value={url} onFocus={(e) => e.target.select()} aria-label="Signing link" className="h-8 flex-1 font-mono text-[11px]" />
+            <Button size="sm" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Copied"))}>Copy</Button>
+            {contactPhone && (
+              <Button size="sm" variant="ink" asChild>
+                <a href={`https://wa.me/${contactPhone.replace(/\D/g, "").replace(/^(\d{10})$/, "91$1")}?text=${encodeURIComponent(message!)}`} target="_blank" rel="noreferrer">Send on WhatsApp</a>
+              </Button>
+            )}
+          </span>
+          <span className="flex gap-3">
+            <a href={url} target="_blank" rel="noreferrer" className="t-meta text-ink-3 hover:text-ink">Preview as the client</a>
+            <button className="t-meta text-ink-3 hover:text-ink" disabled={busy} onClick={() => void make(true)}>Replace link</button>
+          </span>
+        </>
+      )}
+    </section>
+  );
+}
+
 /** One quotation: packages and prices, payment plan, terms; then send, accept or decline. */
 export function QuoteRoute() {
   const { id } = useParams();
@@ -95,6 +149,14 @@ export function QuoteRoute() {
           </>
         }
       />
+
+      {q.signature ? (
+        <p className="t-dense mb-6 rounded-card border border-ok/30 bg-ok-wash px-4 py-3 text-ok">
+          Signed online by <b>{q.signature.name}</b>{q.signature.email ? ` (${q.signature.email})` : ""} on {new Date(q.signature.at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })} IST, from IP {q.signature.ip}. The Agreement printout carries the full record.
+        </p>
+      ) : (
+        !locked && q.status !== "declined" && q.lines.length > 0 && <SignLink q={q} contactPhone={s.contacts.find((c) => c.id === deal?.contactId)?.phone ?? s.contacts.find((c) => c.companyId === q.companyId && c.phone)?.phone} />
+      )}
 
       <fieldset disabled={locked} className="contents">
         <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">

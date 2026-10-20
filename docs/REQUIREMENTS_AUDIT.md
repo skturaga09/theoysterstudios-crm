@@ -37,7 +37,7 @@ The current responsive web CRM covers Phases 1–3 from the requirements. Phase 
 
 - Native mobile applications; the current deliverable is the responsive web app requested for the first version.
 - Advanced analytics, accounting-software integrations, additional marketing platforms and AI features.
-- Electronic signatures and a client-side signing workflow. Accepted quotations now generate a printable service agreement with scope, fees, payment schedule, terms and signature blocks; e-signing still needs a product and compliance decision.
+- Aadhaar eSign / DSC signatures (online acceptance with an audit trail is delivered — see DECISIONS.md). Previously: electronic signatures and a client-side signing workflow. Accepted quotations now generate a printable service agreement with scope, fees, payment schedule, terms and signature blocks; e-signing still needs a product and compliance decision.
 - Email notifications. The Google connection is deliberately read-only (`gmail.readonly`), so the CRM does not send mail or silently request broader mailbox access. In-app and approved WhatsApp notifications are active.
 
 ## Operational setup still required from the studio

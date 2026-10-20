@@ -1,4 +1,4 @@
-import { fmtDay } from "@pinnacle/shared";
+import { BUSINESS_SHORT, fmtDay } from "@pinnacle/shared";
 import { Avatar, Button, Checkbox, cn, Pill, Segmented, StrikeText, toast, Tooltip } from "@pinnacle/ui";
 import { Bell, BellOff, CheckSquare, Columns3, List, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -26,14 +26,34 @@ function dueLabel(t: Task) {
   return `${fmtDay(t.dueAt)} · ${time}`;
 }
 
+/** A task's client: set on the task, or through its project or deal (checklist tasks only know their project). */
+function useClientOf() {
+  const s = useCrm();
+  return (t: Task) => t.companyId ?? s.projects.find((p) => p.id === t.projectId)?.companyId ?? s.deals.find((d) => d.id === t.dealId)?.companyId;
+}
+
+type ClientGroup = { id: string; name: string; business?: string; open: Task[]; done: number; overdue: number };
+
 export function TasksRoute() {
-  const tasks = useCrm((s) => s.tasks);
+  const s = useCrm();
+  const tasks = s.tasks;
+  const clientOf = useClientOf();
   const [view, setView] = usePref<"list" | "board">("tasks.view", "list");
   const [who, setWho] = usePref<"me" | "all">("tasks.who", "all");
+  const [by, setBy] = usePref<"due" | "client">("tasks.group", "due");
   useCreateAction(() => useUi.getState().openComposer("task"));
 
   const visible = tasks.filter((t) => who === "all" || t.assigneeId === ME_ID).sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt));
   const grouped = GROUPS.map((g) => ({ ...g, items: visible.filter((t) => taskGroup(t) === g.id) }));
+  // By client: each client's open work in due order; clients with the most pressing task first, "Internal" last.
+  const clients: ClientGroup[] = [...new Set(visible.map((t) => clientOf(t) ?? ""))]
+    .map((id) => {
+      const mine = visible.filter((t) => (clientOf(t) ?? "") === id);
+      const c = s.companies.find((x) => x.id === id);
+      return { id, name: id ? (c?.name ?? "Client") : "Internal (no client)", business: c?.business, open: mine.filter((t) => !t.done), done: mine.filter((t) => t.done).length, overdue: mine.filter((t) => taskGroup(t) === "overdue").length };
+    })
+    .filter((g) => g.open.length)
+    .sort((a, b) => (a.id ? 0 : 1) - (b.id ? 0 : 1) || b.overdue - a.overdue || +new Date(a.open[0]!.dueAt) - +new Date(b.open[0]!.dueAt));
   const overdue = grouped[0]!.items.length;
   const today = grouped[1]!.items.length;
 
@@ -45,6 +65,7 @@ export function TasksRoute() {
         actions={
           <>
             <Segmented label="Whose" value={who} onChange={setWho} options={[{ value: "all", label: "Everyone" }, { value: "me", label: "My work" }]} />
+            <Segmented label="Group by" value={by} onChange={setBy} options={[{ value: "due", label: "Due date" }, { value: "client", label: "Client" }]} />
             <Segmented
               label="Layout"
               value={view}
@@ -64,6 +85,34 @@ export function TasksRoute() {
           <h2 className="t-sheet m-0">No tasks yet</h2>
           <p className="t-body m-0 max-w-[52ch] text-ink-2">Follow-ups you add to deals land here, grouped by when they're due. Press C to add one.</p>
         </div>
+      ) : by === "client" ? (
+        !clients.length ? (
+          <p className="t-dense border-t border-line py-6 text-ink-3">Everything is done. Switch to Due date to see finished tasks.</p>
+        ) : view === "list" ? (
+          <div className="flex flex-col gap-8">
+            {clients.map((g) => (
+              <section key={g.id || "internal"}>
+                <ClientHeader g={g} />
+                <ul className="m-0 list-none border-t border-line p-0">
+                  <AnimatePresence initial={false}>
+                    {g.open.map((t) => <TaskRow key={t.id} t={t} />)}
+                  </AnimatePresence>
+                </ul>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div className="-mx-4 overflow-x-auto px-4 pb-4 md:-mx-8 md:px-8">
+            <div className="flex min-w-max items-start gap-3">
+              {clients.map((g) => (
+                <section key={g.id || "internal"} className="w-[280px] rounded-panel bg-sunken p-2">
+                  <div className="px-1.5 pt-1 pb-2.5"><ClientHeader g={g} compact /></div>
+                  <ul className="m-0 flex list-none flex-col gap-2 p-0">{g.open.map((t) => <TaskCard key={t.id} t={t} />)}</ul>
+                </section>
+              ))}
+            </div>
+          </div>
+        )
       ) : view === "list" ? (
         <div className="flex flex-col gap-8">
           {grouped.map((g) =>
@@ -102,12 +151,26 @@ export function TasksRoute() {
   );
 }
 
+/** A client's heading on the Tasks page: name (to their page), business, and how much is open, late and done. */
+function ClientHeader({ g, compact }: { g: ClientGroup; compact?: boolean }) {
+  return (
+    <h2 className={cn("m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5", compact ? "text-[12.5px] font-medium" : "t-dense mb-2 font-medium")}>
+      {g.id ? <Link to={`/clients/${g.id}`} className="hover:underline">{g.name}</Link> : <span className="text-ink-2">{g.name}</span>}
+      {g.business && <span className="text-[11px] font-normal text-ink-3">{BUSINESS_SHORT[g.business as keyof typeof BUSINESS_SHORT]}</span>}
+      <span className="font-mono text-[11px] font-normal text-ink-3">{g.open.length} open</span>
+      {g.overdue > 0 && <span className="font-mono text-[11px] font-normal text-risk">{g.overdue} overdue</span>}
+      {g.done > 0 && <span className="font-mono text-[11px] font-normal text-ink-3">{g.done} done</span>}
+    </h2>
+  );
+}
+
 function useTaskBits(t: Task) {
   const s = useCrm();
+  const clientOf = useClientOf();
   return {
     toggle: () => s.toggleTask(t.id),
     assignee: s.members.find((m) => m.id === t.assigneeId),
-    company: s.companies.find((c) => c.id === t.companyId),
+    company: s.companies.find((c) => c.id === clientOf(t)),
     deal: s.deals.find((d) => d.id === t.dealId),
     project: s.projects.find((p) => p.id === t.projectId),
   };

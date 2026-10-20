@@ -88,7 +88,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "notificationPreferences", "calendarFeeds", "portalLinks"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "notificationPreferences", "calendarFeeds", "portalLinks", "signLinks"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify, fetch: fakeGoogle });
@@ -843,7 +843,47 @@ describe("api", () => {
     expect((await call("DELETE", `/projects/${p.id}/portal`)).statusCode).toBe(204);
     expect((await app.inject({ method: "GET", url: `/public/portal/${token}` })).statusCode).toBe(404);
     expect((await app.inject({ method: "GET", url: "/public/portal/short" })).statusCode).toBe(404);
-  });
+  }, 60_000); // many round trips against real Firestore
+
+  it("lets the client sign a quotation online, with an audit trail, which confirms the booking", async () => {
+    const co = (await call("POST", "/companies", { name: "Nisha & Rahul", ownerId: "sr", business: "photography", address: "Pune" })).json();
+    const d = (await call("POST", "/deals", { title: "Nisha & Rahul wedding", companyId: co.id, valuePaise: 1, closeAt: "2027-05-01T00:00:00+05:30", ownerId: "sr", channel: "instagram", business: "photography", stage: "proposal", eventDate: "2027-05-01" })).json();
+    const validUntil = new Date(Date.now() + 10 * 86_400_000).toISOString().slice(0, 10);
+    const q = (await call("POST", "/quotes", { companyId: co.id, dealId: d.id, ownerId: "sr", business: "photography", validUntil, lines: [], terms: "Advance is non-refundable.", schedule: [] })).json();
+    expect((await call("POST", `/quotes/${q.id}/sign-link`, { origin: "https://crm.example" })).statusCode).toBe(409); // nothing to sign yet
+    await call("PATCH", `/quotes/${q.id}`, { lines: [{ desc: "Signature wedding", sac: "998383", qty: 1, ratePaise: 3_00_000_00 }], schedule: [{ id: "m1", label: "Booking advance", amountPaise: 90_000_00, dueDate: "2026-11-01" }] });
+    const { url } = (await call("POST", `/quotes/${q.id}/sign-link`, { origin: "https://crm.example" })).json();
+    const token = url.split("/sign/")[1];
+    expect((await call("GET", `/quotes/${q.id}`)).json().status).toBe("sent"); // sharing marks it sent
+
+    const view = (await app.inject({ method: "GET", url: `/public/sign/${token}` })).json();
+    expect(view).toMatchObject({ client: { name: "Nisha & Rahul" }, quote: { number: q.number, status: "sent" }, deal: { title: "Nisha & Rahul wedding" } });
+    expect(view.fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(JSON.stringify(view)).not.toContain("ownerId");
+
+    const sign = (body: object) => app.inject({ method: "POST", url: `/public/sign/${token}`, payload: body, headers: { "x-forwarded-for": "203.0.113.9, 10.0.0.1", "user-agent": "TestPhone" } });
+    expect((await sign({ name: "Nisha Rao", fingerprint: view.fingerprint })).statusCode).toBe(400); // must tick agree
+    // The studio edits the quotation after sending: the old page can't sign the new terms.
+    await call("PATCH", `/quotes/${q.id}`, { terms: "Advance is non-refundable. Travel at actuals." });
+    expect((await sign({ name: "Nisha Rao", agree: true, fingerprint: view.fingerprint })).statusCode).toBe(409);
+    const fresh = (await app.inject({ method: "GET", url: `/public/sign/${token}` })).json();
+    const ok = await sign({ name: "Nisha Rao", email: "Nisha@Example.com", agree: true, fingerprint: fresh.fingerprint });
+    expect(ok.json()).toMatchObject({ ok: true, signature: { name: "Nisha Rao" } });
+
+    const signed = (await call("GET", `/quotes/${q.id}`)).json();
+    expect(signed.status).toBe("accepted");
+    expect(signed.signature).toMatchObject({ name: "Nisha Rao", email: "nisha@example.com", ip: "203.0.113.9", userAgent: "TestPhone", fingerprint: fresh.fingerprint });
+    expect((await call("GET", `/deals/${d.id}`)).json()).toMatchObject({ stage: "won", valuePaise: 3_00_000_00 }); // booking confirmed
+    expect((await call("GET", `/projects?dealId=${d.id}`)).json()).toHaveLength(1);
+    expect((await call("PATCH", `/quotes/${q.id}`, { terms: "changed" })).statusCode).toBe(422); // signed = locked
+    expect((await app.inject({ method: "GET", url: `/public/sign/${token}` })).statusCode).toBe(404); // link retired after signing
+
+    // An expired quotation can't be signed.
+    const old = (await call("POST", "/quotes", { companyId: co.id, ownerId: "sr", business: "photography", validUntil: "2020-01-01", lines: [{ desc: "x", sac: "998383", qty: 1, ratePaise: 1 }] })).json();
+    const oldToken = (await call("POST", `/quotes/${old.id}/sign-link`, { origin: "https://crm.example" })).json().url.split("/sign/")[1];
+    const oldView = (await app.inject({ method: "GET", url: `/public/sign/${oldToken}` })).json();
+    expect((await app.inject({ method: "POST", url: `/public/sign/${oldToken}`, payload: { name: "Someone", agree: true, fingerprint: oldView.fingerprint } })).statusCode).toBe(409);
+  }, 60_000); // many round trips against real Firestore
 
   it("deletes records and keeps a deal's board position", async () => {
     const d = (await call("POST", "/deals", { title: "Film", companyId: "c1", valuePaise: 1, closeAt: "2026-11-30T00:00:00+05:30", ownerId: "sr", channel: "web", position: 3 })).json();

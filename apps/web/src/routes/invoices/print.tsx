@@ -59,74 +59,110 @@ export function AgreementPrintRoute() {
   }, [q, client]);
 
   if (!q || q.status !== "accepted") return <div className="p-8"><EmptyState icon={Printer} title="Accepted agreement not found" body="Accept the quotation first; the locked quotation then becomes the agreement's scope and price." /></div>;
-  const total = invoiceTotals({ ...q, payments: [] }).total;
   return (
     <div className="min-h-dvh bg-sunken py-6 print:bg-white print:py-0">
-      <style>{PRINT_CSS}</style>
       <div className="mx-auto mb-4 flex w-[210mm] max-w-full items-center gap-2 px-4 print:hidden">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft strokeWidth={1.5} /> Back</Button>
-        <span className="t-meta text-ink-3">Review the studio's legal terms before signature. In the print dialog choose “Save as PDF”.</span>
+        <span className="t-meta text-ink-3">{q.signature ? "Signed online by the client — the audit trail is printed at the end." : "Review the studio's legal terms before signature."} In the print dialog choose “Save as PDF”.</span>
         <Button variant="ink" size="sm" className="ml-auto" onClick={() => window.print()}><Printer strokeWidth={1.5} /> Print / Save as PDF</Button>
       </div>
-      <article className="inv mx-auto w-[210mm] max-w-full p-[14mm] text-[11.5px] leading-relaxed shadow-pop" aria-label={`Service agreement ${q.number}`}>
-        <header className="bl flex items-start gap-6 border-b pb-5">
-          <img src="/logo.png" alt="" className="h-20 w-auto object-contain" />
-          <div className="ml-auto text-right">
-            <h1 className="m-0 text-[20px] font-semibold tracking-wide">SERVICE AGREEMENT</h1>
-            <p className="i3 m-0 mt-1 font-mono text-[11px]">From accepted quotation {q.number}</p>
-            <p className="i3 m-0 font-mono text-[11px]">Quotation dated {fmtDate(q.createdAt)}</p>
-          </div>
-        </header>
-
-        <section className="bl border-b py-5">
-          <p className="m-0">This service agreement is between <b>{workspace.legalName || workspace.studioName}</b>{workspace.address ? `, ${workspace.address}` : ""} (“Studio”) and <b>{client?.name ?? "Client"}</b>{client?.address ? `, ${client.address}` : ""} (“Client”). It records the accepted scope, price, payment schedule and terms below.</p>
-        </section>
-
-        <section className="mt-6">
-          <h2 className="i3 m-0 mb-2 text-[10px] font-medium tracking-wider uppercase">1. Services and deliverables</h2>
-          <p className="i2 m-0 mb-2">Project: <span className="text-[var(--i-ink)]">{deal?.title ?? client?.name ?? "Services in the accepted quotation"}</span>{deal?.eventDate ? ` · event date ${fmtDate(deal.eventDate)}` : ""}</p>
-          <ol className="m-0 pl-5">
-            {q.lines.map((line, index) => <li key={index} className="bl border-b py-1.5">{line.desc} · quantity {line.qty}</li>)}
-          </ol>
-        </section>
-
-        <section className="mt-6">
-          <h2 className="i3 m-0 mb-2 text-[10px] font-medium tracking-wider uppercase">2. Fees and taxes</h2>
-          <p className="m-0">The total consideration is <b>₹{inr(total)}</b>, inclusive of GST calculated in the accepted quotation. GST invoices will be issued for the applicable payment stages.</p>
-        </section>
-
-        <section className="mt-6">
-          <h2 className="i3 m-0 mb-2 text-[10px] font-medium tracking-wider uppercase">3. Payment schedule</h2>
-          <table className="w-full border-collapse">
-            <tbody>
-              {q.schedule.map((item) => (
-                <tr key={item.id} className="bl border-b">
-                  <td className="py-1.5 pr-2">{item.label}</td>
-                  <td className="i2 py-1.5 pr-2">{item.dueDate ? `Due ${fmtDate(item.dueDate)}` : "Due as agreed"}</td>
-                  <td className="py-1.5 text-right font-mono">₹{inr(item.amountPaise)} before GST</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-
-        <section className="mt-6">
-          <h2 className="i3 m-0 mb-2 text-[10px] font-medium tracking-wider uppercase">4. Terms</h2>
-          <p className="i2 m-0 whitespace-pre-line">{q.terms || "The parties will perform the accepted services and payment obligations in good faith. Changes to scope, dates or deliverables must be agreed in writing."}</p>
-        </section>
-
-        <section className="mt-12 grid grid-cols-2 gap-12">
-          <div className="bl border-t pt-2">
-            <p className="m-0 font-semibold">For {workspace.legalName || workspace.studioName}</p>
-            <p className="i3 m-0 mt-10">Signature · name · date</p>
-          </div>
-          <div className="bl border-t pt-2">
-            <p className="m-0 font-semibold">For {client?.name ?? "Client"}</p>
-            <p className="i3 m-0 mt-10">Signature · name · date</p>
-          </div>
-        </section>
-      </article>
+      <AgreementDocument
+        quote={q}
+        studio={{ name: workspace.studioName, legalName: workspace.legalName, address: workspace.address }}
+        client={{ name: client?.name ?? "Client", address: client?.address }}
+        deal={deal && { title: deal.title, eventDate: deal.eventDate }}
+      />
     </div>
+  );
+}
+
+type AgreementQuote = Pick<Quote, "number" | "createdAt" | "supply" | "lines" | "schedule" | "terms" | "signature">;
+
+/**
+ * The service agreement made from a quotation: parties, services, fees, payment schedule, terms and signatures.
+ * The staff print page and the client's online signing page show this same document.
+ */
+export function AgreementDocument({ quote: q, studio, client, deal }: { quote: AgreementQuote; studio: { name: string; legalName?: string; address?: string }; client: { name: string; address?: string }; deal?: { title: string; eventDate?: string } }) {
+  const total = invoiceTotals({ ...q, payments: [] }).total;
+  const studioName = studio.legalName || studio.name;
+  const sig = q.signature;
+  const signedAt = sig && new Date(sig.at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" });
+  return (
+    <article className="inv mx-auto w-[210mm] max-w-full p-[14mm] text-[11.5px] leading-relaxed shadow-pop" aria-label={`Service agreement ${q.number}`}>
+      <style>{PRINT_CSS}</style>
+      <header className="bl flex items-start gap-6 border-b pb-5">
+        <img src="/logo.png" alt="" className="h-20 w-auto object-contain" />
+        <div className="ml-auto text-right">
+          <h1 className="m-0 text-[20px] font-semibold tracking-wide">SERVICE AGREEMENT</h1>
+          <p className="i3 m-0 mt-1 font-mono text-[11px]">From quotation {q.number}</p>
+          <p className="i3 m-0 font-mono text-[11px]">Quotation dated {fmtDate(q.createdAt)}</p>
+        </div>
+      </header>
+
+      <section className="bl border-b py-5">
+        <p className="m-0">This service agreement is between <b>{studioName}</b>{studio.address ? `, ${studio.address}` : ""} (“Studio”) and <b>{client.name}</b>{client.address ? `, ${client.address}` : ""} (“Client”). It records the scope, price, payment schedule and terms below.</p>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="i3 m-0 mb-2 text-[10px] font-medium tracking-wider uppercase">1. Services and deliverables</h2>
+        <p className="i2 m-0 mb-2">Project: <span className="text-[var(--i-ink)]">{deal?.title ?? client.name}</span>{deal?.eventDate ? ` · event date ${fmtDate(deal.eventDate)}` : ""}</p>
+        <ol className="m-0 pl-5">
+          {q.lines.map((line, index) => <li key={index} className="bl border-b py-1.5">{line.desc} · quantity {line.qty} · ₹{inr(Math.round(line.qty * line.ratePaise))} before GST</li>)}
+        </ol>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="i3 m-0 mb-2 text-[10px] font-medium tracking-wider uppercase">2. Fees and taxes</h2>
+        <p className="m-0">The total consideration is <b>₹{inr(total)}</b>, including GST at 18%. GST invoices will be issued for each payment stage.</p>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="i3 m-0 mb-2 text-[10px] font-medium tracking-wider uppercase">3. Payment schedule</h2>
+        <table className="w-full border-collapse">
+          <tbody>
+            {q.schedule.map((item) => (
+              <tr key={item.id} className="bl border-b">
+                <td className="py-1.5 pr-2">{item.label}</td>
+                <td className="i2 py-1.5 pr-2">{item.dueDate ? `Due ${fmtDate(item.dueDate)}` : "Due as agreed"}</td>
+                <td className="py-1.5 text-right font-mono">₹{inr(item.amountPaise)} before GST</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="i3 m-0 mb-2 text-[10px] font-medium tracking-wider uppercase">4. Terms</h2>
+        <p className="i2 m-0 whitespace-pre-line">{q.terms || "The parties will perform the accepted services and payment obligations in good faith. Changes to scope, dates or deliverables must be agreed in writing."}</p>
+      </section>
+
+      <section className="mt-12 grid grid-cols-2 gap-12">
+        <div className="bl border-t pt-2">
+          <p className="m-0 font-semibold">For {studioName}</p>
+          <p className="i3 m-0 mt-10">Signature · name · date</p>
+        </div>
+        <div className="bl border-t pt-2">
+          <p className="m-0 font-semibold">For {client.name}</p>
+          {sig ? (
+            <>
+              <p className="m-0 mt-3 text-[16px] italic">{sig.name}</p>
+              <p className="i3 m-0">Signed online · {signedAt} IST</p>
+            </>
+          ) : (
+            <p className="i3 m-0 mt-10">Signature · name · date</p>
+          )}
+        </div>
+      </section>
+
+      {sig?.ip && (
+        <section className="bl mt-8 border-t pt-3 text-[10px]">
+          <h2 className="i3 m-0 mb-1 text-[10px] font-medium tracking-wider uppercase">Electronic acceptance record</h2>
+          <p className="i2 m-0">Accepted online by <b>{sig.name}</b>{sig.email ? ` (${sig.email})` : ""}{sig.phone ? ` · ${sig.phone}` : ""} on {signedAt} IST, from IP {sig.ip}, after confirming they had read and agreed to this agreement, its payment schedule and terms. Device: {sig.userAgent || "not recorded"}.</p>
+          <p className="i2 m-0 mt-1">Document fingerprint (SHA-256 of the quotation as signed): <span className="font-mono break-all">{sig.fingerprint}</span></p>
+          <p className="i3 m-0 mt-1">{sig.method}.</p>
+        </section>
+      )}
+    </article>
   );
 }
 

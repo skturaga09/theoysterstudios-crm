@@ -335,3 +335,17 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   IGST / CGST / SGST, credit notes negative; always the whole studio regardless of the business switch.
   `packages/shared/src/gstr1.ts`, tested. Not a direct GST-portal upload or Tally sync — those need the CA's
   choice of format.
+- **Online signing of quotations** (Phase 5): staff share a signing link per quotation (`signLinks`, `/sign/<token>`,
+  no client account; sharing marks a draft as sent). The client reads the service agreement (the same
+  `AgreementDocument` the staff print page uses), types their full name, ticks consent and signs. The server
+  records name, optional email/phone, time, IP (first `x-forwarded-for` hop), device and a SHA-256 fingerprint of
+  the quotation's number, client, items, plan, terms and validity (`quoteFingerprint`); it refuses if the
+  quotation changed since the page loaded, has expired, or is already accepted/declined/signed (one signature
+  wins under concurrent submits). Signing = accepting: `applyAcceptedQuote` confirms the booking exactly as a
+  teammate's "Client accepted" does (value, schedule, client, project, notification). The link is retired
+  after signing; the signed agreement prints with an "Electronic acceptance record". Legally this is online
+  acceptance of a contract (IT Act 2000 §10A) — not an Aadhaar eSign or DSC "electronic signature" (§3A), which
+  needs a paid eSign provider and can be added later.
+- **Tasks by client:** Tasks → Group by → Client: one section (or board column) per client with its open tasks
+  in due order and open / overdue / done counts; clients with overdue work first, "Internal (no client)" last.
+  A task's client now comes from the task, its project or its deal — checklist tasks were showing as Internal.

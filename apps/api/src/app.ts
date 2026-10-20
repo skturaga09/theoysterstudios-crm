@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import { MongoServerError, ObjectId, type Db, type Filter, type MongoClient, type UpdateFilter } from "mongodb";
 import { z, ZodError, type ZodType } from "zod";
@@ -59,6 +60,22 @@ const conversationOut = ({ _id, externalId: _, lastInboundAt, ...rest }: Doc) =>
     ? { windowExpiresAt: new Date(+new Date(String(lastInboundAt)) + 24 * 3_600_000).toISOString() }
     : {}),
 });
+
+/**
+ * SHA-256 of what a client signs: the quotation's number, parties, items, plan, terms and validity, in a fixed
+ * order. The same quotation always gives the same fingerprint; any change gives a different one.
+ */
+export const quoteFingerprint = (q: Doc) =>
+  createHash("sha256")
+    .update(
+      JSON.stringify([
+        q.number, q.companyId, q.business, q.validUntil, q.supply,
+        ((q.lines as { desc: string; sac: string; qty: number; ratePaise: number }[]) ?? []).map((l) => [l.desc, l.sac, l.qty, l.ratePaise]),
+        ((q.schedule as { label: string; amountPaise: number; dueDate?: string }[]) ?? []).map((m) => [m.label, m.amountPaise, m.dueDate ?? ""]),
+        q.terms ?? "",
+      ]),
+    )
+    .digest("hex");
 
 const ListQuery = z.object({
   // shortcut: the web app loads whole collections at sign-in; add paging past a few thousand records.
@@ -122,7 +139,7 @@ export function buildApp({
    * the team list. Checked per request, so removing someone cuts access immediately.
    */
   app.addHook("onRequest", async (req, reply) => {
-    if (PUBLIC.has(req.url.split("?")[0]!) || req.url.startsWith("/public/calendar/") || req.url.startsWith("/public/portal/")) return;
+    if (PUBLIC.has(req.url.split("?")[0]!) || req.url.startsWith("/public/calendar/") || req.url.startsWith("/public/portal/") || req.url.startsWith("/public/sign/")) return;
     const token = req.headers.authorization?.match(/^Bearer (.+)$/)?.[1];
     const claims = token ? await verify(token).catch(() => undefined) : undefined;
     if (!claims?.email || !claims.email_verified) return reply.code(401).send({ error: "Sign in with Google" });
@@ -861,21 +878,121 @@ export function buildApp({
     owned: true,
     scope: async (req) => ((await ownDealIds(req)) ? { ownerId: req.member._id } : undefined),
     check: async (_next, existing) => (existing?.status === "accepted" ? "An accepted quotation can't change — make a new one" : undefined),
-    after: async (q, req) => {
-      if (q.status !== "accepted" || q.appliedAt || !q.dealId) return;
-      // Accepting confirms the booking: the deal takes the quoted value and payment schedule, and becomes won.
-      const deals = db.collection<Doc>("deals");
-      const deal = await deals.findOne({ _id: String(q.dealId) });
-      if (!deal) return;
-      const subtotal = totalsOf({ supply: q.supply as "intra" | "inter", lines: q.lines as { qty: number; ratePaise: number }[], payments: [] }).subtotal;
-      const invoiced = ((deal.schedule as { invoiceId?: string }[] | undefined) ?? []).some((m) => m.invoiceId);
-      const $set: Record<string, unknown> = { valuePaise: subtotal, ...(!invoiced && { schedule: q.schedule }) };
-      if (deal.stage !== "won") Object.assign($set, { stage: "won", wonAt: now() });
-      const saved = (await deals.findOneAndUpdate({ _id: deal._id }, { $set }, { returnDocument: "after" }))!;
-      await onConfirmed(saved);
-      await db.collection<Doc>("quotes").updateOne({ _id: q._id }, { $set: { appliedAt: now() } });
-      await notify(db, [String(deal.ownerId), ...(await db.collection<Doc>("members").find({ role: { $in: ["admin", "finance"] }, status: { $ne: "removed" } }).toArray()).map((m) => m._id)], { kind: "accepted", text: `${deal.title}: quotation ${q.number} accepted — booking confirmed`, link: `/deals/${deal._id}` }, req.member._id);
-    },
+    after: async (q, req) => applyAcceptedQuote(q, req.member._id),
+  });
+
+  /**
+   * Accepting confirms the booking: the deal takes the quoted value and payment schedule, and becomes won (client,
+   * project). Runs once per quotation, whether a teammate marked it accepted or the client signed it online.
+   */
+  async function applyAcceptedQuote(q: Doc, actorId?: string) {
+    if (q.status !== "accepted" || q.appliedAt || !q.dealId) return;
+    const deals = db.collection<Doc>("deals");
+    const deal = await deals.findOne({ _id: String(q.dealId) });
+    if (!deal) return;
+    const subtotal = totalsOf({ supply: q.supply as "intra" | "inter", lines: q.lines as { qty: number; ratePaise: number }[], payments: [] }).subtotal;
+    const invoiced = ((deal.schedule as { invoiceId?: string }[] | undefined) ?? []).some((m) => m.invoiceId);
+    const $set: Record<string, unknown> = { valuePaise: subtotal, ...(!invoiced && { schedule: q.schedule }) };
+    if (deal.stage !== "won") Object.assign($set, { stage: "won", wonAt: now() });
+    const saved = (await deals.findOneAndUpdate({ _id: deal._id }, { $set }, { returnDocument: "after" }))!;
+    await onConfirmed(saved);
+    await db.collection<Doc>("quotes").updateOne({ _id: q._id }, { $set: { appliedAt: now() } });
+    const signed = q.signature as { name: string } | undefined;
+    await notify(
+      db,
+      [String(deal.ownerId), ...(await db.collection<Doc>("members").find({ role: { $in: ["admin", "finance"] }, status: { $ne: "removed" } }).toArray()).map((m) => m._id)],
+      { kind: "accepted", text: signed ? `${deal.title}: ${signed.name} signed quotation ${q.number} online — booking confirmed` : `${deal.title}: quotation ${q.number} accepted — booking confirmed`, link: `/deals/${deal._id}` },
+      actorId,
+    );
+  }
+
+  /* ---------- Online signing: the client accepts a quotation as a service agreement ---------- */
+  const signLinks = db.collection<{ _id: string; quoteId: string; createdAt: string; createdBy: string }>("signLinks");
+  const quotesCol = db.collection<Doc>("quotes");
+  /** Same rule as changing the quotation: full sales access, or Sales on their own quotations. */
+  const mayShareQuote = (req: FastifyRequest, q: Doc) => {
+    const a = access(req, "sales");
+    return a === "edit" || (a === "own" && q.ownerId === req.member._id);
+  };
+  app.post<{ Params: { id: string } }>("/quotes/:id/sign-link", async (req, reply) => {
+    const { origin: site, reset } = z.object({ origin, reset: z.boolean().optional() }).parse(req.body);
+    const q = await quotesCol.findOne({ _id: req.params.id });
+    if (!q) return reply.code(404).send({ error: "Not found" });
+    if (!mayShareQuote(req, q)) return reply.code(403).send({ error: denied(req, "sales") });
+    if (q.status === "accepted" || q.status === "declined") return reply.code(409).send({ error: `This quotation is already ${q.status}` });
+    if (!(q.lines as unknown[]).length) return reply.code(409).send({ error: "Add at least one package or item first" });
+    if (reset) await signLinks.deleteMany({ quoteId: q._id });
+    let link = await signLinks.findOne({ quoteId: q._id });
+    if (!link) await signLinks.insertOne((link = { _id: newVerifyToken() + newVerifyToken(), quoteId: q._id, createdAt: now(), createdBy: req.member._id }));
+    if (q.status === "draft") await quotesCol.updateOne({ _id: q._id }, { $set: { status: "sent" } });
+    return { url: `${site}/sign/${link._id}`, createdAt: link.createdAt };
+  });
+  app.delete<{ Params: { id: string } }>("/quotes/:id/sign-link", async (req, reply) => {
+    const q = await quotesCol.findOne({ _id: req.params.id });
+    if (!q) return reply.code(404).send({ error: "Not found" });
+    if (!mayShareQuote(req, q)) return reply.code(403).send({ error: denied(req, "sales") });
+    await signLinks.deleteMany({ quoteId: q._id });
+    return reply.code(204).send();
+  });
+
+  const signToken = z.string().regex(/^[\w-]{40,80}$/);
+  const quoteBySignToken = async (token: string) => {
+    const t = signToken.safeParse(token);
+    const link = t.success ? await signLinks.findOne({ _id: t.data }) : null;
+    return link ? quotesCol.findOne({ _id: link.quoteId }) : null;
+  };
+  app.get<{ Params: { token: string } }>("/public/sign/:token", async (req, reply) => {
+    const q = await quoteBySignToken(req.params.token);
+    if (!q) return reply.code(404).send({ error: "This link is no longer active. Ask the studio for a new one." });
+    const w = await getWorkspace();
+    const company = await db.collection<Doc>("companies").findOne({ _id: String(q.companyId) });
+    const deal = q.dealId ? await db.collection<Doc>("deals").findOne({ _id: String(q.dealId) }) : null;
+    const signature = q.signature as { name: string; at: string } | undefined;
+    return reply.header("cache-control", "private, no-store").send({
+      studio: { name: w.studioName, legalName: w.legalName, gstin: w.gstin, address: w.address, email: w.enquiryEmail || undefined, whatsapp: w.whatsappNumber || undefined },
+      client: { name: company?.name ?? "", address: company?.address ?? "", gstin: company?.gstin ?? "", city: company?.city ?? "" },
+      deal: deal ? { title: deal.title, eventDate: deal.eventDate } : undefined,
+      quote: { id: q._id, number: q.number, business: q.business, createdAt: q.createdAt, validUntil: q.validUntil, supply: q.supply, lines: q.lines, terms: q.terms, schedule: q.schedule, status: q.status },
+      fingerprint: quoteFingerprint(q),
+      ...(signature && { signature: { name: signature.name, at: signature.at } }),
+    });
+  });
+  app.post<{ Params: { token: string } }>("/public/sign/:token", async (req, reply) => {
+    const q = await quoteBySignToken(req.params.token);
+    if (!q) return reply.code(404).send({ error: "This link is no longer active. Ask the studio for a new one." });
+    const input = z
+      .object({
+        name: z.string().trim().min(3, "Type your full name").max(80),
+        email: z.string().trim().toLowerCase().email("Check the email address").max(120).optional(),
+        phone: z.string().trim().max(20).optional(),
+        agree: z.literal(true, { error: "Tick the box to agree" }),
+        fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+      })
+      .parse(req.body);
+    if (q.signature) return reply.code(409).send({ error: "This agreement is already signed" });
+    if (q.status === "accepted" || q.status === "declined") return reply.code(409).send({ error: `This quotation is already ${q.status}. Ask the studio for a new one.` });
+    if (String(q.validUntil) < istDay(new Date())) return reply.code(409).send({ error: "This quotation has expired. Ask the studio for an updated one." });
+    // The client signs exactly what they read: a change since the page loaded stops the signature.
+    if (input.fingerprint !== quoteFingerprint(q)) return reply.code(409).send({ error: "The studio has changed this quotation since you opened it. Reload the page to see the latest version." });
+    const forwarded = String(req.headers["x-forwarded-for"] ?? "").split(",")[0]!.trim();
+    const signature = {
+      name: input.name,
+      ...(input.email && { email: input.email }),
+      ...(input.phone && { phone: input.phone }),
+      at: now(),
+      ip: forwarded || req.ip,
+      userAgent: String(req.headers["user-agent"] ?? "").slice(0, 300),
+      fingerprint: input.fingerprint,
+      method: "Online acceptance (typed name + consent), IT Act 2000 §10A",
+    };
+    // Only one signature can win, even if the page is submitted twice.
+    const saved = await quotesCol.findOneAndUpdate({ _id: q._id, signature: { $exists: false }, status: { $nin: ["accepted", "declined"] } }, { $set: { signature, status: "accepted" } }, { returnDocument: "after" });
+    if (!saved) return reply.code(409).send({ error: "This agreement is already signed" });
+    if (saved.dealId)
+      await db.collection<Doc>("activities").insertOne({ _id: new ObjectId().toHexString(), type: "note", dealId: saved.dealId, companyId: saved.companyId, actorId: "client", at: signature.at, text: `signed quotation ${saved.number} online as ${signature.name}` });
+    await applyAcceptedQuote(saved);
+    await signLinks.deleteMany({ quoteId: q._id }); // a signed link can't be reused
+    return { ok: true, signature: { name: signature.name, at: signature.at } };
   });
 
   /** Payment schedule of a deal: Sales on their own deals, or Finance. Stages already invoiced stay as they are. */
