@@ -1,24 +1,23 @@
-import { fmtAgo, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
-import { Avatar, Button, ChannelChip, Input, Menu, MenuContent, MenuItem, MenuTrigger, MoneyText, Select, Sheet, Textarea, toast } from "@pinnacle/ui";
+import { fmtAgo, BUSINESS_LABEL, BUSINESSES, type Business, fmtDay } from "@pinnacle/shared";
+import { Avatar, Button, Input, Menu, MenuContent, MenuItem, MenuTrigger, MoneyText, Select, Textarea, toast, Segmented } from "@pinnacle/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Building2, ChevronDown, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
 import { BulkButton, DataTable } from "../../components/data-table";
-import { Timeline } from "../../components/deal/timeline";
 import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
 import { isOpen } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
 import { useCanEdit, useCrm, useIsManager } from "../../data/store";
 import type { Company, Deal } from "../../data/types";
-import { changeStage } from "../../lib/actions";
 import { DealStage } from "../../components/deal/deal-stage";
 import { runFor, stageRank } from "../../data/pipeline";
 import { api, ApiError } from "../../lib/api";
-import { useCreateAction } from "../../lib/hooks";
+import { useCreateAction, usePref } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 
-type Row = Company & { best?: Deal; openValue: number; ownerName: string; last: number };
+type Row = Company & { isClient: boolean; best?: Deal; openValue: number; ownerName: string; last: number };
 const TAGS = ["Priority", "Retainer", "Rebrand", "Films", "Packaging", "At risk"];
 
 export const Monogram = ({ name }: { name: string }) => (
@@ -28,7 +27,9 @@ export const Monogram = ({ name }: { name: string }) => (
 export function CompaniesRoute() {
   const isManager = useIsManager();
   const s = useCrm();
-  const [openId, setOpenId] = useState<string>();
+  const navigate = useNavigate();
+  // Clients = at least one confirmed deal; prospects = not yet.
+  const [show, setShow] = usePref<"clients" | "prospects" | "all">("clients.show", "clients");
   useCreateAction(() => useUi.getState().openComposer("company"));
 
   const rows: Row[] = useMemo(
@@ -39,6 +40,7 @@ export function CompaniesRoute() {
         const best = [...(open.length ? open : deals)].sort((a, b) => stageRank(s.pipelines, b) - stageRank(s.pipelines, a) || b.valuePaise - a.valuePaise)[0];
         return {
           ...c,
+          isClient: !!c.clientSince || deals.some((d) => d.stage === "won"),
           best,
           openValue: open.reduce((a, d) => a + d.valuePaise, 0),
           ownerName: s.members.find((m) => m.id === c.ownerId)?.name ?? "",
@@ -51,7 +53,7 @@ export function CompaniesRoute() {
   const columns: ColumnDef<Row, unknown>[] = [
     {
       id: "name",
-      header: "Company",
+      header: "Client",
       accessorKey: "name",
       enableHiding: false,
       cell: ({ row: { original: c } }) => (
@@ -64,6 +66,7 @@ export function CompaniesRoute() {
         </span>
       ),
     },
+    { id: "since", header: "Client since", accessorFn: (r) => r.clientSince ?? "", cell: ({ row: { original: c } }) => (c.clientSince ? <span className="font-mono text-[12px] text-ink-2">{fmtDay(c.clientSince)}</span> : <span className="text-ink-3">{c.isClient ? "—" : "Prospect"}</span>) },
     { id: "stage", header: "Best deal", accessorFn: (r) => (r.best ? stageRank(s.pipelines, r.best) : -1), cell: ({ row: { original: c } }) => (c.best ? <DealStage deal={c.best} /> : <span className="text-ink-3">—</span>) },
     { id: "value", header: "Open value", accessorKey: "openValue", meta: { align: "right" }, cell: ({ row: { original: c } }) => (c.openValue ? <MoneyText paise={c.openValue} /> : <span className="text-ink-3">—</span>) },
     { id: "owner", header: "Owner", accessorKey: "ownerName", cell: ({ row: { original: c } }) => <span className="flex items-center gap-2"><Avatar name={c.ownerName} me={c.ownerId === ME_ID} /> <span className="text-ink-2">{c.ownerName}</span></span> },
@@ -81,27 +84,28 @@ export function CompaniesRoute() {
     },
   ];
 
-  const open = rows.find((r) => r.id === openId);
+  const visibleRows = rows.filter((r) => show === "all" || (show === "clients") === r.isClient);
 
   return (
     <>
       <PageHeader
-        eyebrow={`${rows.length} accounts`}
-        title="Companies"
+        eyebrow={`${rows.filter((r) => r.isClient).length} clients · ${rows.filter((r) => !r.isClient).length} prospects`}
+        title="Clients"
         actions={
           <>
+            <Segmented label="Show" value={show} onChange={setShow} options={[{ value: "clients", label: "Clients" }, { value: "prospects", label: "Prospects" }, { value: "all", label: "All" }]} />
             <Button onClick={() => useUi.getState().openComposer("deal")}>New lead</Button>
-            <Button variant="ink" onClick={() => useUi.getState().openComposer("company")}><Plus strokeWidth={1.5} /> New company</Button>
+            <Button variant="ink" onClick={() => useUi.getState().openComposer("company")}><Plus strokeWidth={1.5} /> New client</Button>
           </>
         }
       />
       <DataTable
-        data={rows}
+        data={visibleRows}
         columns={columns}
-        noun={["company", "companies"]}
-        searchPlaceholder="Search companies, domains, cities"
+        noun={["client", "clients"]}
+        searchPlaceholder="Search clients, couples, cities"
         initialSort={[{ id: "value", desc: true }]}
-        onRowClick={(r) => setOpenId(r.id)}
+        onRowClick={(r) => navigate(`/clients/${r.id}`)}
         empty={<EmptyState icon={Building2} title="No companies match" body="Companies are created when you convert a lead or add a deal. Try a different search." />}
         bulkActions={!isManager ? undefined : (ids, clear) => (
           <>
@@ -147,9 +151,6 @@ export function CompaniesRoute() {
         )}
       />
 
-      <Sheet open={!!open} onOpenChange={(o) => !o && setOpenId(undefined)} eyebrow="Company" title={open?.name ?? ""}>
-        {open && <CompanyDetail c={open} />}
-      </Sheet>
     </>
   );
 }
@@ -164,7 +165,8 @@ const EDITABLE = [
 ] as const;
 type EditableKey = (typeof EDITABLE)[number]["key"];
 
-function CompanyDetail({ c }: { c: Row }) {
+/** A client's details with Edit (business, website, GSTIN, billing address…). Used on the client page. */
+export function ClientDetails({ c }: { c: Company }) {
   const s = useCrm();
   const canEdit = useCanEdit(c.ownerId);
   const [editing, setEditing] = useState(false);
@@ -172,9 +174,7 @@ function CompanyDetail({ c }: { c: Row }) {
   const [business, setBusiness] = useState<Business | "">("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const deals = s.deals.filter((d) => d.companyId === c.id);
-  const contacts = s.contacts.filter((x) => x.companyId === c.id);
-  const acts = s.activities.filter((a) => a.companyId === c.id);
+  const ownerName = s.members.find((m) => m.id === c.ownerId)?.name ?? "Unassigned";
   const startEditing = () => {
     setForm(Object.fromEntries(EDITABLE.map((f) => [f.key, c[f.key] ?? ""])) as Record<EditableKey, string>);
     setBusiness(c.business ?? "");
@@ -237,45 +237,9 @@ function CompanyDetail({ c }: { c: Row }) {
         <dt className="text-ink-3">City</dt><dd className="m-0">{c.city || "—"}</dd>
         <dt className="text-ink-3">GSTIN</dt><dd className="m-0 font-mono text-[12.5px]">{c.gstin || "Unregistered"}</dd>
         <dt className="text-ink-3">Billing address</dt><dd className="m-0 whitespace-pre-line">{c.address || <span className="text-ink-3">Not added yet</span>}</dd>
-        <dt className="text-ink-3">Owner</dt><dd className="m-0">{c.ownerName}</dd>
+        <dt className="text-ink-3">Owner</dt><dd className="m-0">{ownerName}</dd>
       </dl>
       {canEdit && <Button size="sm" className="-mt-3 self-start" onClick={startEditing}>Edit details</Button>}
-      <section>
-        <h3 className="t-eyebrow m-0 mb-2 text-ink-3">Deals · {deals.length}</h3>
-        <ul className="m-0 list-none p-0">
-          {deals.map((d) => (
-            <li key={d.id}>
-              <button onClick={() => useUi.getState().openDeal(d.id)} className="flex w-full items-center gap-3 border-b border-line py-2.5 text-left hover:bg-hover">
-                <span className="min-w-0 flex-1">
-                  <span className="t-dense block font-medium">{d.title}</span>
-                  <DealStage deal={d} />
-                </span>
-                <ChannelChip channel={d.channel} />
-                <MoneyText paise={d.valuePaise} />
-              </button>
-            </li>
-          ))}
-        </ul>
-        {deals.some(isOpen) && (
-          <Button size="sm" variant="ghost" className="mt-2" onClick={() => changeStage(deals.find(isOpen)!.id, "won")}>Mark best open deal as won</Button>
-        )}
-      </section>
-      <section>
-        <h3 className="t-eyebrow m-0 mb-2 text-ink-3">People · {contacts.length}</h3>
-        <ul className="m-0 list-none p-0">
-          {contacts.map((p) => (
-            <li key={p.id} className="flex items-center gap-2.5 border-b border-line py-2 last:border-0">
-              <Avatar name={p.name} />
-              <span className="t-dense">{p.name}</span>
-              <span className="text-[11.5px] text-ink-3">{p.title}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-      <section>
-        <h3 className="t-eyebrow m-0 mb-3 text-ink-3">Activity</h3>
-        <Timeline items={acts} showSubject />
-      </section>
     </div>
   );
 }

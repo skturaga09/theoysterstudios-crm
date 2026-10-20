@@ -27,7 +27,7 @@ export const NAV: NavSection[] = [
   {
     label: "Records",
     items: [
-      { to: "/companies", label: "Companies", icon: Building2, count: "companies" },
+      { to: "/clients", label: "Clients", icon: Building2, count: "companies" },
       { to: "/contacts", label: "Contacts", icon: Users, count: "contacts" },
       { to: "/invoices", label: "Invoices", icon: FileText, count: "invoices" },
     ],

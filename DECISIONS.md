@@ -189,3 +189,10 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   service, budget, location, event date (photography), requirements and `nextFollowUpAt`. New sources: phone,
   google, event, other. Home → Lead follow-ups (Overdue / Today / Upcoming 7 days, by IST day); logging a call,
   WhatsApp or email sets the next follow-up; Done on the deal clears it. Clearing optional fields: PATCH `null`.
+- **Clients:** a client is the same company/couple record the lead created — no second record. When any of its
+  deals reaches won, the API sets `clientSince` (once; later wins don't move it) and the screen says
+  "<name> is now a client". Companies became **Clients** (`/clients`, `/companies` redirects) with Clients /
+  Prospects / All. The client page (`/clients/:id`) joins details, contacts, money (confirmed, invoiced, received,
+  pending, next due), services purchased, open leads, invoices, open tasks, team, file links (`links`: Drive
+  folders etc., big files stay outside) and a single history (enquiry, first message, everything logged,
+  payments, credit notes).

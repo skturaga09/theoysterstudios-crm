@@ -15,7 +15,16 @@ const ICON = {
   invoice: FileText,
 } as const;
 
-export function Timeline({ items, showSubject = false }: { items: Activity[]; showSubject?: boolean }) {
+export function Timeline({
+  items,
+  showSubject = false,
+  actorName,
+}: {
+  items: Activity[];
+  showSubject?: boolean;
+  /** Names for actors who aren't teammates (e.g. the client); "" shows the sentence alone. */
+  actorName?: (actorId: string) => string | undefined;
+}) {
   const members = useCrm((s) => s.members);
   const deals = useCrm((s) => s.deals);
   if (!items.length) return <p className="t-meta m-0 py-4 text-ink-3">No activity yet. Notes, emails, calls and stage changes will appear here.</p>;
@@ -33,7 +42,10 @@ export function Timeline({ items, showSubject = false }: { items: Activity[]; sh
             </span>
             <div className="min-w-0 flex-1 pt-0.5">
               <p className="t-dense m-0 text-ink-2">
-                <span className="font-medium text-ink">{who?.name ?? (a.actorId === "support" ? "Support" : a.actorId === "calendar" ? "Calendar" : "Someone")}</span> {a.text}
+                {(() => {
+                  const name = who?.name ?? actorName?.(a.actorId) ?? (a.actorId === "support" ? "Support" : a.actorId === "calendar" ? "Calendar" : "Someone");
+                  return name ? <><span className="font-medium text-ink">{name}</span> {a.text}</> : <span className="text-ink">{a.text}</span>;
+                })()}
                 {deal && <span className="text-ink-3"> · {deal.title}</span>}
               </p>
               <p className="m-0 mt-0.5 flex items-center gap-1.5 font-mono text-[11px] text-ink-3">{fmtAgo(a.at)}</p>

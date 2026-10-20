@@ -378,11 +378,14 @@ export function buildApp({
       owned = false,
       scope,
       check,
+      after,
     }: {
       owned?: boolean;
       scope?: (req: FastifyRequest, ownDeals: string[]) => Filter<Doc>;
       /** Validates (and may complete) a create or change against the record as it would end up; returns an error message. */
       check?: (next: Record<string, unknown>, existing?: Doc) => Promise<string | undefined>;
+      /** Runs after a create or change is saved (e.g. a confirmed deal makes its company a client). */
+      after?: (saved: Doc) => Promise<void>;
     } = {},
   ) {
     const col = db.collection<Doc>(name);
@@ -412,6 +415,7 @@ export function buildApp({
       if (invalid) return reply.code(422).send({ error: invalid });
       const doc: Doc = { _id: new ObjectId().toHexString(), ...defaults(), ...body };
       await col.insertOne(doc);
+      await after?.(doc);
       return reply.code(201).send(out(doc));
     });
     app.patch<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
@@ -428,7 +432,9 @@ export function buildApp({
       const unset = Object.entries(changes).filter(([, v]) => v === null);
       if (set.length) mod.$set = Object.fromEntries(set);
       if (unset.length) mod.$unset = Object.fromEntries(unset.map(([k]) => [k, true as const]));
-      return out((await col.findOneAndUpdate({ _id: existing._id }, mod, { returnDocument: "after" }))!);
+      const saved = (await col.findOneAndUpdate({ _id: existing._id }, mod, { returnDocument: "after" }))!;
+      await after?.(saved);
+      return out(saved);
     });
     app.delete<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
       const existing = await col.findOne({ _id: req.params.id });
@@ -477,6 +483,11 @@ export function buildApp({
       if (!stage) return `"${stageId}" isn't a stage in the ${business} pipeline`;
       if (stage.kind === "won" && !next.wonAt && !existing?.wonAt) next.wonAt = now();
       return undefined;
+    },
+    // A lead that's confirmed makes its company (or couple) a client — no need to create the client again.
+    after: async (deal) => {
+      if (deal.stage === "won" && deal.companyId)
+        await db.collection<Doc>("companies").updateOne({ _id: String(deal.companyId), clientSince: { $exists: false } }, { $set: { clientSince: String(deal.wonAt ?? now()) } });
     },
   });
   records("tasks", CreateTaskSchema, UpdateTaskSchema, () => ({ done: false }), {

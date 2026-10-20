@@ -513,6 +513,22 @@ describe("api", () => {
     await call("PUT", "/pipelines", pipes);
   });
 
+  it("makes a company a client when one of its deals is confirmed; keeps file links", async () => {
+    const co = (await call("POST", "/companies", { name: "Riya & Arjun", ownerId: "sr", business: "photography" })).json();
+    expect(co.clientSince).toBeUndefined();
+    const d = (await call("POST", "/deals", { title: "Wedding photography", companyId: co.id, valuePaise: 1, closeAt: "2027-02-14T00:00:00+05:30", ownerId: "sr", channel: "instagram", business: "photography", stage: "proposal" })).json();
+    expect((await call("GET", `/companies/${co.id}`)).json().clientSince).toBeUndefined();
+    await call("PATCH", `/deals/${d.id}`, { stage: "won" });
+    const since = (await call("GET", `/companies/${co.id}`)).json().clientSince;
+    expect(since).toBeTruthy();
+    // A second confirmed deal doesn't move the "client since" date.
+    const d2 = (await call("POST", "/deals", { title: "Album", companyId: co.id, valuePaise: 1, closeAt: "2027-03-01T00:00:00+05:30", ownerId: "sr", channel: "instagram", business: "photography", stage: "won" })).json();
+    expect(d2.wonAt).toBeTruthy();
+    expect((await call("GET", `/companies/${co.id}`)).json().clientSince).toBe(since);
+    expect((await call("PATCH", `/companies/${co.id}`, { links: [{ label: "Drive folder", url: "https://drive.google.com/drive/folders/abc" }] })).json().links).toHaveLength(1);
+    expect((await call("PATCH", `/companies/${co.id}`, { links: [{ label: "Bad", url: "drive folder" }] })).statusCode).toBe(400);
+  });
+
   it("deletes records and keeps a deal's board position", async () => {
     const d = (await call("POST", "/deals", { title: "Film", companyId: "c1", valuePaise: 1, closeAt: "2026-11-30T00:00:00+05:30", ownerId: "sr", channel: "web", position: 3 })).json();
     expect(d.position).toBe(3);

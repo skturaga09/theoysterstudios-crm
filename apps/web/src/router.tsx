@@ -19,7 +19,10 @@ const routes: RouteObject[] = [
       { path: "pipeline", lazy: async () => ({ Component: (await import("./routes/pipeline/index")).PipelineRoute }) },
       { path: "deals/:id", lazy: async () => ({ Component: (await import("./routes/deal/index")).DealRoute }) },
       { path: "tasks", lazy: async () => ({ Component: (await import("./routes/tasks/index")).TasksRoute }) },
-      { path: "companies", lazy: async () => ({ Component: (await import("./routes/records/companies")).CompaniesRoute }) },
+      { path: "clients", lazy: async () => ({ Component: (await import("./routes/records/companies")).CompaniesRoute }) },
+      { path: "clients/:id", lazy: async () => ({ Component: (await import("./routes/records/client")).ClientRoute }) },
+      // Companies became Clients; old links still work.
+      { path: "companies", element: <Navigate to="/clients" replace /> },
       { path: "contacts", lazy: async () => ({ Component: (await import("./routes/records/contacts")).ContactsRoute }) },
       { path: "invoices", lazy: async () => ({ Component: (await import("./routes/invoices/index")).InvoicesRoute }) },
       { path: "reports", lazy: async () => ({ Component: (await import("./routes/reports/index")).ReportsRoute }) },

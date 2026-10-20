@@ -195,7 +195,14 @@ const raw = create<CrmState>((set, get) => ({
             text: stage === "won" ? `confirmed ${deal.title} · ${formatCompact(deal.valuePaise)}` : `moved ${deal.title} to ${stageIn(get().pipelines, deal.business, stage).label}`,
           })
         : undefined;
-    set({ deals, activities: entry ? [entry.activity, ...prevActs] : prevActs });
+    // Confirmed: the company (or couple) becomes a client — the API records it too.
+    const becameClient = stage === "won" && get().companies.find((c) => c.id === deal.companyId && !c.clientSince);
+    set({
+      deals,
+      activities: entry ? [entry.activity, ...prevActs] : prevActs,
+      ...(becameClient && { companies: get().companies.map((c) => (c.id === deal.companyId ? { ...c, clientSince: now() } : c)) }),
+    });
+    if (becameClient) toast(`${becameClient.name} is now a client`);
     const rollback = () => {
       set({ deals: prev, activities: get().activities.filter((a) => a.id !== entry?.activity.id) });
       entry?.remove();

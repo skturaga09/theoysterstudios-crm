@@ -51,6 +51,11 @@ export const CreateCompanySchema = z.object({
   address: z.string().trim().max(300).optional(),
   employees: z.number().int().positive().optional(),
   business: BusinessSchema.optional(),
+  /** Files and documents kept elsewhere (Google Drive folders, contracts, shot lists…). */
+  links: z
+    .array(z.object({ label: z.string().trim().min(1, "Name the link").max(80), url: z.string().trim().url("Enter a full web address, starting https://").max(2000) }))
+    .max(50)
+    .optional(),
 });
 export const UpdateCompanySchema = CreateCompanySchema.partial();
 

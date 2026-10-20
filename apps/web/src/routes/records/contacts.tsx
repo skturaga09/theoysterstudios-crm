@@ -3,7 +3,7 @@ import { Avatar, Button, ChannelChip, Menu, MenuContent, MenuItem, MenuTrigger, 
 import type { ColumnDef } from "@tanstack/react-table";
 import { ChevronDown, Download, Plus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { BulkButton, DataTable } from "../../components/data-table";
 import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
@@ -52,7 +52,17 @@ export function ContactsRoute() {
         </span>
       ),
     },
-    { id: "company", header: "Company", accessorKey: "company" },
+    {
+      id: "company",
+      header: "Client",
+      accessorKey: "company",
+      cell: ({ row: { original: c } }) =>
+        c.companyId ? (
+          <Link to={`/clients/${c.companyId}`} onClick={(e) => e.stopPropagation()} className="hover:underline">{c.company}</Link>
+        ) : (
+          <span className="text-ink-3">—</span>
+        ),
+    },
     { id: "reach", header: "Email / phone", accessorKey: "reach", cell: ({ getValue }) => <span className="font-mono text-[12px] text-ink-2">{String(getValue())}</span> },
     { id: "source", header: "Source", accessorKey: "source", cell: ({ row: { original: c } }) => <ChannelChip channel={c.source} /> },
     { id: "city", header: "City", accessorKey: "city", cell: ({ getValue }) => <span className="text-ink-2">{String(getValue())}</span> },
@@ -116,7 +126,7 @@ export function ContactsRoute() {
           <div className="flex flex-col gap-6">
             <dl className="m-0 grid grid-cols-[110px_1fr] gap-y-2.5 t-dense">
               <dt className="text-ink-3">Title</dt><dd className="m-0">{open.title}</dd>
-              <dt className="text-ink-3">Company</dt><dd className="m-0">{open.company}</dd>
+              <dt className="text-ink-3">Client</dt><dd className="m-0">{open.companyId ? <Link to={`/clients/${open.companyId}`} className="hover:underline">{open.company}</Link> : "—"}</dd>
               {open.email && <><dt className="text-ink-3">Email</dt><dd className="m-0 font-mono text-[12.5px]">{open.email}</dd></>}
               {open.phone && <><dt className="text-ink-3">Phone</dt><dd className="m-0 font-mono text-[12.5px]">{open.phone}</dd></>}
               {open.handle && <><dt className="text-ink-3">Handle</dt><dd className="m-0 font-mono text-[12.5px]">{open.handle}</dd></>}

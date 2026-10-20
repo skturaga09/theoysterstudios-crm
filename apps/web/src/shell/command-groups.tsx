@@ -32,7 +32,7 @@ export function useCommandGroups(): CommandGroup[] {
       items: [
         { id: "a-deal", label: "New lead", icon: <Plus strokeWidth={1.5} />, hint: "C", onSelect: () => useUi.getState().openComposer("deal") },
         { id: "a-call", label: "Log call", icon: <Phone strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("call") },
-        { id: "a-company", label: "New company", icon: <Building2 strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("company") },
+        { id: "a-company", label: "New client", icon: <Building2 strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("company") },
         { id: "a-contact", label: "New contact", icon: <User strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("contact") },
         { id: "a-invoice", label: "New invoice", icon: <FileText strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("invoice") },
         { id: "a-task", label: "Add task", icon: <CheckSquare strokeWidth={1.5} />, onSelect: () => useUi.getState().openComposer("task") },
@@ -60,14 +60,14 @@ export function useCommandGroups(): CommandGroup[] {
       })),
     },
     {
-      heading: "Companies",
+      heading: "Clients",
       items: s.companies.map((c) => ({
         id: c.id,
         label: c.name,
         keywords: [c.domain, c.city],
         icon: <Building2 strokeWidth={1.5} />,
         hint: c.city,
-        onSelect: () => go(`/companies?q=${encodeURIComponent(c.name)}`),
+        onSelect: () => go(`/clients/${c.id}`),
       })),
     },
     {

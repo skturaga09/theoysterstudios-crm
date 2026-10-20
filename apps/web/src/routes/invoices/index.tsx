@@ -164,7 +164,7 @@ function InvoiceDetail({ inv }: { inv: Invoice }) {
         </div>
         <div>
           <div className="t-eyebrow mb-1.5 text-ink-3">Bill to</div>
-          <div className="font-medium">{to.name}</div>
+          <div className="font-medium">{co ? <Link to={`/clients/${co.id}`} className="hover:underline">{to.name}</Link> : to.name}</div>
           {to.address && <div className="text-[12px] whitespace-pre-line text-ink-2">{to.address}</div>}
           {!to.address && to.city && <div className="text-[12px] text-ink-2">{to.city}</div>}
           <div className="mt-1 font-mono text-[11.5px] text-ink-2">GSTIN {to.gstin || "Unregistered"}</div>

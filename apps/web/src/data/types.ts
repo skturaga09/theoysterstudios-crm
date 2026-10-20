@@ -28,6 +28,10 @@ export type Company = {
   gstin?: string;
   /** Billing address, printed under "Bill to" on invoices. */
   address?: string;
+  /** Set when their first deal is confirmed — they're a client from then on. */
+  clientSince?: ISO;
+  /** Files and documents kept elsewhere (Drive folders, contracts, shot lists…). */
+  links?: { label: string; url: string }[];
   employees?: number;
 };
 

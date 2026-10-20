@@ -18,7 +18,7 @@ import {
 import { FileText, MoreHorizontal, Paperclip } from "lucide-react";
 import { motion } from "motion/react";
 import { useState, type ReactNode } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { invoiceStatus, invoiceTotals } from "../../data/derive";
 import { probabilityOf } from "../../data/pipeline";
 import { useCanEdit, useCrm, useIsManager } from "../../data/store";
@@ -225,8 +225,14 @@ export function DealProperties({ deal }: { deal: Deal }) {
       <Prop label="Source">
         <span className="flex items-center gap-2"><ChannelChip channel={deal.channel} /> {CHANNEL_LABEL[deal.channel]}</span>
       </Prop>
-      <Prop label="Company">
-        <span className="truncate">{company?.name} <span className="font-mono text-[11.5px] text-ink-3">{company?.domain}</span></span>
+      <Prop label="Client">
+        {company ? (
+          <Link to={`/clients/${company.id}`} onClick={() => useUi.getState().closeDeal()} className="truncate hover:underline">
+            {company.name}
+          </Link>
+        ) : (
+          <span className="text-ink-3">—</span>
+        )}
       </Prop>
       <Prop label="City">{company?.city}</Prop>
       <Prop label="Created"><span className="font-mono text-[12.5px]">{fmtDate(deal.createdAt)}</span></Prop>

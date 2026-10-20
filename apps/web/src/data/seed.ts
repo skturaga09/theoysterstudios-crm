@@ -349,3 +349,9 @@ DEALS.filter((d) => d.stage !== "won" && d.stage !== "lost")
   .forEach((d, i) => {
     d.nextFollowUpAt = at([-1, 0, 0, 1, 3, 5][i]!, 11);
   });
+
+/* Demo: companies with a confirmed deal are clients since their first one. */
+for (const c of COMPANIES) {
+  const won = DEALS.filter((d) => d.companyId === c.id && d.stage === "won" && d.wonAt).map((d) => d.wonAt!).sort();
+  if (won.length) c.clientSince = won[0];
+}
