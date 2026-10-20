@@ -68,6 +68,8 @@ export type Deal = {
   position: number;
   createdAt: ISO;
   wonAt?: ISO;
+  /** When it was marked Lost (for "lost this month"). */
+  lostAt?: ISO;
   lostReason?: string;
   /** Lead details from the client's brief. */
   service?: string;
@@ -110,6 +112,8 @@ export type Expense = {
   amountPaise: Paise;
   gstPaise: Paise;
   projectId?: ID;
+  /** The client it was spent for (from the project when not chosen). */
+  companyId?: ID;
   receiptUrl?: string;
   createdAt: ISO;
 };
@@ -133,6 +137,8 @@ export type Conversation = {
   unread: boolean;
   lastMessageAt: ISO;
   subject?: string;
+  /** A booking from Google Calendar: when the meeting is. */
+  meetingAt?: ISO;
   extracted?: {
     intent: Intent;
     service: string;
@@ -158,6 +164,8 @@ export type Activity = {
   text: string;
   body?: string;
   at: ISO;
+  /** Meetings from Google Calendar: when the meeting happens (not when it was synced). */
+  meetingAt?: ISO;
 };
 
 export type Task = {
@@ -201,7 +209,14 @@ export type Project = {
   retainerPaise?: number;
   calendarUrl?: string;
   notes?: string;
-  links: { label: string; url: string }[];
+  /** `client: true` = shown to the client in their portal. */
+  links: { label: string; url: string; client?: boolean }[];
+  /** Marketing: campaign details. */
+  campaign?: string;
+  /** Updates shared with the client (newest first). */
+  clientUpdates?: { id: string; body: string; at: ISO; by: string }[];
+  /** Retainer months started ("2026-11"). */
+  cycles?: string[];
   driveFolderId?: string;
   driveFolderError?: string;
   createdAt: ISO;

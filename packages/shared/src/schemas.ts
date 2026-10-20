@@ -256,7 +256,12 @@ export const PipelineSchema = z
 export const PipelinesSchema = z.object({ photography: PipelineSchema, marketing: PipelineSchema });
 
 /* ---------- Projects ---------- */
-const link = z.object({ label: z.string().trim().min(1, "Name the link").max(80), url: z.string().trim().url("Enter a full web address, starting https://").max(2000) });
+const link = z.object({
+  label: z.string().trim().min(1, "Name the link").max(80),
+  url: z.string().trim().url("Enter a full web address, starting https://").max(2000),
+  /** Shown to the client in their portal (contracts, shot lists, galleries); internal files stay off. */
+  client: z.boolean().optional(),
+});
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date");
 const smallId = z.string().trim().min(1).max(40);
 
@@ -287,8 +292,24 @@ export const CreateProjectSchema = z.object({
   calendarUrl: z.string().trim().url().max(2000).optional(),
   notes: optionalText(4000),
   links: z.array(link).max(50).default([]),
+  /** Marketing: campaign details — objectives, platforms, budgets, dates. */
+  campaign: optionalText(4000),
 });
 export const UpdateProjectSchema = patchOf(CreateProjectSchema);
+export const ClientUpdateSchema = z.object({ body: z.string().trim().min(1, "Write the update").max(2000) });
+/** A website enquiry (public form): what a visitor types, plus an empty honeypot field bots tend to fill. */
+export const EnquirySchema = z.object({
+  name: z.string().trim().min(2, "Your name, please").max(80),
+  email: z.string().trim().toLowerCase().email("Check the email address").max(120).optional(),
+  phone: z.string().trim().regex(/^[+\d][\d\s-]{7,18}$/, "Check the phone number").optional(),
+  business: BusinessSchema.optional(),
+  service: optionalText(120),
+  eventDate: day.optional(),
+  location: optionalText(120),
+  budget: optionalText(60),
+  message: z.string().trim().min(5, "Tell us a little about what you need").max(2000),
+  website: z.string().max(0).optional(),
+}).refine((x) => x.email || x.phone, { message: "Leave an email or a phone number so we can reply", path: ["email"] });
 
 export const TaskCommentSchema = z.object({ body: z.string().trim().min(1, "Write a comment").max(2000) });
 
@@ -346,6 +367,8 @@ export const CreateExpenseSchema = z.object({
   amountPaise: z.number().int().positive("Enter an amount above ₹0"),
   gstPaise: money.default(0),
   projectId: id.optional(),
+  /** The client it was spent for, when there is one (taken from the project when not chosen). */
+  companyId: id.optional(),
   receiptUrl: z.string().trim().url("Enter a full web address, starting https://").max(2000).optional(),
 });
 export const UpdateExpenseSchema = patchOf(CreateExpenseSchema);

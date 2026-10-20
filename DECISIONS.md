@@ -349,3 +349,15 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
 - **Tasks by client:** Tasks → Group by → Client: one section (or board column) per client with its open tasks
   in due order and open / overdue / done counts; clients with overdue work first, "Internal (no client)" last.
   A task's client now comes from the task, its project or its deal — checklist tasks were showing as Internal.
+- **Requirements audit (20 Oct 2026):** the brief was rechecked section by section (`docs/REQUIREMENTS_AUDIT.md`)
+  and its gaps built: quotations/agreements on the client page; services, payment schedule, campaign details and
+  monthly retainer cycles (`POST /projects/:id/next-month`) on projects; task start date and attachments; meetings
+  (stored with `meetingAt`), crew names and double-booking warnings on the calendar; next payment due and the
+  team/other cost split; expense client link (filled from the project) and production/editing/office categories;
+  P&L by client and by business; dashboard stage counts, lost this month (`lostAt`), open tasks, this month's
+  expenses and profit, who is free today, workload CSV; outstanding-payments CSV; automatic follow-ups (new lead →
+  tomorrow 11 am; proposal sent → 3 days out); portal documents (`links[].client`), agreements and client updates
+  (`POST /projects/:id/updates`); a public website enquiry form (`/enquire`, `POST /public/enquiry`: honeypot,
+  5 per IP per 10 minutes, routed into Inbox).
+- **Amounts in exact rupees:** every money field takes rupees as people say them ("58,950", "1,18,000.50"), with
+  "2.5L", "75k", "1.2cr" as shorthand (`parseRupees`); the field shows what it read. Lakh-only inputs are gone.

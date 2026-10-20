@@ -648,7 +648,7 @@ describe("api", () => {
     const mp = (await call("GET", `/projects?dealId=${m.id}`)).json()[0];
     expect(mp.events).toEqual([]);
     expect((await call("GET", `/tasks?projectId=${mp.id}`)).json().map((x: { title: string }) => x.title)).toEqual(["Onboarding"]);
-  });
+  }, 60_000); // many round trips against real Firestore
 
   it("quotes from packages; accepting confirms the deal with its payment schedule; stages become invoices; expenses", async () => {
     await call("PUT", "/workspace", { ...(await call("GET", "/workspace")).json(), ...studio });
@@ -884,6 +884,55 @@ describe("api", () => {
     const oldView = (await app.inject({ method: "GET", url: `/public/sign/${oldToken}` })).json();
     expect((await app.inject({ method: "POST", url: `/public/sign/${oldToken}`, payload: { name: "Someone", agree: true, fingerprint: oldView.fingerprint } })).statusCode).toBe(409);
   }, 60_000); // many round trips against real Firestore
+
+  it("closes the brief's gaps: auto follow-ups, expense clients, client updates and documents, monthly retainers, website enquiries", async () => {
+    const day = (n: number) => new Date(Date.now() + 5.5 * 3_600_000 + n * 86_400_000).toISOString().slice(0, 10);
+    // A new lead always gets a follow-up; sending a proposal brings it to 3 days out.
+    const co = (await call("POST", "/companies", { name: "Brewhouse 27", ownerId: "sr", business: "marketing" })).json();
+    const d = (await call("POST", "/deals", { title: "Brewhouse social retainer", companyId: co.id, valuePaise: 1, closeAt: "2027-01-01T00:00:00+05:30", ownerId: "sr", channel: "web", business: "marketing" })).json();
+    expect(d.nextFollowUpAt).toBe(`${day(1)}T11:00:00+05:30`);
+    await call("PATCH", `/deals/${d.id}`, { nextFollowUpAt: `${day(10)}T11:00:00+05:30` });
+    const q = (await call("POST", "/quotes", { companyId: co.id, dealId: d.id, ownerId: "sr", business: "marketing", validUntil: day(30), lines: [{ desc: "Social Growth", sac: "998361", qty: 1, ratePaise: 75_000_00 }] })).json();
+    await call("PATCH", `/quotes/${q.id}`, { status: "sent" });
+    expect((await call("GET", `/deals/${d.id}`)).json().nextFollowUpAt).toBe(`${day(3)}T11:00:00+05:30`);
+
+    // Confirmed: the retainer project; expenses on it count against its client.
+    await call("PATCH", `/deals/${d.id}`, { stage: "won" });
+    const p = (await call("GET", `/projects?dealId=${d.id}`)).json()[0];
+    const e = (await call("POST", "/expenses", { date: day(0), category: "Production", description: "Product shoot props", amountPaise: 3_000_00, projectId: p.id })).json();
+    expect(e).toMatchObject({ companyId: co.id, business: "marketing" });
+
+    // Monthly cycles: the marketing checklist again for a month, once.
+    const before = (await call("GET", `/tasks?projectId=${p.id}`)).json().length;
+    const cycle = (await call("POST", `/projects/${p.id}/next-month`, { month: "2027-02" })).json();
+    expect(cycle).toMatchObject({ month: "2027-02", tasksCreated: before });
+    expect((await call("GET", `/tasks?projectId=${p.id}`)).json().filter((t: { title: string }) => t.title.endsWith("— Feb 2027"))).toHaveLength(before); // the template again, labelled by month
+    expect(cycle.project.cycles).toEqual(["2027-02"]);
+    expect((await call("POST", `/projects/${p.id}/next-month`, { month: "2027-02" })).statusCode).toBe(409);
+    expect((await call("POST", `/projects/${p.id}/next-month`)).json().month).toBe("2027-03"); // the month after the last one
+
+    // Updates and chosen documents reach the client's portal; internal links don't.
+    await call("PATCH", `/projects/${p.id}`, { links: [{ label: "Brand guidelines", url: "https://drive.google.com/b", client: true }, { label: "Internal pricing sheet", url: "https://drive.google.com/x" }], campaign: "Diwali push: Meta + Google, ₹50k/month" });
+    expect((await call("POST", `/projects/${p.id}/updates`, { body: "October calendar is ready for your review." })).statusCode).toBe(201);
+    const { token } = (await call("POST", `/projects/${p.id}/portal`, { origin: "https://crm.example" })).json();
+    const portal = (await app.inject({ method: "GET", url: `/public/portal/${token}` })).json();
+    expect(portal.updates[0].body).toBe("October calendar is ready for your review.");
+    expect(portal.documents).toEqual([{ label: "Brand guidelines", url: "https://drive.google.com/b" }]);
+    expect(JSON.stringify(portal)).not.toContain("Internal pricing sheet");
+
+    // Website enquiries land in Inbox as routed leads; bots and floods don't.
+    const enquire = (payload: object, ip = "198.51.100.7") => app.inject({ method: "POST", url: "/public/enquiry", payload, headers: { "x-forwarded-for": ip } });
+    expect((await enquire({ name: "Kiara", message: "Need a wedding film in Feb" })).statusCode).toBe(400); // email or phone needed
+    expect((await enquire({ name: "Kiara", email: "kiara@example.com", business: "photography", service: "Wedding film", eventDate: "2027-02-14", message: "Need a wedding film in Feb" })).statusCode).toBe(201);
+    expect((await enquire({ name: "Bot", email: "bot@spam.example", message: "Buy now cheap", website: "x" })).statusCode).toBe(400); // honeypot must be empty → refused or ignored
+    const conv = (await call("GET", "/conversations")).json().find((c: { channel: string; name: string }) => c.channel === "web" && c.name === "Kiara");
+    expect(conv).toMatchObject({ business: "photography", unread: true, handle: "kiara@example.com" });
+    expect(conv.messages[0].body).toContain("Service: Wedding film · Event date: 2027-02-14");
+    for (let i = 0; i < 4; i++) await enquire({ name: "Flood", phone: "+91 98111 00000", message: "hello there" }, "203.0.113.50");
+    expect((await enquire({ name: "Flood", phone: "+91 98111 00000", message: "hello there" }, "203.0.113.50")).statusCode).toBe(201);
+    expect((await enquire({ name: "Flood", phone: "+91 98111 00000", message: "hello there" }, "203.0.113.50")).statusCode).toBe(429);
+    expect((await app.inject({ method: "GET", url: "/public/enquiry-info" })).json().studioName).toBeTruthy();
+  }, 60_000);
 
   it("deletes records and keeps a deal's board position", async () => {
     const d = (await call("POST", "/deals", { title: "Film", companyId: "c1", valuePaise: 1, closeAt: "2026-11-30T00:00:00+05:30", ownerId: "sr", channel: "web", position: 3 })).json();

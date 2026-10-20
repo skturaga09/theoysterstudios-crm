@@ -4,13 +4,19 @@ import { CalendarDays, Check, ExternalLink, FileText, Mail, MessageCircle } from
 import { useEffect, useState } from "react";
 import { createBrowserRouter, Link, RouterProvider, useParams } from "react-router";
 import { IS_DEMO } from "../../lib/demo";
-import { TaxDocument, type PrintableDoc } from "../invoices/print";
+import { AgreementDocument, TaxDocument, type PrintableDoc } from "../invoices/print";
+import type { Quote } from "../../data/types";
 
 type Approval = { id: string; title: string; dueAt?: string; approval: string; notes: { body: string; at: string; by?: string }[] };
 type PortalInvoice = PrintableDoc & { totalPaise: number; duePaise: number; payUrl?: string };
+type PortalAgreement = Pick<Quote, "id" | "number" | "createdAt" | "supply" | "lines" | "schedule" | "terms"> & { signature?: { name: string; at: string } };
 export type PortalView = {
-  studio: { name: string; email?: string; whatsapp?: string };
-  client: { name: string };
+  studio: { name: string; legalName?: string; address?: string; email?: string; whatsapp?: string };
+  client: { name: string; address?: string };
+  deal?: { title: string; eventDate?: string };
+  updates?: { id: string; body: string; at: string; by: string }[];
+  documents?: { label: string; url: string }[];
+  agreements?: PortalAgreement[];
   project: { name: string; business: Business; status: ProjectStatus; startDate?: string; dueDate?: string; events: { name: string; date?: string; venue?: string }[]; calendarUrl?: string; progress: { done: number; total: number } };
   approvals: Approval[];
   deliverables: { name: string; dueDate?: string; status: string; url?: string }[];
@@ -47,6 +53,8 @@ const SAMPLE: PortalView = {
     { label: "On delivery", amountPaise: 60_000_00, dueDate: "2027-01-26", status: "upcoming" },
   ],
   invoices: [],
+  updates: [{ id: "u1", body: "Your pre-wedding photos are ready — open them under What you'll receive. The shot list for the wedding is waiting for your approval above.", at: new Date(Date.now() - 2 * 86_400_000).toISOString(), by: "Riya V" }],
+  documents: [{ label: "Wedding shot list (draft)", url: "https://example.com/shot-list" }, { label: "Mood board", url: "https://example.com/moodboard" }],
 };
 
 /** The client portal: its own small app at /portal/<link>, no sign-in. The link itself is the key. */
@@ -55,6 +63,7 @@ export function PortalApp() {
     createBrowserRouter([
       { path: "/portal/:token", element: <PortalPage /> },
       { path: "/portal/:token/invoices/:invoiceId", element: <PortalInvoicePage /> },
+      { path: "/portal/:token/agreements/:quoteId", element: <PortalAgreementPage /> },
       { path: "*", element: <Gone /> },
     ]),
   );
@@ -138,6 +147,42 @@ function PortalPage() {
                   <span className="t-dense font-medium">{e.name}</span>
                   {e.venue && <span className="t-meta text-ink-3">{e.venue}</span>}
                   <span className="ml-auto font-mono text-[12px] text-ink-2">{e.date ? fmtDate(e.date) : "Date to confirm"}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {(view.updates?.length ?? 0) > 0 && (
+          <section>
+            <h2 className="t-eyebrow m-0 mb-2 text-ink-2">Latest updates</h2>
+            <ul className="m-0 list-none border-t border-line p-0">
+              {view.updates!.slice(0, 5).map((u) => (
+                <li key={u.id} className="border-b border-line py-3">
+                  <p className="t-dense m-0 whitespace-pre-wrap">{u.body}</p>
+                  <span className="font-mono text-[11px] text-ink-3">{u.by} · {fmtDate(u.at)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {((view.documents?.length ?? 0) > 0 || (view.agreements?.length ?? 0) > 0) && (
+          <section>
+            <h2 className="t-eyebrow m-0 mb-2 text-ink-2">Documents</h2>
+            <ul className="m-0 list-none border-t border-line p-0">
+              {view.agreements?.map((q) => (
+                <li key={q.id} className="flex flex-wrap items-center gap-3 border-b border-line py-2.5">
+                  <FileText size={16} strokeWidth={1.5} className="text-ink-3" />
+                  <span className="t-dense min-w-0 flex-1">Service agreement {q.number}{q.signature && <span className="text-[11.5px] text-ink-3"> · signed by {q.signature.name}</span>}</span>
+                  <Button asChild size="sm" variant="ghost"><Link to={`/portal/${token}/agreements/${q.id}`}>View / PDF</Link></Button>
+                </li>
+              ))}
+              {view.documents?.map((d, i) => (
+                <li key={i} className="flex flex-wrap items-center gap-3 border-b border-line py-2.5">
+                  <ExternalLink size={16} strokeWidth={1.5} className="text-ink-3" />
+                  <span className="t-dense min-w-0 flex-1">{d.label}</span>
+                  <Button asChild size="sm" variant="ghost"><a href={d.url} target="_blank" rel="noreferrer">Open</a></Button>
                 </li>
               ))}
             </ul>
@@ -299,4 +344,27 @@ function PortalInvoicePage() {
   const inv = view?.invoices.find((i) => i.id === invoiceId);
   if (!inv) return <Gone />;
   return <div className={cn("bg-sunken")}><TaxDocument doc={inv} /></div>;
+}
+
+/** A signed or accepted agreement from the portal, laid out exactly as the studio prints it. */
+function PortalAgreementPage() {
+  const { token, quoteId } = useParams();
+  const { view } = usePortal(token);
+  if (view === undefined) return <main className="min-h-dvh bg-bg" />;
+  const q = view?.agreements?.find((x) => x.id === quoteId);
+  if (!view || !q) return <Gone />;
+  return (
+    <main className="min-h-dvh bg-sunken py-6 print:bg-white print:py-0">
+      <div className="mx-auto mb-4 flex w-[210mm] max-w-full items-center gap-2 px-4 print:hidden">
+        <Button asChild variant="ghost" size="sm"><Link to={`/portal/${token}`}>Back</Link></Button>
+        <Button variant="ink" size="sm" className="ml-auto" onClick={() => window.print()}>Print / Save as PDF</Button>
+      </div>
+      <AgreementDocument
+        quote={{ ...q, signature: q.signature && { ...q.signature, ip: "", userAgent: "", fingerprint: "", method: "" } }}
+        studio={view.studio}
+        client={view.client}
+        deal={view.deal}
+      />
+    </main>
+  );
 }

@@ -2,6 +2,7 @@ import { BUSINESS_LABEL, BUSINESS_SHORT, formatFull, invoiceTotals, istDay, prof
 import { Button, Ledger, Select, Table, TBody, TD, TH, THead, toast, TR } from "@pinnacle/ui";
 import { Download, Printer } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router";
 import { Navigate } from "react-router";
 import { PageHeader } from "../../components/page-header";
 import { useAccess, useCrm } from "../../data/store";
@@ -82,6 +83,36 @@ export function ProfitRoute() {
     .map((c) => ({ c, paise: fyExpenses.filter((e) => e.category === c).reduce((a, e) => a + e.amountPaise, 0) }))
     .sort((a, b) => b.paise - a.paise);
 
+  // Client-wise: what each client was invoiced (before GST, after credit notes), paid, still owes, and cost.
+  const clientsRows = s.companies
+    .map((c) => {
+      const inv = invoices.filter((i) => i.companyId === c.id && i.sent && !i.cancelled);
+      const revenue = inv.reduce((a, i) => a + invoiceTotals(i).subtotal - (i.credits ?? []).reduce((x, cr) => x + cr.taxablePaise, 0), 0);
+      const received = inv.reduce((a, i) => a + i.payments.reduce((x, pmt) => x + pmt.amountPaise, 0), 0);
+      const due = inv.reduce((a, i) => a + invoiceTotals(i).due, 0);
+      const cost = s.expenses.filter((e) => e.companyId === c.id).reduce((a, e) => a + e.amountPaise, 0);
+      return { c, revenue, received, due, cost, profit: revenue - cost };
+    })
+    .filter((x) => x.revenue || x.cost || x.due)
+    .sort((a, b) => b.revenue - a.revenue);
+
+  // Photography, marketing and combined for this financial year — always both businesses, whatever the switch shows.
+  const all = useCrm.getState();
+  const allInvoices = all.invoices.map((i) => ({ ...i, business: i.business ?? all.deals.find((d) => d.id === i.dealId)?.business }));
+  const allRows = profitAndLoss({ invoices: allInvoices, creditNotes: all.creditNotes.map((c) => ({ ...c, business: allInvoices.find((i) => i.id === c.invoiceId)?.business })), expenses: all.expenses }).filter((r) => r.month >= fy);
+  const split = (["photography", "marketing"] as const).map((b) => {
+    const rs = allRows.filter((r) => r.business === b);
+    const sum = (k: "revenuePaise" | "expensesPaise" | "profitPaise") => rs.reduce((a, r) => a + r[k], 0);
+    return { label: BUSINESS_LABEL[b], revenue: sum("revenuePaise"), expenses: sum("expensesPaise"), profit: sum("profitPaise") };
+  });
+  const unassigned = allRows.filter((r) => r.business === "none");
+  const combined = {
+    label: "Combined",
+    revenue: allRows.reduce((a, r) => a + r.revenuePaise, 0),
+    expenses: allRows.reduce((a, r) => a + r.expensesPaise, 0),
+    profit: allRows.reduce((a, r) => a + r.profitPaise, 0),
+  };
+
   const projects = s.projects
     .map((p) => {
       const revenue = invoices.filter((i) => i.dealId && i.dealId === p.dealId && i.sent && !i.cancelled).reduce((a, i) => a + invoiceTotals(i).subtotal - (i.credits ?? []).reduce((x, c) => x + c.taxablePaise, 0), 0);
@@ -153,6 +184,63 @@ export function ProfitRoute() {
             {!byMonth.length && <TR interactive={false}><TD colSpan={5} className="text-ink-3">Nothing yet — sent invoices and expenses appear here.</TD></TR>}
           </TBody>
         </Table>
+      </section>
+
+      <section>
+        <h2 className="t-eyebrow m-0 mb-2 text-ink-2">By business · this financial year</h2>
+        <Table className="border-t border-line">
+          <THead>
+            <TR interactive={false}>
+              <TH> </TH>
+              <TH align="right">Revenue</TH>
+              <TH align="right">Expenses</TH>
+              <TH align="right">Profit</TH>
+              <TH align="right">Margin</TH>
+            </TR>
+          </THead>
+          <TBody>
+            {[...split, combined].map((r) => (
+              <TR key={r.label} interactive={false}>
+                <TD className={r.label === "Combined" ? "font-medium" : undefined}>{r.label}</TD>
+                <TD align="right" numeric>{formatFull(r.revenue)}</TD>
+                <TD align="right" numeric>{formatFull(r.expenses)}</TD>
+                <TD align="right" numeric className={r.profit < 0 ? "text-risk" : undefined}>{formatFull(r.profit)}</TD>
+                <TD align="right" numeric className="text-ink-3">{margin(r.profit, r.revenue)}</TD>
+              </TR>
+            ))}
+          </TBody>
+        </Table>
+        {unassigned.length > 0 && <p className="t-meta m-0 mt-2 text-ink-3">Combined includes expenses not tagged to either business (studio overheads such as rent and software).</p>}
+      </section>
+
+      <section>
+        <h2 className="t-eyebrow m-0 mb-2 text-ink-2">By client</h2>
+        <Table className="border-t border-line">
+          <THead>
+            <TR interactive={false}>
+              <TH>Client</TH>
+              <TH align="right">Invoiced</TH>
+              <TH align="right" className="hidden sm:table-cell">Received</TH>
+              <TH align="right">Outstanding</TH>
+              <TH align="right" className="hidden sm:table-cell">Costs</TH>
+              <TH align="right">Profit</TH>
+            </TR>
+          </THead>
+          <TBody>
+            {clientsRows.map(({ c, revenue, received, due, cost, profit }) => (
+              <TR key={c.id} interactive={false}>
+                <TD><Link to={`/clients/${c.id}`} className="hover:underline">{c.name}</Link></TD>
+                <TD align="right" numeric>{formatFull(revenue)}</TD>
+                <TD align="right" numeric className="hidden text-ok sm:table-cell">{formatFull(received)}</TD>
+                <TD align="right" numeric className={due ? "text-warn" : "text-ink-3"}>{formatFull(due)}</TD>
+                <TD align="right" numeric className="hidden sm:table-cell">{formatFull(cost)}</TD>
+                <TD align="right" numeric className={profit < 0 ? "text-risk" : undefined}>{formatFull(profit)}</TD>
+              </TR>
+            ))}
+            {!clientsRows.length && <TR interactive={false}><TD colSpan={6} className="text-ink-3">Sent invoices and client expenses appear here.</TD></TR>}
+          </TBody>
+        </Table>
+        <p className="t-meta m-0 mt-2 text-ink-3">Invoiced and profit before GST; received and outstanding include GST.</p>
       </section>
 
       <div className="grid grid-cols-1 gap-10 xl:grid-cols-2">

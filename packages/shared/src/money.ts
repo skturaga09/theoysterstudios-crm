@@ -65,3 +65,20 @@ export function rupeesInWords(paise: Paise): string {
   const p = paise % 100;
   return `Rupees ${inWords(r)}${p ? ` and ${below100(p)} Paise` : ""} Only`;
 }
+
+/**
+ * What someone typed as an amount → paise. Exact rupees by default ("58,950", "₹58,950.50", "58950"); shorthand
+ * also works: "2.5L" / "2.5 lakh", "75k", "1.2cr". Blank or unreadable → undefined.
+ */
+export function parseRupees(text: string): Paise | undefined {
+  const t = text.toLowerCase().replace(/[₹,\s]/g, "").replace(/^rs\.?/, "");
+  const m = t.match(/^(\d+(?:\.\d+)?)(l|lac|lakh|lakhs|k|cr|crore|crores)?$/);
+  if (!m) return undefined;
+  const n = Number(m[1]);
+  const unit = m[2] ?? "";
+  const scale = unit.startsWith("l") ? 1_00_000 : unit === "k" ? 1_000 : unit.startsWith("cr") ? 1_00_00_000 : 1;
+  return Math.round(n * scale * PAISE_PER_RUPEE);
+}
+
+/** Paise → the rupee amount as typed in a form, with Indian grouping and no ₹: 5895000 → "58,950". */
+export const rupeesText = (paise: Paise) => (paise / PAISE_PER_RUPEE).toLocaleString("en-IN", { maximumFractionDigits: 2 });

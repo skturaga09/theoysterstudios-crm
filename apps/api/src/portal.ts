@@ -11,7 +11,7 @@ export type PortalLink = { _id: string; projectId: string; createdAt: string; cr
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
 
-export async function portalView(db: Db, projectId: string, studio: { studioName: string; enquiryEmail?: string; whatsappNumber?: string }) {
+export async function portalView(db: Db, projectId: string, studio: { studioName: string; legalName?: string; address?: string; enquiryEmail?: string; whatsappNumber?: string }) {
   const project = await db.collection<Doc>("projects").findOne({ _id: projectId });
   if (!project) return null;
   const [company, deal, tasks] = await Promise.all([
@@ -19,13 +19,23 @@ export async function portalView(db: Db, projectId: string, studio: { studioName
     project.dealId ? db.collection<Doc>("deals").findOne({ _id: String(project.dealId) }) : null,
     db.collection<Doc>("tasks").find({ projectId }).sort({ dueAt: 1, _id: 1 }).toArray(), // client items in date order
   ]);
+  // The deal's accepted quotations are the client's agreements (with who signed, when, if signed online).
+  const agreements = deal ? await db.collection<Doc>("quotes").find({ dealId: deal._id, status: "accepted" }).sort({ createdAt: 1 }).toArray() : [];
   const invoices = deal ? await db.collection<Doc>("invoices").find({ dealId: deal._id, sent: true, cancelled: { $ne: true } }).sort({ issuedAt: 1 }).toArray() : [];
   const totals = (i: Doc) => invoiceTotals(i as unknown as InvoiceMath);
   const today = istDay(new Date());
 
   return {
-    studio: { name: studio.studioName, email: studio.enquiryEmail || undefined, whatsapp: studio.whatsappNumber || undefined },
-    client: { name: str(company?.name) ?? "" },
+    studio: { name: studio.studioName, legalName: studio.legalName || undefined, address: studio.address || undefined, email: studio.enquiryEmail || undefined, whatsapp: studio.whatsappNumber || undefined },
+    client: { name: str(company?.name) ?? "", address: str(company?.address) },
+    deal: deal ? { title: String(deal.title), eventDate: str(deal.eventDate) } : undefined,
+    updates: ((project.clientUpdates as { id: string; body: string; at: string; by: string }[] | undefined) ?? []).slice(0, 20),
+    // Only the links the studio marked for the client; internal files (the team's Drive folder etc.) stay hidden.
+    documents: ((project.links as { label: string; url: string; client?: boolean }[] | undefined) ?? []).filter((l) => l.client).map(({ label, url }) => ({ label, url })),
+    agreements: agreements.map((q) => {
+      const sig = q.signature as { name: string; at: string } | undefined;
+      return { id: q._id, number: q.number, createdAt: q.createdAt, supply: q.supply, lines: q.lines, schedule: q.schedule, terms: q.terms ?? "", ...(sig && { signature: { name: sig.name, at: sig.at } }) };
+    }),
     project: {
       name: String(project.name),
       business: project.business,

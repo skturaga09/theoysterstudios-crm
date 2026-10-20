@@ -1,4 +1,4 @@
-import { type Channel, CHANNEL_LABEL, CHANNEL_MONOGRAM, fmtAgo, fmtTime, formatCompact, lakh, routeLead, BUSINESSES, BUSINESS_SHORT, type Business } from "@pinnacle/shared";
+import { parseRupees, rupeesText, type Channel, CHANNEL_LABEL, CHANNEL_MONOGRAM, fmtAgo, fmtTime, formatCompact, routeLead, BUSINESSES, BUSINESS_SHORT, type Business } from "@pinnacle/shared";
 import {
   Avatar,
   Button,
@@ -23,6 +23,7 @@ import { ME_ID } from "../../data/seed";
 import { defaultBusiness, defaultOwnerId, useAccess, useCrm, useCanAssign } from "../../data/store";
 import type { Conversation } from "../../data/types";
 import { IS_DEMO } from "../../lib/demo";
+import { AmountInput } from "../../components/amount-input";
 import { api } from "../../lib/api";
 import { useCreateAction, useListNav } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
@@ -195,7 +196,7 @@ function Thread({ c }: { c: Conversation }) {
   const assignee = s.members.find((m) => m.id === c.assigneeId);
   const [draft, setDraft] = useState({
     service: c.extracted?.service ?? "",
-    value: c.extracted ? (c.extracted.estValuePaise / 1e7).toFixed(1) : "",
+    value: c.extracted ? rupeesText(c.extracted.estValuePaise) : "",
     city: c.extracted?.city ?? c.city,
     business: c.business ?? defaultBusiness(),
     // A Member converts leads to themselves. Otherwise lead routing decides first; then the suggested owner; then the default.
@@ -206,14 +207,14 @@ function Thread({ c }: { c: Conversation }) {
   const [converting, setConverting] = useState(false);
 
   const convert = async () => {
-    const v = parseFloat(draft.value);
-    if (!draft.service.trim() || Number.isNaN(v)) {
+    const v = parseRupees(draft.value);
+    if (!draft.service.trim() || v === undefined) {
       toast("Add a service and an estimated value first");
       return;
     }
     setConverting(true);
     try {
-      const { deal, undo } = await s.convert(c.id, { service: draft.service.trim(), valuePaise: lakh(v), city: draft.city, ownerId: draft.ownerId, business: draft.business });
+      const { deal, undo } = await s.convert(c.id, { service: draft.service.trim(), valuePaise: v, city: draft.city, ownerId: draft.ownerId, business: draft.business });
       toast(`Deal created in New · ${formatCompact(deal.valuePaise)}`, { action: { label: "Undo", onClick: undo } });
     } catch (e) {
       toast(`Couldn't create the deal — ${(e as Error).message}`);
@@ -292,8 +293,8 @@ function Thread({ c }: { c: Conversation }) {
               <Input value={draft.service} onChange={(e) => setDraft({ ...draft, service: e.target.value })} className="h-8" />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11.5px] text-ink-3">Est. value (₹ L)</span>
-              <Input inputMode="decimal" value={draft.value} onChange={(e) => setDraft({ ...draft, value: e.target.value })} className="h-8 font-mono" />
+              <span className="text-[11.5px] text-ink-3">Est. value</span>
+              <AmountInput value={draft.value} onValue={(value) => setDraft({ ...draft, value })} placeholder="58,950" aria-label="Estimated value in rupees" />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-[11.5px] text-ink-3">City</span>

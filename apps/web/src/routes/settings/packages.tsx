@@ -1,4 +1,4 @@
-import { BUSINESS_LABEL, BUSINESSES, type Business, type FinanceSettings, type Package, type PlanStep } from "@pinnacle/shared";
+import { parseRupees, BUSINESS_LABEL, BUSINESSES, type Business, type FinanceSettings, type Package, type PlanStep } from "@pinnacle/shared";
 import { Button, Input, Segmented, Select, Textarea, toast } from "@pinnacle/ui";
 import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -7,7 +7,7 @@ import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
 import { SettingsHeader } from "./layout";
 
-const toPaise = (v: string) => Math.round(Number(v.replace(/[^\d.]/g, "")) * 100) || 0;
+const toPaise = (v: string) => parseRupees(v) ?? 0; // exact rupees ("58,950"); "2.5L", "75k" also work
 
 /** The price list, payment plans and standard terms that new quotations start from. Owners and Finance edit. */
 export function PackagesRoute() {

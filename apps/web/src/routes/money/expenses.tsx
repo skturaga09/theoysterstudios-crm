@@ -1,4 +1,4 @@
-import { BUSINESS_SHORT, BUSINESSES, EXPENSE_CATEGORIES, fmtDate, formatFull, istDay, type Business, type ExpenseCategory } from "@pinnacle/shared";
+import { parseRupees, BUSINESS_SHORT, BUSINESSES, EXPENSE_CATEGORIES, fmtDate, formatFull, istDay, type Business, type ExpenseCategory } from "@pinnacle/shared";
 import { Button, Input, MoneyText, Select, Table, TBody, TD, TH, THead, TR, toast } from "@pinnacle/ui";
 import { Download, ExternalLink, Receipt, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -9,7 +9,7 @@ import { addExpense, removeExpense } from "../../data/finance";
 import { defaultBusiness, useAccess, useCrm } from "../../data/store";
 import { downloadCsv } from "../../lib/download";
 
-const toPaise = (v: string) => Math.round(Number(v.replace(/[^\d.]/g, "")) * 100) || 0;
+const toPaise = (v: string) => parseRupees(v) ?? 0; // exact rupees ("58,950"); "2.5L", "75k" also work
 const monthLabel = (m: string) => new Date(`${m}-01T12:00:00Z`).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
 /** Money going out: what, when, for which business and project, with the GST paid kept apart. Owners and Finance. */
@@ -23,6 +23,7 @@ export function ExpensesRoute() {
   const shown = s.expenses.filter((e) => month === "all" || e.date.startsWith(month)).sort((a, b) => b.date.localeCompare(a.date));
   const total = shown.reduce((a, e) => a + e.amountPaise, 0);
   const project = (id?: string) => s.projects.find((p) => p.id === id)?.name ?? "";
+  const client = (id?: string) => s.companies.find((c) => c.id === id)?.name ?? "";
 
   return (
     <>
@@ -40,8 +41,8 @@ export function ExpensesRoute() {
               disabled={!shown.length}
               onClick={() =>
                 downloadCsv(`expenses-${month}`, [
-                  ["Date", "Business", "Category", "Description", "Vendor", "Project", "Amount before GST (₹)", "GST (₹)", "Receipt"],
-                  ...shown.map((e) => [e.date, e.business ? BUSINESS_SHORT[e.business] : "", e.category, e.description, e.vendor ?? "", project(e.projectId), e.amountPaise / 100, e.gstPaise / 100, e.receiptUrl ?? ""]),
+                  ["Date", "Business", "Category", "Description", "Vendor", "Client", "Project", "Amount before GST (₹)", "GST (₹)", "Receipt"],
+                  ...shown.map((e) => [e.date, e.business ? BUSINESS_SHORT[e.business] : "", e.category, e.description, e.vendor ?? "", client(e.companyId), project(e.projectId), e.amountPaise / 100, e.gstPaise / 100, e.receiptUrl ?? ""]),
                 ])
               }
             >
@@ -60,7 +61,7 @@ export function ExpensesRoute() {
               <TH>Date</TH>
               <TH>Category</TH>
               <TH>What</TH>
-              <TH>Project</TH>
+              <TH>Client · project</TH>
               <TH align="right">Amount</TH>
               <TH align="right">GST</TH>
               <TH> </TH>
@@ -76,7 +77,7 @@ export function ExpensesRoute() {
                   {e.vendor && <span className="text-[11.5px] text-ink-3"> · {e.vendor}</span>}
                   {e.receiptUrl && <a href={e.receiptUrl} target="_blank" rel="noreferrer" aria-label="Receipt" className="ml-1 inline-flex text-ink-3 hover:text-ink"><ExternalLink size={12} strokeWidth={1.5} /></a>}
                 </TD>
-                <TD className="text-ink-2">{project(e.projectId) || "—"}</TD>
+                <TD className="text-ink-2">{[client(e.companyId), project(e.projectId)].filter(Boolean).join(" · ") || "—"}</TD>
                 <TD align="right" numeric><MoneyText paise={e.amountPaise} /></TD>
                 <TD align="right" numeric className="text-ink-3">{e.gstPaise ? formatFull(e.gstPaise) : "—"}</TD>
                 <TD align="right"><Button size="icon-sm" variant="ghost" aria-label={`Delete ${e.description}`} onClick={() => removeExpense(e.id)}><Trash2 strokeWidth={1.5} /></Button></TD>
@@ -91,7 +92,8 @@ export function ExpensesRoute() {
 
 function AddExpense() {
   const projects = useCrm((s) => s.projects);
-  const blank = () => ({ date: istDay(new Date()), category: "Freelancers & crew" as ExpenseCategory, description: "", vendor: "", amount: "", gst: "", business: defaultBusiness() as Business, projectId: "", receiptUrl: "" });
+  const companies = useCrm((s) => s.companies);
+  const blank = () => ({ date: istDay(new Date()), category: "Freelancers & crew" as ExpenseCategory, description: "", vendor: "", amount: "", gst: "", business: defaultBusiness() as Business, projectId: "", companyId: "", receiptUrl: "" });
   const [f, setF] = useState(blank);
   const set = (patch: Partial<typeof f>) => setF({ ...f, ...patch });
   return (
@@ -111,6 +113,8 @@ function AddExpense() {
           gstPaise: toPaise(f.gst),
           business: f.business,
           projectId: f.projectId || undefined,
+          // The project's client unless another was picked (the server fills it in the same way).
+          companyId: f.companyId || projects.find((p) => p.id === f.projectId)?.companyId || undefined,
           receiptUrl: f.receiptUrl.trim() || undefined,
         });
         setF({ ...blank(), date: f.date, business: f.business });
@@ -127,6 +131,10 @@ function AddExpense() {
       <Input aria-label="GST paid in rupees" inputMode="decimal" placeholder="₹ GST (if any)" value={f.gst} onChange={(e) => set({ gst: e.target.value })} className="font-mono" />
       <Select aria-label="Business" value={f.business} onChange={(e) => set({ business: e.target.value as Business, projectId: "" })}>
         {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_SHORT[b]}</option>)}
+      </Select>
+      <Select aria-label="Client" value={f.companyId || projects.find((p) => p.id === f.projectId)?.companyId || ""} onChange={(e) => set({ companyId: e.target.value })} className="col-span-2">
+        <option value="">No client</option>
+        {companies.filter((c) => !c.business || c.business === f.business).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </Select>
       <Select aria-label="Project" value={f.projectId} onChange={(e) => set({ projectId: e.target.value })} className="col-span-2">
         <option value="">No project (overheads)</option>

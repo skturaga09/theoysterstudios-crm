@@ -1,4 +1,4 @@
-import { CHANNEL_LABEL, CHANNELS, DEFAULT_NOTIFICATION_PREFERENCES, formatCompact, gstState, lakh, parseCsv, toCsv, type Channel, type NotificationKind, type NotificationPreferences, type RoutingRule, BUSINESS_LABEL, BUSINESSES, type Business, type PipelineStage, type Pipelines } from "@pinnacle/shared";
+import { parseRupees, CHANNEL_LABEL, CHANNELS, DEFAULT_NOTIFICATION_PREFERENCES, formatCompact, gstState, parseCsv, toCsv, type Channel, type NotificationKind, type NotificationPreferences, type RoutingRule, BUSINESS_LABEL, BUSINESSES, type Business, type PipelineStage, type Pipelines } from "@pinnacle/shared";
 import type { Workspace } from "@pinnacle/shared/schemas";
 import { Button, ChannelChip, cn, Input, Pill, Segmented, Select, toast } from "@pinnacle/ui";
 import { ArrowDown, ArrowRight, ArrowUp, Download, Plus, RefreshCw, Trash2, Unplug, Upload } from "lucide-react";
@@ -423,8 +423,13 @@ export function IntegrationsRoute() {
                   </Button>
                 </div>
               )}
-              {c.channel === "web" && c.connected && (
-                <pre className="mt-3 overflow-x-auto rounded-card bg-sunken p-3 font-mono text-[11.5px] text-ink-2">{`<script src="https://theoysterstudios.web.app/form.js" data-workspace="pinnacle" async></script>`}</pre>
+              {c.channel === "web" && (
+                <div className="mt-3 flex flex-col gap-2 rounded-card bg-sunken p-3">
+                  <p className="t-meta m-0 text-ink-2">Your enquiry form lives at the address below — point the website's “Contact” or “Enquire” button to it, or embed it with the code. Each enquiry arrives in Inbox as a routed lead. Add <code>?business=marketing</code> to open on the marketing form.</p>
+                  <code className="block overflow-x-auto rounded-control bg-surface px-3 py-2 font-mono text-[11.5px]">{`${window.location.origin}/enquire`}</code>
+                  <pre className="m-0 overflow-x-auto rounded-control bg-surface p-3 font-mono text-[11.5px] text-ink-2">{`<iframe src="${window.location.origin}/enquire?embed" title="Enquire" style="width:100%;min-height:760px;border:0"></iframe>`}</pre>
+                  <a href="/enquire" target="_blank" rel="noreferrer" className="t-meta self-start text-ink-2 underline">Open the form</a>
+                </div>
               )}
             </li>
           );
@@ -516,13 +521,13 @@ export function RoutingRoute() {
           className="mt-6 grid grid-cols-2 gap-3 rounded-panel border border-line bg-surface p-4 md:grid-cols-[1fr_1fr_110px_1fr_auto] md:items-end"
           onSubmit={(e) => {
             e.preventDefault();
-            const min = draft.min.trim() ? parseFloat(draft.min) : undefined;
+            const min = draft.min.trim() ? parseRupees(draft.min) : undefined;
             if (!draft.channel && !draft.city.trim() && min === undefined) return toast("Pick at least one condition");
-            if (min !== undefined && !(min > 0)) return toast("Enter the minimum value in lakh, for example 5");
+            if (draft.min.trim() && !(min && min > 0)) return toast("Enter the minimum value in rupees, for example 5,00,000");
             if (!owner(draft.ownerId)) return toast("Choose who gets these leads");
             setRouting([
               ...rules,
-              { id: `r${Date.now()}`, channel: (draft.channel || undefined) as Channel | undefined, city: draft.city.trim() || undefined, minPaise: min === undefined ? undefined : lakh(min), ownerId: draft.ownerId },
+              { id: `r${Date.now()}`, channel: (draft.channel || undefined) as Channel | undefined, city: draft.city.trim() || undefined, minPaise: min, ownerId: draft.ownerId },
             ]);
             setDraft({ channel: "", city: "", min: "", ownerId: draft.ownerId });
             toast("Rule added");
@@ -537,8 +542,8 @@ export function RoutingRoute() {
           <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">City</span>
             <Input value={draft.city} onChange={(e) => setDraft({ ...draft, city: e.target.value })} placeholder="Any" />
           </label>
-          <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">Min value (₹ L)</span>
-            <Input inputMode="decimal" value={draft.min} onChange={(e) => setDraft({ ...draft, min: e.target.value })} placeholder="—" className="font-mono" />
+          <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">Min value (₹)</span>
+            <Input inputMode="decimal" value={draft.min} onChange={(e) => setDraft({ ...draft, min: e.target.value })} placeholder="e.g. 5,00,000" className="font-mono" />
           </label>
           <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">Assign to</span>
             <Select value={draft.ownerId} onChange={(e) => setDraft({ ...draft, ownerId: e.target.value })}>

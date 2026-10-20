@@ -41,6 +41,7 @@ export function ClientRoute() {
   const confirmed = deals.filter((d) => d.stage === "won");
   const open = deals.filter(isOpen);
   const projects = s.projects.filter((p) => p.companyId === c.id);
+  const quotes = s.quotes.filter((q) => q.companyId === c.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const contacts = s.contacts.filter((x) => x.companyId === c.id);
   const contactIds = new Set(contacts.map((x) => x.id));
   const invoices = s.invoices.filter((i) => i.companyId === c.id && !i.cancelled).sort((a, b) => +new Date(b.issuedAt) - +new Date(a.issuedAt));
@@ -102,6 +103,26 @@ export function ClientRoute() {
           <section>
             <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Projects · {projects.length}</h2>
             <ProjectList projects={projects} />
+          </section>
+          <section>
+            <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Quotations & agreements · {quotes.length}</h2>
+            {quotes.length ? (
+              <ul className="m-0 list-none border-t border-line p-0">
+                {quotes.map((q) => (
+                  <li key={q.id} className="flex flex-wrap items-center gap-3 border-b border-line py-2.5">
+                    <Link to={`/quotes/${q.id}`} className="font-mono text-[12.5px] hover:underline">{q.number}</Link>
+                    <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-3">
+                      {q.signature ? `signed online by ${q.signature.name} · ${fmtDay(q.signature.at)}` : `valid until ${fmtDay(q.validUntil)}`}
+                    </span>
+                    <MoneyText paise={invoiceTotals({ ...q, payments: [] }).total} />
+                    <Pill tone={q.status === "accepted" ? "ok" : q.status === "declined" ? "risk" : q.status === "sent" ? "warn" : "mute"}>{q.status[0]!.toUpperCase() + q.status.slice(1)}</Pill>
+                    {q.status === "accepted" && <Link to={`/quotes/${q.id}/agreement`} className="t-meta text-ink-2 hover:underline">Agreement</Link>}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="t-dense m-0 text-ink-3">No quotations yet — start one from a lead.</p>
+            )}
           </section>
           <section>
             <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Open leads · {open.length}</h2>

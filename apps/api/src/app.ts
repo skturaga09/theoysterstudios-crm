@@ -29,6 +29,8 @@ import {
   WorkspaceSchema,
   FinanceSettingsSchema,
   ScheduleSchema,
+  ClientUpdateSchema,
+  EnquirySchema,
   CreateQuoteSchema,
   UpdateQuoteSchema,
   CreateExpenseSchema,
@@ -39,7 +41,7 @@ import {
   TemplatesSchema,
   type Workspace,
 } from "@pinnacle/shared/schemas";
-import { DEFAULT_FINANCE, DEFAULT_NOTIFICATION_PREFERENCES, DEFAULT_SAC, gstState, invoiceTotals as totalsOf, istDay, type FinanceSettings, accessOf, ROLE_LABEL, roleOf, type Area, DEFAULT_PIPELINES, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines, type NotificationPreferences } from "@pinnacle/shared";
+import { addDays, planProject, routeLead, type RoutingRule, DEFAULT_FINANCE, DEFAULT_NOTIFICATION_PREFERENCES, DEFAULT_SAC, gstState, invoiceTotals as totalsOf, istDay, type FinanceSettings, accessOf, ROLE_LABEL, roleOf, type Area, DEFAULT_PIPELINES, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines, type NotificationPreferences } from "@pinnacle/shared";
 import { nameFromEmail, SUPPORT_MEMBER, type Member, type Verify } from "./auth";
 import type { Doc } from "./db";
 import { notify, type Notification, type NotificationPreferencesDoc } from "./notifications";
@@ -132,7 +134,7 @@ export function buildApp({
     });
   }
   /** Called by Meta or by a browser coming back from Instagram sign-in — no CRM login; each checks its own proof. */
-  const PUBLIC = new Set(["/healthz", "/integrations/razorpay/webhook", "/integrations/whatsapp/webhook", "/integrations/instagram/webhook", "/integrations/instagram/callback", "/integrations/google/callback", "/public/privacy-info"]);
+  const PUBLIC = new Set(["/healthz", "/public/enquiry", "/public/enquiry-info", "/integrations/razorpay/webhook", "/integrations/whatsapp/webhook", "/integrations/instagram/webhook", "/integrations/instagram/callback", "/integrations/google/callback", "/public/privacy-info"]);
 
   /**
    * Every route except /healthz needs a Google sign-in (Firebase ID token) whose verified email is on
@@ -386,6 +388,50 @@ export function buildApp({
     return handleRazorpayWebhook(db, req.body as Parameters<typeof handleRazorpayWebhook>[1]);
   });
 
+  /* ---------- Website enquiries: a public form that drops straight into Inbox as a routed lead ---------- */
+  const enquiryHits = new Map<string, number[]>(); // shortcut: per-instance rate limit; enough for a studio's site
+  app.get("/public/enquiry-info", async () => {
+    const w = await getWorkspace();
+    return { studioName: w.studioName, email: w.enquiryEmail || undefined, whatsapp: w.whatsappNumber || undefined };
+  });
+  app.post("/public/enquiry", async (req, reply) => {
+    const ip = String(req.headers["x-forwarded-for"] ?? "").split(",")[0]!.trim() || req.ip;
+    const recent = (enquiryHits.get(ip) ?? []).filter((t) => Date.now() - t < 600_000);
+    if (recent.length >= 5) return reply.code(429).send({ error: "Too many enquiries from here — please try again in a few minutes" });
+    enquiryHits.set(ip, [...recent, Date.now()]);
+    const e = EnquirySchema.parse(req.body);
+    if (e.website) return { ok: true }; // honeypot filled: a bot — say thanks, store nothing
+    const at = now();
+    const details = [e.service && `Service: ${e.service}`, e.budget && `Budget: ${e.budget}`, e.eventDate && `Event date: ${e.eventDate}`, e.location && `Location: ${e.location}`, e.phone && `Phone: ${e.phone}`, e.email && `Email: ${e.email}`].filter(Boolean).join(" · ");
+    const message = { id: new ObjectId().toHexString(), direction: "in", body: `Website form · ${details}\n\n${e.message}`, at };
+    const key = e.email ?? e.phone!.replace(/\D/g, "");
+    const conversations = db.collection<Doc>("conversations");
+    const existing = await conversations.findOne({ channel: "web", externalId: key });
+    if (existing) {
+      await conversations.updateOne({ _id: existing._id }, { $push: { messages: message } as never, $set: { lastMessageAt: at, unread: true } });
+    } else {
+      const rules = (await db.collection<{ _id: string; rules: RoutingRule[] }>("routing").findOne({ _id: "rules" }))?.rules ?? [];
+      const active = new Set((await members.find({ status: { $ne: "removed" } }, { projection: { _id: 1 } }).toArray()).map((x) => x._id));
+      const contact = e.email ? await db.collection<Doc>("contacts").findOne({ email: e.email }) : null;
+      await conversations.insertOne({
+        _id: new ObjectId().toHexString(),
+        channel: "web",
+        externalId: key,
+        name: e.name,
+        handle: e.email ?? e.phone!,
+        city: e.location ?? "",
+        unread: true,
+        lastMessageAt: at,
+        createdAt: at,
+        ...(e.business && { business: e.business }),
+        ...(contact && { contactId: contact._id }),
+        assigneeId: routeLead(rules, { channel: "web", city: e.location }, (id) => active.has(id)),
+        messages: [message],
+      });
+    }
+    return reply.code(201).send({ ok: true });
+  });
+
   /** What the public privacy page needs: who the studio is and how to reach them. */
   app.get("/public/privacy-info", async () => {
     const w = await getWorkspace();
@@ -619,12 +665,15 @@ export function buildApp({
     scope: async (req) => ((await ownDealIds(req)) ? { ownerId: req.member._id } : undefined),
     // The stage must exist in the deal's business pipeline; reaching the won stage records when.
     check: async (next, existing) => {
+      // Automation: a new lead always has a next follow-up (tomorrow 11 am IST unless one was chosen), so none is forgotten.
+      if (!existing && next.nextFollowUpAt === undefined && next.stage !== "won" && next.stage !== "lost") next.nextFollowUpAt = `${addDays(istDay(new Date()), 1)}T11:00:00+05:30`;
       if (next.stage === undefined && next.business === undefined) return undefined;
       const business = (next.business ?? existing?.business ?? "photography") as Business;
       const stageId = (next.stage ?? existing?.stage) as string;
       const stage = (await getPipelines())[business].find((s) => s.id === stageId);
       if (!stage) return `"${stageId}" isn't a stage in the ${business} pipeline`;
       if (stage.kind === "won" && !next.wonAt && !existing?.wonAt) next.wonAt = now();
+      if (stage.kind === "lost" && !existing?.lostAt) next.lostAt = now(); // for "lost this month"
       return undefined;
     },
     // A lead that's confirmed makes its company (or couple) a client — no need to create the client again.
@@ -721,6 +770,46 @@ export function buildApp({
       const status = (e as { statusCode?: number }).statusCode ?? 409;
       return reply.code(status).send({ error: (e as Error).message });
     }
+  });
+
+  /** An update for the client, shown newest first in their portal (and kept on the project). */
+  app.post<{ Params: { id: string } }>("/projects/:id/updates", { preHandler: mayChange("projects", false) }, async (req, reply) => {
+    const { body } = ClientUpdateSchema.parse(req.body);
+    const update = { id: new ObjectId().toHexString(), body, at: now(), by: req.member.name };
+    const saved = await db.collection<Doc>("projects").findOneAndUpdate({ _id: req.params.id }, { $push: { clientUpdates: { $each: [update], $position: 0, $slice: 50 } } } as never, { returnDocument: "after" });
+    return saved ? reply.code(201).send(out(saved)) : reply.code(404).send({ error: "Not found" });
+  });
+
+  /**
+   * Retainers repeat: start a month on a marketing project — the marketing checklist and deliverables again, dated
+   * from that month's 1st and labelled with the month. Each month only once.
+   */
+  app.post<{ Params: { id: string } }>("/projects/:id/next-month", { preHandler: mayChange("projects", false) }, async (req, reply) => {
+    const { month } = z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() }).parse(req.body ?? {});
+    const projects = db.collection<Doc>("projects");
+    const p = await projects.findOne({ _id: req.params.id });
+    if (!p) return reply.code(404).send({ error: "Not found" });
+    if (p.business !== "marketing") return reply.code(409).send({ error: "Monthly cycles are for marketing retainers" });
+    const cycles = (p.cycles as string[] | undefined) ?? [];
+    const next = month ?? (() => {
+      const last = cycles.at(-1) ?? istDay(new Date()).slice(0, 7);
+      const [y, m] = last.split("-").map(Number) as [number, number];
+      return new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
+    })();
+    if (cycles.includes(next)) return reply.code(409).send({ error: "That month has already been started" });
+    const label = new Date(`${next}-15T00:00:00Z`).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+    const { tasks: planned, deliverables } = planProject((await getTemplates()).marketing, { confirmedAt: `${next}-01T06:00:00Z` });
+    const managerId = String(p.managerId ?? req.member._id);
+    if (planned.length)
+      await db.collection<Doc>("tasks").insertMany(
+        planned.map((t) => ({ _id: new ObjectId().toHexString(), ...t, title: `${t.title} — ${label}`, status: "todo", done: false, remind: false, links: [], comments: [], business: "marketing", projectId: p._id, dealId: p.dealId, companyId: p.companyId, assigneeId: managerId })),
+      );
+    const saved = await projects.findOneAndUpdate(
+      { _id: p._id },
+      { $push: { deliverables: { $each: deliverables.map((d) => ({ ...d, id: `${next}-${d.id}`, name: `${d.name} — ${label}` })) }, cycles: next } as never },
+      { returnDocument: "after" },
+    );
+    return reply.code(201).send({ project: out(saved!), tasksCreated: planned.length, month: next });
   });
 
   const tasks = records("tasks", CreateTaskSchema, UpdateTaskSchema, () => ({ done: false, comments: [] }), {
@@ -878,8 +967,21 @@ export function buildApp({
     owned: true,
     scope: async (req) => ((await ownDealIds(req)) ? { ownerId: req.member._id } : undefined),
     check: async (_next, existing) => (existing?.status === "accepted" ? "An accepted quotation can't change — make a new one" : undefined),
-    after: async (q, req) => applyAcceptedQuote(q, req.member._id),
+    after: async (q, req, existing) => {
+      if (q.status === "sent" && existing?.status !== "sent") await followUpAfterQuote(q);
+      await applyAcceptedQuote(q, req.member._id);
+    },
   });
+
+  /** Automation: once a proposal goes out, the lead gets a follow-up 3 days later (unless an earlier one is set). */
+  async function followUpAfterQuote(q: Doc) {
+    if (!q.dealId) return;
+    const when = `${addDays(istDay(new Date()), 3)}T11:00:00+05:30`;
+    await db.collection<Doc>("deals").updateOne(
+      { _id: String(q.dealId), stage: { $nin: ["won", "lost"] }, $or: [{ nextFollowUpAt: { $exists: false } }, { nextFollowUpAt: null }, { nextFollowUpAt: { $gt: when } }] },
+      { $set: { nextFollowUpAt: when } },
+    );
+  }
 
   /**
    * Accepting confirms the booking: the deal takes the quoted value and payment schedule, and becomes won (client,
@@ -924,7 +1026,10 @@ export function buildApp({
     if (reset) await signLinks.deleteMany({ quoteId: q._id });
     let link = await signLinks.findOne({ quoteId: q._id });
     if (!link) await signLinks.insertOne((link = { _id: newVerifyToken() + newVerifyToken(), quoteId: q._id, createdAt: now(), createdBy: req.member._id }));
-    if (q.status === "draft") await quotesCol.updateOne({ _id: q._id }, { $set: { status: "sent" } });
+    if (q.status === "draft") {
+      await quotesCol.updateOne({ _id: q._id }, { $set: { status: "sent" } });
+      await followUpAfterQuote(q);
+    }
     return { url: `${site}/sign/${link._id}`, createdAt: link.createdAt };
   });
   app.delete<{ Params: { id: string } }>("/quotes/:id/sign-link", async (req, reply) => {
@@ -1096,6 +1201,17 @@ export function buildApp({
   // Expenses and profit are for Owners and Finance only.
   records("expenses", CreateExpenseSchema, UpdateExpenseSchema, () => ({ createdAt: now() }), {
     area: "finance",
+    // An expense on a project counts against that project's client too (client-wise profit).
+    check: async (next, existing) => {
+      const projectId = (next.projectId ?? existing?.projectId) as string | undefined;
+      if (projectId && !next.companyId && !existing?.companyId) {
+        const p = await db.collection<Doc>("projects").findOne({ _id: projectId });
+        if (!p) return "That project doesn't exist";
+        next.companyId = p.companyId;
+        next.business ??= p.business;
+      }
+      return undefined;
+    },
     scope: async (req) => (access(req, "finance") === "edit" ? undefined : NOTHING),
   });
 

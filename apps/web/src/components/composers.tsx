@@ -1,10 +1,11 @@
-import { ROLE_LABEL, roleOf, BUSINESS_LABEL, BUSINESSES, CHANNEL_LABEL, CHANNELS, formatCompact, formatFull, gstState, invoiceTotals, lakh, rupees, type Business, type Channel, type Stage, SERVICES, stageIn } from "@pinnacle/shared";
+import { parseRupees, ROLE_LABEL, roleOf, BUSINESS_LABEL, BUSINESSES, CHANNEL_LABEL, CHANNELS, formatCompact, formatFull, gstState, invoiceTotals, rupees, type Business, type Channel, type Stage, SERVICES, stageIn } from "@pinnacle/shared";
 import { Button, Input, Select, Sheet, Textarea, toast } from "@pinnacle/ui";
 import { Plus, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { Link } from "react-router";
 import { ME_ID } from "../data/seed";
+import { AmountInput } from "./amount-input";
 import { defaultBusiness, defaultOwnerId, useAccess, useCrm, useCanAssign, useMe } from "../data/store";
 import type { Company, Contact, Deal, Invoice } from "../data/types";
 import { api, save } from "../lib/api";
@@ -52,10 +53,10 @@ function NewDealForm({ stage, business: initialBusiness, onDone }: { stage?: str
       onSubmit={async (e) => {
         e.preventDefault();
         if (busy) return;
-        const v = f.value.trim() ? parseFloat(f.value) : 0;
+        const v = f.value.trim() ? parseRupees(f.value) : 0;
         if (!f.client.trim()) return setError(photo ? "Add the couple's or client's name." : "Add the client's name.");
         if (!f.phone.trim() && !f.email.trim()) return setError("Add a phone number or an email so the team can follow up.");
-        if (Number.isNaN(v) || v < 0) return setError("Enter the budget in lakh, for example 2 or 2.5 — or leave it blank.");
+        if (v === undefined) return setError("Enter the budget in rupees, for example 58,950 or 2,50,000 — or leave it blank.");
         setBusy(true);
         const created: string[] = [];
         try {
@@ -82,7 +83,7 @@ function NewDealForm({ stage, business: initialBusiness, onDone }: { stage?: str
               companyId: co.id,
               contactId: contact.id,
               stage: stageId,
-              valuePaise: lakh(v),
+              valuePaise: v,
               closeAt: new Date(`${photo && f.eventDate ? f.eventDate : close}T10:00:00`).toISOString(),
               ownerId: owner,
               channel,
@@ -136,7 +137,7 @@ function NewDealForm({ stage, business: initialBusiness, onDone }: { stage?: str
           <Input list="service-options" value={f.service} onChange={set("service")} placeholder={SERVICES[business][0]} />
           <datalist id="service-options">{SERVICES[business].map((x) => <option key={x} value={x} />)}</datalist>
         </Field>
-        <Field label="Budget (₹ lakh)"><Input inputMode="decimal" value={f.value} onChange={set("value")} placeholder="2.5" className="font-mono" /></Field>
+        <Field label="Budget"><AmountInput value={f.value} onValue={(value) => setF({ ...f, value })} placeholder="58,950" aria-label="Budget in rupees" /></Field>
         {photo ? (
           <Field label="Event date"><Input type="date" value={f.eventDate} onChange={set("eventDate")} className="font-mono" /></Field>
         ) : (

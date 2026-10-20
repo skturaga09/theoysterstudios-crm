@@ -1,4 +1,4 @@
-import { CHANNEL_LABEL, fmtDate, fmtDay, formatFull, HEALTH_LABEL, lakh, rupees, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
+import { parseRupees, rupeesText, CHANNEL_LABEL, fmtDate, fmtDay, formatFull, HEALTH_LABEL, rupees, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
 import {
   Avatar,
   Button,
@@ -131,18 +131,20 @@ export function DealProperties({ deal }: { deal: Deal }) {
         <label className="flex w-full items-center rounded-control bg-sunken pl-3 focus-within:bg-surface focus-within:ring-1 focus-within:ring-line-2">
           <span className="font-mono text-[12.5px] text-ink-3">₹</span>
           <input
-            aria-label="Deal value in lakh"
-            type="number"
-            step="0.1"
-            min="0"
-            defaultValue={(deal.valuePaise / 1e7).toFixed(1)}
+            key={deal.valuePaise}
+            aria-label="Deal value in rupees"
+            inputMode="decimal"
+            defaultValue={rupeesText(deal.valuePaise)}
             onBlur={(e) => {
-              const v = parseFloat(e.target.value);
-              if (!Number.isNaN(v) && lakh(v) !== deal.valuePaise) s.updateDeal(deal.id, { valuePaise: lakh(v) });
+              const v = parseRupees(e.target.value);
+              if (v === undefined) {
+                e.target.value = rupeesText(deal.valuePaise);
+                return void toast("Enter the value in rupees, for example 58,950");
+              }
+              if (v !== deal.valuePaise) s.updateDeal(deal.id, { valuePaise: v });
             }}
-            className="h-[34px] w-full bg-transparent px-1.5 font-mono text-[12.5px] tnum outline-none"
+            className="h-[34px] w-full bg-transparent px-1.5 pr-3 font-mono text-[12.5px] tnum outline-none"
           />
-          <span className="pr-3 font-mono text-[12.5px] text-ink-3">L</span>
         </label>
       </Prop>
       <Prop label="">

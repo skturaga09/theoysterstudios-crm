@@ -1,6 +1,6 @@
-import { fmtDate, fmtDay, formatCompact, formatFull, lakh, rupees } from "@pinnacle/shared";
+import { BUSINESS_SHORT, parseRupees, rupeesText, fmtDate, fmtDay, formatCompact, formatFull, rupees } from "@pinnacle/shared";
 import { Button, cn, Input, MoneyText, Pill, Segmented, Sheet, Table, TBody, TD, TH, THead, toast, TR } from "@pinnacle/ui";
-import { Ban, FileDown, FileText, Link2, Pencil, Plus, ReceiptText, Send } from "lucide-react";
+import { Ban, Download, FileDown, FileText, Link2, Pencil, Plus, ReceiptText, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { PaymentsDue } from "../../components/payments-due";
@@ -9,6 +9,7 @@ import { agingBucket, daysOverdue, invoiceStatus, invoiceTotals, sum } from "../
 import { useCrm, useAccess, useWorkspace } from "../../data/store";
 import type { CreditNote, Invoice } from "../../data/types";
 import { api } from "../../lib/api";
+import { downloadCsv } from "../../lib/download";
 import { useCreateAction, useListNav } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 
@@ -76,7 +77,29 @@ export function InvoicesRoute() {
 
       <div className="mb-10"><PaymentsDue /></div>
       <section aria-label="Overdue aging" className="mb-10">
-        <h2 className="t-eyebrow m-0 mb-3 text-ink-2">Overdue by age (days past due)</h2>
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <h2 className="t-eyebrow m-0 text-ink-2">Overdue by age (days past due)</h2>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => {
+              const open = s.invoices.filter((i) => i.sent && !i.cancelled && invoiceTotals(i).due > 100);
+              const name = (id: string) => s.companies.find((c) => c.id === id)?.name ?? "";
+              downloadCsv("outstanding-payments", [
+                ["Invoice", "Client", "Business", "Issued", "Due date", "Days overdue", "Total (₹)", "Paid (₹)", "Outstanding (₹)"],
+                ...open
+                  .sort((a, b) => a.dueAt.localeCompare(b.dueAt))
+                  .map((i) => {
+                    const t = invoiceTotals(i);
+                    return [i.number, name(i.companyId), i.business ? BUSINESS_SHORT[i.business] : "", i.issuedAt.slice(0, 10), i.dueAt.slice(0, 10), daysOverdue(i), t.total / 100, t.paid / 100, t.due / 100];
+                  }),
+              ]);
+            }}
+          >
+            <Download strokeWidth={1.5} /> Outstanding (CSV)
+          </Button>
+        </div>
         <div className="grid grid-cols-2 border-t border-ink md:grid-cols-4">
           {buckets.map((b, i) => (
             <div key={b.b} className={cn("flex flex-col gap-2 py-4 pr-4", i > 0 && "md:border-l md:border-line md:pl-5", i % 2 === 1 && "border-l border-line pl-5", i >= 2 && "border-t border-line md:border-t-0")}>
@@ -347,13 +370,14 @@ function InvoiceActions({ inv }: { inv: Invoice }) {
           className="ml-auto flex items-center gap-2"
           onSubmit={async (e) => {
             e.preventDefault();
-            const v = parseFloat(amount);
-            if (!Number.isNaN(v) && v <= 0) return toast("Enter the amount received in lakh, for example 0.5");
-            const paise = Number.isNaN(v) ? t.due : Math.min(t.due, lakh(v));
+            const v = amount.trim() ? parseRupees(amount) : t.due; // blank = the full balance
+            if (!v || v <= 0) return toast("Enter the amount received in rupees, for example 58,950");
+            if (v > t.due) return toast(`That's more than the ${formatFull(t.due)} still due`);
+            const paise = v;
             if (await run("/payments", { amountPaise: paise }, `Payment of ${formatCompact(paise)} recorded`)) setAmount("");
           }}
         >
-          <Input aria-label="Amount received in lakh" inputMode="decimal" placeholder={`${(t.due / 1e7).toFixed(2)} L`} value={amount} onChange={(e) => setAmount(e.target.value)} className="h-7 w-24 font-mono" />
+          <Input aria-label="Amount received in rupees" inputMode="decimal" placeholder={`₹${rupeesText(t.due)}`} value={amount} onChange={(e) => setAmount(e.target.value)} className="h-7 w-32 font-mono" />
           <Button variant="ink" size="sm" type="submit" disabled={busy}>Record payment</Button>
         </form>
       ) : null}

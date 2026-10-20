@@ -28,9 +28,12 @@ it("adds up the owner's numbers for this IST month, per business", () => {
     ],
   };
   const all = ownerSummary(input, now);
-  expect(all.sales).toEqual({ newLeads: 2, confirmed: 2, confirmedPaise: 1400, pipelinePaise: 300, openLeads: 1, conversion: 67, followUpsOverdue: 1 });
-  expect(all.projects).toEqual({ active: 1, eventsNext30: 1, overdueTasks: 1, awaitingApproval: 1, deliverablesDue: 1 });
-  expect(all.finance).toEqual({ invoicedPaise: 1180, receivedPaise: 500, outstandingPaise: 680, overduePaise: 680 });
+  expect(all.sales).toEqual({ newLeads: 2, confirmed: 2, lost: 0, confirmedPaise: 1400, pipelinePaise: 300, openLeads: 1, conversion: 67, followUpsOverdue: 1 });
+  expect(all.projects).toEqual({ active: 1, pendingTasks: 2, eventsNext30: 1, overdueTasks: 1, awaitingApproval: 1, deliverablesDue: 1 });
+  expect(all.finance).toEqual({ invoicedPaise: 1180, expensesPaise: 0, profitPaise: 1000, receivedPaise: 500, outstandingPaise: 680, overduePaise: 680 });
+  const withCosts = ownerSummary({ ...input, deals: [...input.deals, { business: "marketing" as const, stage: "lost", valuePaise: 1, createdAt: "2026-10-01T00:00:00Z", lostAt: "2026-10-10T00:00:00Z", ownerId: "b" }], expenses: [{ business: "photography" as const, date: "2026-10-04", amountPaise: 300 }, { date: "2026-09-30", amountPaise: 999 }] }, now);
+  expect(withCosts.finance).toMatchObject({ expensesPaise: 300, profitPaise: 700 });
+  expect(withCosts.sales.lost).toBe(1);
   expect(all.person("c")).toEqual({ openLeads: 0, confirmedPaise: 0, openTasks: 1, overdueTasks: 1, projects: 1 });
   const marketing = ownerSummary(onlyBusiness(input, "marketing"), now);
   expect(marketing.sales.conversion).toBe(0);

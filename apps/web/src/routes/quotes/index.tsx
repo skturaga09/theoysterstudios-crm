@@ -1,4 +1,4 @@
-import { BUSINESS_SHORT, fmtDate, formatFull, invoiceTotals, scheduleFrom, type ScheduleItem } from "@pinnacle/shared";
+import { parseRupees, BUSINESS_SHORT, fmtDate, formatFull, invoiceTotals, scheduleFrom, type ScheduleItem } from "@pinnacle/shared";
 import { Button, Input, MoneyText, Pill, Segmented, Select, Textarea, toast } from "@pinnacle/ui";
 import { ArrowLeft, FileSignature, Plus, Printer, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -15,7 +15,7 @@ import { usePref } from "../../lib/hooks";
 const STATUS_LABEL: Record<Quote["status"], string> = { draft: "Draft", sent: "Sent", accepted: "Accepted", declined: "Declined" };
 const STATUS_TONE: Record<Quote["status"], "mute" | "warn" | "ok" | "risk"> = { draft: "mute", sent: "warn", accepted: "ok", declined: "risk" };
 const rupees = (paise: number) => (paise ? String(paise / 100) : "");
-const toPaise = (v: string) => Math.round(Number(v.replace(/[^\d.]/g, "")) * 100) || 0;
+const toPaise = (v: string) => parseRupees(v) ?? 0; // exact rupees ("58,950"); "2.5L", "75k" also work
 
 /** Every quotation, newest first. New ones start from a lead (deal page → New quotation). */
 export function QuotesRoute() {

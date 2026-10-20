@@ -238,5 +238,7 @@ export const DEFAULT_FINANCE: FinanceSettings = {
   },
 };
 
-export const EXPENSE_CATEGORIES = ["Freelancers & crew", "Travel & stay", "Equipment & rentals", "Printing & albums", "Ad spend", "Software & subscriptions", "Studio rent & utilities", "Food & hospitality", "Salaries", "Other"] as const;
+export const EXPENSE_CATEGORIES = ["Freelancers & crew", "Salaries", "Production", "Editing & post-production", "Travel & stay", "Food & hospitality", "Equipment & rentals", "Printing & albums", "Ad spend", "Software & subscriptions", "Studio rent & utilities", "Office expenses", "Other"] as const;
+/** Costs that are people's time (team and freelancers), shown apart from other project costs. */
+export const PEOPLE_COST_CATEGORIES: readonly string[] = ["Freelancers & crew", "Salaries", "Editing & post-production"];
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];

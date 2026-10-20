@@ -1,4 +1,4 @@
-import { addDays, istDay } from "@pinnacle/shared";
+import { addDays, fmtDay, istDay } from "@pinnacle/shared";
 import { Button, cn, Input, Segmented, toast } from "@pinnacle/ui";
 import { CalendarPlus, ChevronLeft, ChevronRight, Copy } from "lucide-react";
 import { useState } from "react";
@@ -11,12 +11,13 @@ import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
 import { usePref } from "../../lib/hooks";
 
-type Kind = "event" | "enquiry" | "task" | "followup" | "payment" | "deliverable";
-type Item = { id: string; kind: Kind; day: string; title: string; link: string; time?: string };
+type Kind = "event" | "enquiry" | "meeting" | "task" | "followup" | "payment" | "deliverable";
+type Item = { id: string; kind: Kind; day: string; title: string; link: string; time?: string; clash?: boolean };
 
 const KIND: Record<Kind, { label: string; dot: string }> = {
   event: { label: "Weddings & functions", dot: "bg-signal" },
   enquiry: { label: "Enquiry dates", dot: "bg-ink-3" },
+  meeting: { label: "Client meetings", dot: "bg-[var(--cds-chart-categorical-2,#6b8afd)]" },
   task: { label: "Tasks", dot: "bg-ink" },
   followup: { label: "Follow-ups", dot: "bg-warn" },
   payment: { label: "Payments due", dot: "bg-ok" },
@@ -35,16 +36,41 @@ export function CalendarRoute() {
   const [hidden, setHidden] = useState<Set<Kind>>(new Set());
   const mine = who === "me";
 
+  // Who is booked on which day: the manager and crew of every project with a function that day.
+  const firstName = (id: string) => s.members.find((m) => m.id === id)?.name.split(" ")[0];
+  const people = (p: (typeof s.projects)[number]) => [...new Set([p.managerId, ...p.crew.map((c) => c.memberId)].filter((x): x is string => !!x))];
+  const booked = new Map<string, Map<string, Set<string>>>(); // day → person → projects
+  for (const p of s.projects.filter((x) => x.status === "planning" || x.status === "active"))
+    for (const e of p.events.filter((x) => x.date))
+      for (const m of people(p)) {
+        const day = booked.get(e.date!) ?? new Map<string, Set<string>>();
+        day.set(m, (day.get(m) ?? new Set()).add(p.id));
+        booked.set(e.date!, day);
+      }
+  const clashes = [...booked].flatMap(([day, byPerson]) => [...byPerson].filter(([, ps]) => ps.size > 1).map(([m, ps]) => ({ day, member: m, projects: [...ps] })));
+  const clashOn = (day: string, projectId: string) => clashes.some((c) => c.day === day && c.projects.includes(projectId));
+
   const items: Item[] = [
     ...s.projects
       .filter((p) => !mine || p.managerId === ME_ID || p.crew.some((c) => c.memberId === ME_ID))
       .flatMap((p) => [
-        ...p.events.filter((e) => e.date).map((e): Item => ({ id: `e-${p.id}-${e.id}`, kind: "event", day: e.date!, title: `${e.name} · ${p.name}${e.venue ? ` · ${e.venue}` : ""}`, link: `/projects/${p.id}` })),
+        ...p.events.filter((e) => e.date).map((e): Item => {
+          const team = people(p).map(firstName).filter(Boolean).join(", ");
+          return { id: `e-${p.id}-${e.id}`, kind: "event", day: e.date!, title: `${e.name} · ${p.name}${e.venue ? ` · ${e.venue}` : ""}${team ? ` · ${team}` : ""}`, link: `/projects/${p.id}`, clash: clashOn(e.date!, p.id) };
+        }),
+        ...(p.business === "marketing" && p.dueDate ? [{ id: `pd-${p.id}`, kind: "deliverable" as Kind, day: p.dueDate, title: `Project due · ${p.name}`, link: `/projects/${p.id}` }] : []),
         ...p.deliverables.filter((d) => d.dueDate && d.status !== "delivered").map((d): Item => ({ id: `d-${p.id}-${d.id}`, kind: "deliverable", day: d.dueDate!, title: `${d.name} · ${p.name}`, link: `/projects/${p.id}` })),
       ]),
     ...s.deals
       .filter((d) => d.eventDate && d.stage !== "won" && d.stage !== "lost" && (!mine || d.ownerId === ME_ID))
       .map((d): Item => ({ id: `q-${d.id}`, kind: "enquiry", day: d.eventDate!, title: `Enquiry: ${d.title} (not booked)`, link: `/deals/${d.id}` })),
+    // Client meetings from Google Calendar: with known contacts (activities) and new bookings (Inbox).
+    ...s.activities
+      .filter((a) => a.type === "meeting" && a.meetingAt)
+      .map((a): Item => ({ id: `m-${a.id}`, kind: "meeting", day: istDay(a.meetingAt!), time: time(a.meetingAt!), title: a.text.replace(/^has a meeting with /, "Meeting: "), link: a.dealId ? `/deals/${a.dealId}` : a.companyId ? `/clients/${a.companyId}` : "/calendar" })),
+    ...s.conversations
+      .filter((c) => c.channel === "calendar" && c.meetingAt)
+      .map((c): Item => ({ id: `mc-${c.id}`, kind: "meeting", day: istDay(c.meetingAt!), time: time(c.meetingAt!), title: `Booking: ${c.name}${c.subject ? ` · ${c.subject}` : ""}`, link: `/inbox/${c.id}` })),
     ...s.tasks
       .filter((t) => !t.done && (!mine || t.assigneeId === ME_ID))
       .map((t): Item => ({ id: `t-${t.id}`, kind: "task", day: istDay(t.dueAt), time: time(t.dueAt), title: t.title, link: t.projectId ? `/projects/${t.projectId}` : "/tasks" })),
@@ -105,6 +131,16 @@ export function CalendarRoute() {
         </span>
       </div>
 
+      {clashes.filter((c) => c.day.startsWith(month)).length > 0 && (
+        <div role="alert" className="t-dense mb-3 rounded-card bg-risk-wash px-4 py-3 text-risk">
+          Double-booked this month:{" "}
+          {clashes.filter((c) => c.day.startsWith(month)).map((c, i) => (
+            <span key={`${c.day}-${c.member}`}>{i > 0 && "; "}<b>{s.members.find((m) => m.id === c.member)?.name ?? "Someone"}</b> on {fmtDay(c.day)} ({c.projects.map((id) => s.projects.find((p) => p.id === id)?.name).join(" and ")})</span>
+          ))}
+          . Change the crew on one of the projects.
+        </div>
+      )}
+
       <div className="grid grid-cols-7 border-t border-l border-line">
         {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <div key={d} className="t-eyebrow border-r border-b border-line px-2 py-1.5 text-ink-3">{d}</div>)}
         {days.map((day) => {
@@ -122,7 +158,7 @@ export function CalendarRoute() {
                 {list.slice(0, 3).map((i) => (
                   <span key={i.id} className="flex items-center gap-1 truncate text-[11px] leading-tight">
                     <span className={cn("size-1.5 shrink-0 rounded-full", KIND[i.kind].dot)} />
-                    <span className="truncate">{i.title}</span>
+                    <span className={cn("truncate", i.clash && "text-risk")}>{i.clash && "⚠ "}{i.title}</span>
                   </span>
                 ))}
                 {list.length > 3 && <span className="text-[11px] text-ink-3">+{list.length - 3} more</span>}
@@ -139,7 +175,7 @@ export function CalendarRoute() {
             <li key={i.id}>
               <Link to={i.link} className="flex items-center gap-3 border-b border-line py-2.5 hover:bg-hover">
                 <span className={cn("size-2 shrink-0 rounded-full", KIND[i.kind].dot)} />
-                <span className="t-dense min-w-0 flex-1 truncate">{i.title}</span>
+                <span className={cn("t-dense min-w-0 flex-1 truncate", i.clash && "text-risk")}>{i.clash && "⚠ Double-booked · "}{i.title}</span>
                 <span className="font-mono text-[11.5px] text-ink-3">{i.time ?? KIND[i.kind].label}</span>
               </Link>
             </li>

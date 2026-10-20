@@ -311,11 +311,12 @@ async function syncCalendar(ctx: SyncContext, acct: GoogleAccount, token: string
           ...(deal && { dealId: deal._id }),
           ...(contact.companyId ? { companyId: contact.companyId } : {}),
           actorId: "calendar",
+          meetingAt: new Date(when).toISOString(), // when it happens, for the CRM calendar
           text: `has a meeting with ${contact.name}: ${label}`,
           at: new Date().toISOString(),
         });
       } else {
-        await upsertConversation(ctx, "calendar", { email, name: g.displayName ?? "" }, { id: ev.id, direction: "in", body: `Booked: ${label}`, at: ev.created ?? new Date().toISOString() }, { subject: ev.summary ?? "Meeting" }, true);
+        await upsertConversation(ctx, "calendar", { email, name: g.displayName ?? "" }, { id: ev.id, direction: "in", body: `Booked: ${label}`, at: ev.created ?? new Date().toISOString() }, { subject: ev.summary ?? "Meeting", meetingAt: new Date(when).toISOString() }, true);
       }
       stored++;
     }

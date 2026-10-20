@@ -9,6 +9,8 @@ import {
   fmtDate,
   fmtDay,
   formatFull,
+  parseRupees,
+  PEOPLE_COST_CATEGORIES,
   invoiceTotals,
   istDay,
   PRIORITIES,
@@ -31,6 +33,8 @@ import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
 import { Timeline } from "../../components/deal/timeline";
 import { ME_ID } from "../../data/seed";
+import { DealPayments } from "../../components/deal/deal-money";
+import { stageState } from "../../data/finance";
 import { useAccess, useCrm } from "../../data/store";
 import type { Project, Task } from "../../data/types";
 import { usePref } from "../../lib/hooks";
@@ -107,6 +111,7 @@ export function ProjectRoute() {
   const canEdit = useAccess("projects") === "edit";
   const canSeeFinance = useAccess("finance") === "edit";
   const canSeeCommunication = useAccess("sales") !== "none";
+  const canSeeSchedule = useAccess("sales") !== "none" && useAccess("finance") !== "none";
   const p = s.projects.find((x) => x.id === id);
   if (!p)
     return (
@@ -119,6 +124,7 @@ export function ProjectRoute() {
     );
   const set = (patch: Partial<Project>) => useCrm.getState().updateProject(p.id, patch);
   const client = s.companies.find((c) => c.id === p.companyId);
+  const deal = s.deals.find((d) => d.id === p.dealId);
   const tasks = s.tasks.filter((t) => t.projectId === p.id).sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt));
   const pr = progress(tasks);
   const wedding = p.business === "photography";
@@ -140,9 +146,12 @@ export function ProjectRoute() {
 
       <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-10">
+          <Services p={p} />
+          {!wedding && <fieldset disabled={!canEdit} className="contents"><Campaign p={p} set={set} /></fieldset>}
           {wedding && <fieldset disabled={!canEdit} className="contents"><Functions p={p} set={set} /></fieldset>}
           <Checklist p={p} tasks={tasks} canEdit={canEdit} />
           <fieldset disabled={!canEdit} className="contents"><Deliverables p={p} set={set} /></fieldset>
+          {deal && canSeeSchedule && <DealPayments deal={deal} />}
         </div>
         <fieldset disabled={!canEdit} className="contents">
         <aside className="flex min-w-0 flex-col gap-8">
@@ -166,8 +175,8 @@ export function ProjectRoute() {
                     aria-label="Monthly retainer in rupees"
                     defaultValue={p.retainerPaise ? p.retainerPaise / 100 : ""}
                     onBlur={(e) => {
-                      const r = Number(e.target.value.replace(/[^\d.]/g, ""));
-                      if ((r ? Math.round(r * 100) : undefined) !== p.retainerPaise) set({ retainerPaise: r ? Math.round(r * 100) : undefined });
+                      const r = parseRupees(e.target.value) || undefined; // exact rupees, or "75k"
+                      if (r !== p.retainerPaise) set({ retainerPaise: r });
                     }}
                     placeholder="₹"
                   />
@@ -185,6 +194,7 @@ export function ProjectRoute() {
             <Textarea key={p.id} rows={4} defaultValue={p.notes ?? ""} placeholder="Brief, special requests, things to remember…" onBlur={(e) => e.target.value.trim() !== (p.notes ?? "") && set({ notes: e.target.value.trim() || undefined })} />
           </section>
           <ClientPortal p={p} canShare={canEdit} />
+          {canEdit && <ClientUpdates p={p} />}
           <Links p={p} set={set} />
         </aside>
         </fieldset>
@@ -203,7 +213,10 @@ function ProjectFinance({ p }: { p: Project }) {
   const received = invoices.reduce((sum, invoice) => sum + invoice.payments.reduce((n, payment) => n + payment.amountPaise, 0), 0);
   const outstanding = invoices.reduce((sum, invoice) => sum + invoiceTotals(invoice).due, 0);
   const costs = expenses.reduce((sum, expense) => sum + expense.amountPaise, 0);
+  const peopleCosts = expenses.filter((e) => PEOPLE_COST_CATEGORIES.includes(e.category)).reduce((sum, e) => sum + e.amountPaise, 0);
   const confirmed = deal?.valuePaise ?? p.retainerPaise ?? 0;
+  // The next stage of the payment schedule not yet paid.
+  const nextDue = (deal?.schedule ?? []).filter((m) => stageState(m, s.invoices) !== "paid").sort((a, b) => (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999"))[0];
   const actualProfit = invoiced - costs;
   const stat = (label: string, value: number, tone?: string) => (
     <span className="flex flex-col gap-0.5 rounded-card bg-sunken px-3 py-2">
@@ -219,8 +232,13 @@ function ProjectFinance({ p }: { p: Project }) {
         {stat("Invoiced before GST", invoiced)}
         {stat("Received incl. GST", received, "text-ok")}
         {stat("Outstanding incl. GST", outstanding, outstanding ? "text-warn" : undefined)}
-        {stat("Project costs", costs)}
+        {stat("Team & freelancer costs", peopleCosts)}
+        {stat("Other costs", costs - peopleCosts)}
         {stat("Actual profit", actualProfit, actualProfit < 0 ? "text-risk" : "text-ok")}
+        <span className="col-span-2 flex flex-col gap-0.5 rounded-card bg-sunken px-3 py-2">
+          <span className="t-eyebrow text-ink-3">Next payment due</span>
+          <span className="t-dense">{nextDue ? `${nextDue.label} · ${formatFull(nextDue.amountPaise)} + GST${nextDue.dueDate ? ` · ${fmtDate(nextDue.dueDate)}` : ""}` : "Nothing scheduled"}</span>
+        </span>
         {stat("Estimated profit", confirmed - costs, confirmed - costs < 0 ? "text-risk" : undefined)}
       </div>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink-3">
@@ -330,7 +348,7 @@ function Checklist({ p, tasks, canEdit }: { p: Project; tasks: Task[]; canEdit: 
               </div>
               {expanded && (
                 <div className="mb-3 ml-7 flex flex-col gap-3 rounded-card bg-sunken p-3">
-                  <fieldset disabled={!mine} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <fieldset disabled={!mine} className="grid grid-cols-2 gap-2 sm:grid-cols-5">
                     <label className="flex flex-col gap-1"><span className="t-meta text-ink-3">Status</span>
                       <Select value={statusOf(t)} onChange={(e) => upd({ status: e.target.value as TaskStatus, done: e.target.value === "done" })}>
                         {TASK_STATUSES.map((x) => <option key={x} value={x}>{TASK_STATUS_LABEL[x]}</option>)}
@@ -346,10 +364,14 @@ function Checklist({ p, tasks, canEdit }: { p: Project; tasks: Task[]; canEdit: 
                         {APPROVALS.map((x) => <option key={x} value={x}>{APPROVAL_LABEL[x]}</option>)}
                       </Select>
                     </label>
+                    <label className="flex flex-col gap-1"><span className="t-meta text-ink-3">Start</span>
+                      <Input type="date" value={t.startAt ? istDay(t.startAt) : ""} onChange={(e) => upd({ startAt: e.target.value ? `${e.target.value}T09:00:00+05:30` : undefined })} />
+                    </label>
                     <label className="flex flex-col gap-1"><span className="t-meta text-ink-3">Due</span>
                       <Input type="date" value={istDay(t.dueAt)} onChange={(e) => e.target.value && upd({ dueAt: dueOn(e.target.value) })} />
                     </label>
                   </fieldset>
+                  <TaskAttachments t={t} canEdit={mine} />
                   <Comments t={t} />
                 </div>
               )}
@@ -511,6 +533,10 @@ function Links({ p, set }: { p: Project; set: (patch: Partial<Project>) => void 
         {p.links.map((l, i) => (
           <li key={i} className="flex items-center gap-2 border-b border-line py-2 last:border-0">
             <a href={l.url} target="_blank" rel="noreferrer" className="t-dense min-w-0 flex-1 truncate hover:underline">{l.label}</a>
+            <label className="flex items-center gap-1 text-[11.5px] text-ink-3" title="Show this link in the client's portal">
+              <input type="checkbox" checked={!!l.client} onChange={(e) => set({ links: p.links.map((x, k) => (k === i ? { ...x, client: e.target.checked || undefined } : x)) })} className="size-3.5 accent-[var(--ink)]" />
+              Client sees
+            </label>
             <Button size="icon-sm" variant="ghost" aria-label={`Remove ${l.label}`} onClick={() => set({ links: p.links.filter((_, k) => k !== i) })}><Trash2 strokeWidth={1.5} /></Button>
           </li>
         ))}
@@ -636,5 +662,141 @@ function ClientPortal({ p, canShare }: { p: Project; canShare: boolean }) {
         <p className="t-meta m-0 text-ink-3">No client link yet. An admin or project manager can create one.</p>
       )}
     </section>
+  );
+}
+
+/** What was booked: the deal's service and the accepted quotation's items. */
+function Services({ p }: { p: Project }) {
+  const s = useCrm();
+  const deal = s.deals.find((d) => d.id === p.dealId);
+  const accepted = s.quotes.filter((q) => q.dealId === p.dealId && q.status === "accepted");
+  const lines = accepted.flatMap((q) => q.lines);
+  if (!deal && !lines.length) return null;
+  return (
+    <section>
+      <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Services booked</h2>
+      {lines.length ? (
+        <ul className="m-0 list-none border-t border-line p-0">
+          {lines.map((l, i) => (
+            <li key={i} className="flex items-center gap-3 border-b border-line py-2">
+              <span className="t-dense min-w-0 flex-1">{l.desc}{l.qty !== 1 && <span className="text-ink-3"> × {l.qty}</span>}</span>
+              <span className="font-mono text-[12px] text-ink-2">{formatFull(Math.round(l.qty * l.ratePaise))}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="t-dense m-0">{deal?.service || deal?.title}{deal?.requirements && <span className="block text-[12px] text-ink-3">{deal.requirements}</span>}</p>
+      )}
+      {accepted.map((q) => <Link key={q.id} to={`/quotes/${q.id}/agreement`} className="t-meta mt-1 mr-3 inline-block text-ink-3 hover:text-ink hover:underline">Agreement {q.number}{q.signature ? ` · signed by ${q.signature.name}` : ""}</Link>)}
+    </section>
+  );
+}
+
+/** Marketing: the campaign brief and the retainer's monthly cycle (each month's checklist and deliverables). */
+function Campaign({ p, set }: { p: Project; set: (patch: Partial<Project>) => void }) {
+  const [busy, setBusy] = useState(false);
+  const cycles = p.cycles ?? [];
+  const monthLabel = (m: string) => new Date(`${m}-15T00:00:00Z`).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
+  return (
+    <section>
+      <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Campaign</h2>
+      <Textarea key={p.id} rows={3} defaultValue={p.campaign ?? ""} placeholder="Objectives, platforms, monthly ad budget, key dates…" onBlur={(e) => e.target.value.trim() !== (p.campaign ?? "") && set({ campaign: e.target.value.trim() || undefined })} />
+      <div className="mt-3 flex flex-wrap items-center gap-3 rounded-card bg-sunken p-3">
+        <span className="t-meta min-w-0 flex-1 text-ink-2">{cycles.length ? `Months started: ${cycles.map(monthLabel).join(", ")}.` : "Start each retainer month to get its checklist and deliverables."} The marketing template (Settings → Project templates) is used, dated from the month's 1st.</span>
+        <Button
+          size="sm"
+          disabled={busy}
+          onClick={async () => {
+            if (IS_DEMO) return void toast("Sign in to start a month");
+            setBusy(true);
+            try {
+              const r = await api<{ project: Project; month: string; tasksCreated: number }>(`/projects/${p.id}/next-month`, { method: "POST", body: {} });
+              const tasks = await api<Task[]>(`/tasks?projectId=${p.id}`);
+              useCrm.setState((st) => ({ projects: st.projects.map((x) => (x.id === p.id ? r.project : x)), tasks: [...tasks, ...st.tasks.filter((t) => t.projectId !== p.id)] }));
+              toast(`${monthLabel(r.month)} started · ${r.tasksCreated} tasks`);
+            } catch (e) {
+              toast(`Couldn't start the month — ${(e as Error).message}`);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "Starting…" : "Start next month"}
+        </Button>
+      </div>
+    </section>
+  );
+}
+
+/** Short updates for the client, shown in their portal newest first. */
+function ClientUpdates({ p }: { p: Project }) {
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  return (
+    <section>
+      <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Updates for the client</h2>
+      <form
+        className="flex flex-col gap-2"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!body.trim()) return;
+          setBusy(true);
+          try {
+            const saved = IS_DEMO ? { ...p, clientUpdates: [{ id: String(Date.now()), body: body.trim(), at: new Date().toISOString(), by: "You" }, ...(p.clientUpdates ?? [])] } : await api<Project>(`/projects/${p.id}/updates`, { method: "POST", body: { body: body.trim() } });
+            useCrm.setState((st) => ({ projects: st.projects.map((x) => (x.id === p.id ? saved : x)) }));
+            setBody("");
+            toast("Shared in the client's portal");
+          } catch (err) {
+            toast(`Couldn't share it — ${(err as Error).message}`);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Textarea rows={2} value={body} onChange={(e) => setBody(e.target.value)} placeholder="e.g. Your edited photos are ready — the gallery link is in your portal." />
+        {body.trim() && <Button type="submit" size="sm" variant="ink" disabled={busy} className="self-end">Share with client</Button>}
+      </form>
+      <ul className="m-0 mt-2 list-none p-0">
+        {(p.clientUpdates ?? []).slice(0, 5).map((u) => (
+          <li key={u.id} className="border-b border-line py-2 last:border-0">
+            <p className="t-dense m-0 whitespace-pre-wrap">{u.body}</p>
+            <span className="font-mono text-[11px] text-ink-3">{u.by} · {fmtAgo(u.at)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Attachments on a task: links to files kept in Drive or elsewhere (raw folders, edits, reference images). */
+function TaskAttachments({ t, canEdit }: { t: Task; canEdit: boolean }) {
+  const [draft, setDraft] = useState({ label: "", url: "" });
+  const links = t.links ?? [];
+  const save = (next: { label: string; url: string }[]) => useCrm.getState().updateTask(t.id, { links: next });
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="t-meta text-ink-3">Attachments</span>
+      {links.map((l, i) => (
+        <span key={i} className="flex items-center gap-2">
+          <a href={l.url} target="_blank" rel="noreferrer" className="t-dense min-w-0 flex-1 truncate hover:underline"><ExternalLink size={12} strokeWidth={1.5} className="mr-1 inline text-ink-3" />{l.label}</a>
+          {canEdit && <Button size="icon-sm" variant="ghost" aria-label={`Remove ${l.label}`} onClick={() => save(links.filter((_, k) => k !== i))}><Trash2 strokeWidth={1.5} /></Button>}
+        </span>
+      ))}
+      {canEdit && (
+        <form
+          className="flex flex-wrap gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!draft.label.trim() || !/^https?:\/\/\S+$/.test(draft.url.trim())) return toast("Name the file and paste a full link, starting https://");
+            save([...links, { label: draft.label.trim(), url: draft.url.trim() }]);
+            setDraft({ label: "", url: "" });
+          }}
+        >
+          <Input aria-label="Attachment name" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="Name, e.g. Selects v2" className="h-8 w-[160px]" />
+          <Input aria-label="Attachment link" value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="Drive or file link" className="h-8 min-w-0 flex-1 basis-[160px]" />
+          <Button type="submit" size="sm">Attach</Button>
+        </form>
+      )}
+    </div>
   );
 }
