@@ -10,6 +10,7 @@ import type { Task } from "../../data/types";
 import { IS_DEMO } from "../../lib/demo";
 import { useCreateAction, usePref } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
+import { Link } from "react-router";
 
 const GROUPS: { id: TaskGroup; label: string }[] = [
   { id: "overdue", label: "Overdue" },
@@ -43,7 +44,7 @@ export function TasksRoute() {
         title="Tasks"
         actions={
           <>
-            <Segmented label="Whose" value={who} onChange={setWho} options={[{ value: "all", label: "Everyone" }, { value: "me", label: "Mine" }]} />
+            <Segmented label="Whose" value={who} onChange={setWho} options={[{ value: "all", label: "Everyone" }, { value: "me", label: "My work" }]} />
             <Segmented
               label="Layout"
               value={view}
@@ -108,6 +109,7 @@ function useTaskBits(t: Task) {
     assignee: s.members.find((m) => m.id === t.assigneeId),
     company: s.companies.find((c) => c.id === t.companyId),
     deal: s.deals.find((d) => d.id === t.dealId),
+    project: s.projects.find((p) => p.id === t.projectId),
   };
 }
 
@@ -131,7 +133,7 @@ function RemindToggle({ t }: { t: Task }) {
 }
 
 function TaskRow({ t }: { t: Task }) {
-  const { toggle, assignee, company, deal } = useTaskBits(t);
+  const { toggle, assignee, company, deal, project } = useTaskBits(t);
   const g = taskGroup(t);
   return (
     <motion.li
@@ -146,13 +148,16 @@ function TaskRow({ t }: { t: Task }) {
       <div className="min-w-0 flex-1 leading-tight">
         <StrikeText done={t.done} className="t-dense">{t.title}</StrikeText>
         <div className="text-[11.5px] text-ink-3">
-          {deal ? (
+          {project ? (
+            <Link to={`/projects/${project.id}`} className="hover:text-ink hover:underline">{project.name}</Link>
+          ) : deal ? (
             <button className="hover:text-ink hover:underline" onClick={() => useUi.getState().openDeal(deal.id)}>{company?.name} · {deal.title}</button>
           ) : (
             company?.name ?? "Internal"
           )}
         </div>
       </div>
+      {(t.priority === "high" || t.priority === "urgent") && !t.done && <Pill tone={t.priority === "urgent" ? "risk" : "warn"}>{t.priority === "urgent" ? "Urgent" : "High"}</Pill>}
       <RemindToggle t={t} />
       <span className={cn("hidden w-[120px] text-right font-mono text-[11.5px] sm:block", g === "overdue" ? "text-risk" : "text-ink-2")}>{dueLabel(t)}</span>
       {assignee && <Avatar name={assignee.name} me={assignee.id === ME_ID} />}

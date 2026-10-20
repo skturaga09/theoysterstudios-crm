@@ -196,3 +196,16 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   pending, next due), services purchased, open leads, invoices, open tasks, team, file links (`links`: Drive
   folders etc., big files stay outside) and a single history (enquiry, first message, everything logged,
   payments, credit notes).
+- **Projects** (`projects`, `/projects`, `/projects/:id`): when a deal reaches won, the API starts one project
+  for it (unique sparse index on `dealId`, so confirming twice is a no-op) from the business's **template**
+  (`templates/templates`, Settings → Project templates, admins; defaults in `DEFAULT_TEMPLATES`, standard
+  wedding and retainer checklists until the client sends theirs). `projectFromDeal`/`planProject` (shared, also
+  used by the demo) date each task and deliverable from the event date or the confirmation day, never before the
+  confirmation day; tasks are due 6 pm IST, assigned to the deal owner, who also becomes manager. A wedding is
+  one project with its **functions** (`events`: name, date, venue; starts with "Wedding") — an assumption to
+  confirm with the client. Projects hold crew (member + role), deliverables (status + link), retainer and
+  content-calendar link (marketing), notes and links. Tasks gained `projectId`, `priority`, `startAt`, `status`
+  (kept in step with `done` by the API), client `approval`, `links` and `comments` (`POST /tasks/:id/comments`).
+  Tasks → "My work" is the person's own list. Permissions per role come in slice 5.
+- **Update schemas** use `patchOf()` instead of zod's `.partial()`, which kept create-time defaults and so reset
+  unmentioned fields (e.g. a task's reminder) on every PATCH.

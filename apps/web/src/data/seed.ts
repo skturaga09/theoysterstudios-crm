@@ -3,7 +3,7 @@
  * screen opens in a realistic working state. Dates are relative to today so the data
  * never goes stale. Mockup "Delivery" stage → Won (see DECISIONS.md).
  */
-import { CHANNELS, lakh, type Channel, type RoutingRule, type Stage } from "@pinnacle/shared";
+import { CHANNELS, DEFAULT_TEMPLATES, lakh, projectFromDeal, type Channel, type RoutingRule, type Stage } from "@pinnacle/shared";
 import type { Workspace } from "@pinnacle/shared/schemas";
 import type {
   Activity,
@@ -14,6 +14,7 @@ import type {
   Invoice,
   Lead,
   Member,
+  Project,
   Task,
 } from "./types";
 
@@ -354,4 +355,16 @@ DEALS.filter((d) => d.stage !== "won" && d.stage !== "lost")
 for (const c of COMPANIES) {
   const won = DEALS.filter((d) => d.companyId === c.id && d.stage === "won" && d.wonAt).map((d) => d.wonAt!).sort();
   if (won.length) c.clientSince = won[0];
+}
+
+/* Demo: every confirmed deal has its project, started from the default checklist; older tasks are done. */
+export const PROJECTS: Project[] = [];
+for (const d of DEALS.filter((x) => x.stage === "won")) {
+  const { project, tasks } = projectFromDeal(d, DEFAULT_TEMPLATES);
+  const id = `p-${d.id}`;
+  PROJECTS.push({ ...project, id, crew: [{ memberId: d.ownerId, role: d.business === "marketing" ? "Account manager" : "Lead photographer" }] });
+  tasks.forEach((t, i) => {
+    const done = +new Date(t.dueAt) < Date.now() - 86_400_000;
+    TASKS.push({ ...t, id: `pt-${d.id}-${i}`, projectId: id, done, status: done ? "done" : t.status, ...(done && t.approval === "pending" && { approval: "approved" as const }) });
+  });
 }

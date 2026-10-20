@@ -73,7 +73,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify, fetch: fakeGoogle });
@@ -416,7 +416,9 @@ describe("api", () => {
     expect(deal).toMatchObject({ stage: "new", health: "ok" });
     const patched = await call("PATCH", `/deals/${deal.id}`, { stage: "proposal", _id: "hijack" });
     expect(patched.json()).toMatchObject({ id: deal.id, stage: "proposal" });
-    expect((await call("GET", "/deals?stage=proposal")).json()).toHaveLength(1);
+    const listed = (await call("GET", "/deals?stage=proposal")).json() as { id: string; stage: string }[];
+    expect(listed.map((d) => d.id)).toContain(deal.id);
+    expect(listed.every((d) => d.stage === "proposal")).toBe(true);
   });
 
   it("keeps contact emails unique", async () => {
@@ -527,6 +529,39 @@ describe("api", () => {
     expect((await call("GET", `/companies/${co.id}`)).json().clientSince).toBe(since);
     expect((await call("PATCH", `/companies/${co.id}`, { links: [{ label: "Drive folder", url: "https://drive.google.com/drive/folders/abc" }] })).json().links).toHaveLength(1);
     expect((await call("PATCH", `/companies/${co.id}`, { links: [{ label: "Bad", url: "drive folder" }] })).statusCode).toBe(400);
+  });
+
+  it("starts one project with its checklist when a lead is confirmed; tasks take status, comments and approval", async () => {
+    const co = (await call("POST", "/companies", { name: "Meera & Kabir", ownerId: "sr", business: "photography" })).json();
+    const d = (await call("POST", "/deals", { title: "Meera & Kabir wedding", companyId: co.id, valuePaise: 1, closeAt: "2027-02-14T00:00:00+05:30", ownerId: "sr", channel: "instagram", business: "photography", stage: "proposal", eventDate: "2027-02-14", location: "Udaipur" })).json();
+    await call("PATCH", `/deals/${d.id}`, { stage: "won" });
+    await call("PATCH", `/deals/${d.id}`, { stage: "won", title: "Meera & Kabir wedding" }); // saving again doesn't start a second project
+    const projects = (await call("GET", `/projects?dealId=${d.id}`)).json();
+    expect(projects).toHaveLength(1);
+    const p = projects[0];
+    expect(p).toMatchObject({ name: "Meera & Kabir wedding", business: "photography", companyId: co.id, managerId: "sr", status: "active", dueDate: "2027-02-14" });
+    expect(p.events).toEqual([{ id: "e1", name: "Wedding", date: "2027-02-14", venue: "Udaipur" }]);
+    expect(p.deliverables[0]).toMatchObject({ name: "Edited photos", dueDate: "2027-02-28", status: "pending" });
+    const tasks = (await call("GET", `/tasks?projectId=${p.id}`)).json();
+    expect(tasks).toHaveLength(13);
+    const day = tasks.find((t: { title: string }) => t.title === "Wedding day coverage");
+    expect(day).toMatchObject({ dueAt: "2027-02-14T18:00:00+05:30", priority: "urgent", status: "todo", assigneeId: "sr" });
+    expect((await call("PATCH", `/tasks/${day.id}`, { status: "done" })).json().done).toBe(true);
+    expect((await call("PATCH", `/tasks/${day.id}`, { done: false })).json().status).toBe("todo");
+    const c = (await call("POST", `/tasks/${day.id}/comments`, { body: "Second shooter confirmed" })).json();
+    expect(c.comments).toHaveLength(1);
+    expect((await call("POST", `/tasks/${day.id}/comments`, { body: " " })).statusCode).toBe(400);
+    expect((await call("PATCH", `/projects/${p.id}`, { crew: [{ memberId: "sr", role: "Lead photographer" }], calendarUrl: "not a link" })).statusCode).toBe(400);
+    expect((await call("PATCH", `/projects/${p.id}`, { crew: [{ memberId: "sr", role: "Lead photographer" }] })).json().crew).toHaveLength(1);
+    // Admins change the checklist new projects start with.
+    const t = (await call("GET", "/project-templates")).json();
+    expect(t.marketing.tasks.length).toBeGreaterThan(0);
+    const next = { ...t, marketing: { tasks: [{ title: "Onboarding", from: "confirmed", days: 1, priority: "high" }], deliverables: [] } };
+    expect((await call("PUT", "/project-templates", next)).statusCode).toBe(200);
+    const m = (await call("POST", "/deals", { title: "Café retainer", companyId: co.id, valuePaise: 1, closeAt: "2027-02-14T00:00:00+05:30", ownerId: "sr", channel: "web", business: "marketing", stage: "won" })).json();
+    const mp = (await call("GET", `/projects?dealId=${m.id}`)).json()[0];
+    expect(mp.events).toEqual([]);
+    expect((await call("GET", `/tasks?projectId=${mp.id}`)).json().map((x: { title: string }) => x.title)).toEqual(["Onboarding"]);
   });
 
   it("deletes records and keeps a deal's board position", async () => {

@@ -3,7 +3,7 @@
  * web bundle doesn't ship zod until forms need it (M1+).
  */
 import { z } from "zod";
-import { BUSINESSES, CHANNELS, HEALTHS, ROLES } from "./domain";
+import { APPROVALS, BUSINESSES, CHANNELS, DELIVERABLE_STATUSES, HEALTHS, PRIORITIES, PROJECT_STATUSES, ROLES, TASK_STATUSES } from "./domain";
 import { gstState, GSTIN_RE } from "./gst";
 
 /** A stage id from the deal's business pipeline (checked against it by the API). */
@@ -36,6 +36,14 @@ export const UpdateMemberSchema = z.object({ role: RoleSchema });
 const id = z.string().trim().min(1).max(64);
 const iso = z.iso.datetime({ offset: true });
 const paise = z.number().int().nonnegative();
+/**
+ * Like `.partial()`, but without the create-time defaults: zod's partial keeps them, so every PATCH would
+ * quietly reset fields it didn't mention (e.g. a task's reminder) to their default.
+ */
+function patchOf<T extends z.ZodRawShape>(schema: z.ZodObject<T>) {
+  const shape = Object.fromEntries(Object.entries(schema.shape).map(([k, v]) => [k, ((v instanceof z.ZodDefault ? v.unwrap() : v) as z.ZodType).optional()]));
+  return z.object(shape) as unknown as ReturnType<z.ZodObject<T>["partial"]>;
+}
 const optionalText = (max: number) => z.string().trim().max(max).optional();
 
 export const CreateCompanySchema = z.object({
@@ -57,7 +65,7 @@ export const CreateCompanySchema = z.object({
     .max(50)
     .optional(),
 });
-export const UpdateCompanySchema = CreateCompanySchema.partial();
+export const UpdateCompanySchema = patchOf(CreateCompanySchema);
 
 export const CreateContactSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -71,7 +79,7 @@ export const CreateContactSchema = z.object({
   source: ChannelSchema,
   business: BusinessSchema.optional(),
 });
-export const UpdateContactSchema = CreateContactSchema.partial();
+export const UpdateContactSchema = patchOf(CreateContactSchema);
 
 export const CreateDealSchema = z.object({
   title: z.string().trim().min(1).max(160),
@@ -95,7 +103,7 @@ export const CreateDealSchema = z.object({
   /** When to follow up next; null clears it. */
   nextFollowUpAt: iso.nullable().optional(),
 });
-export const UpdateDealSchema = CreateDealSchema.partial().extend({
+export const UpdateDealSchema = patchOf(CreateDealSchema).extend({
   lostReason: optionalText(240),
   wonAt: iso.optional(),
 });
@@ -121,7 +129,7 @@ export const CreateInvoiceSchema = z.object({
     .max(100),
 });
 /** A draft can change everything except who it's for and when it was issued (its number belongs to that year). */
-export const UpdateDraftInvoiceSchema = CreateInvoiceSchema.pick({ dealId: true, dueAt: true, supply: true, lines: true }).partial();
+export const UpdateDraftInvoiceSchema = patchOf(CreateInvoiceSchema.pick({ dealId: true, dueAt: true, supply: true, lines: true }));
 
 export const RecordPaymentSchema = z.object({ amountPaise: paise.refine((v) => v > 0, "Amount must be positive"), at: iso.optional() });
 
@@ -157,8 +165,15 @@ export const CreateTaskSchema = z.object({
   /** Create a Google Calendar reminder at the due time (once Calendar is connected). */
   remind: z.boolean().default(false),
   business: BusinessSchema.optional(),
+  /** Project work: which project, how urgent, when it starts, where it is, and whether the client must approve. */
+  projectId: id.optional(),
+  priority: z.enum(PRIORITIES).default("normal"),
+  startAt: iso.optional(),
+  status: z.enum(TASK_STATUSES).default("todo"),
+  approval: z.enum(APPROVALS).default("none"),
+  links: z.array(z.object({ label: z.string().trim().min(1).max(80), url: z.string().trim().url().max(2000) })).max(20).default([]),
 });
-export const UpdateTaskSchema = CreateTaskSchema.partial().extend({
+export const UpdateTaskSchema = patchOf(CreateTaskSchema).extend({
   done: z.boolean().optional(),
   doneAt: iso.nullable().optional(),
 });
@@ -226,3 +241,51 @@ export const PipelineSchema = z
   .refine((st) => st.every((s) => (s.kind === "won" ? s.id === "won" : s.kind === "lost" ? s.id === "lost" : s.id !== "won" && s.id !== "lost")), "The Confirmed and Lost stages keep their ids")
   .refine((st) => st.some((s) => s.kind === "open"), "Keep at least one open stage");
 export const PipelinesSchema = z.object({ photography: PipelineSchema, marketing: PipelineSchema });
+
+/* ---------- Projects ---------- */
+const link = z.object({ label: z.string().trim().min(1, "Name the link").max(80), url: z.string().trim().url("Enter a full web address, starting https://").max(2000) });
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date");
+const smallId = z.string().trim().min(1).max(40);
+
+export const ProjectEventSchema = z.object({ id: smallId, name: z.string().trim().min(1).max(80), date: day.optional(), venue: optionalText(160) });
+export const CrewSchema = z.object({ memberId: id, role: z.string().trim().min(1).max(60) });
+export const DeliverableSchema = z.object({
+  id: smallId,
+  name: z.string().trim().min(1).max(120),
+  dueDate: day.optional(),
+  status: z.enum(DELIVERABLE_STATUSES).default("pending"),
+  url: z.string().trim().url().max(2000).optional(),
+});
+
+export const CreateProjectSchema = z.object({
+  name: z.string().trim().min(1, "Name the project").max(160),
+  business: BusinessSchema,
+  companyId: id,
+  dealId: id.optional(),
+  status: z.enum(PROJECT_STATUSES).default("active"),
+  managerId: id.optional(),
+  startDate: day.optional(),
+  dueDate: day.optional(),
+  events: z.array(ProjectEventSchema).max(30).default([]),
+  crew: z.array(CrewSchema).max(40).default([]),
+  deliverables: z.array(DeliverableSchema).max(40).default([]),
+  /** Marketing: monthly retainer and the content calendar (e.g. a Notion link). */
+  retainerPaise: z.number().int().nonnegative().optional(),
+  calendarUrl: z.string().trim().url().max(2000).optional(),
+  notes: optionalText(4000),
+  links: z.array(link).max(50).default([]),
+});
+export const UpdateProjectSchema = patchOf(CreateProjectSchema);
+
+export const TaskCommentSchema = z.object({ body: z.string().trim().min(1, "Write a comment").max(2000) });
+
+export const TemplatesSchema = z.object({
+  photography: z.object({
+    tasks: z.array(z.object({ title: z.string().trim().min(1).max(160), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365), priority: z.enum(PRIORITIES), approval: z.boolean().optional() })).max(60),
+    deliverables: z.array(z.object({ name: z.string().trim().min(1).max(120), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365) })).max(30),
+  }),
+  marketing: z.object({
+    tasks: z.array(z.object({ title: z.string().trim().min(1).max(160), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365), priority: z.enum(PRIORITIES), approval: z.boolean().optional() })).max(60),
+    deliverables: z.array(z.object({ name: z.string().trim().min(1).max(120), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365) })).max(30),
+  }),
+});

@@ -13,6 +13,7 @@ import { useCanEdit, useCrm } from "../../data/store";
 import type { Activity, Company } from "../../data/types";
 import { api } from "../../lib/api";
 import { useUi } from "../../lib/ui-store";
+import { ProjectList } from "../projects/index";
 import { ClientDetails } from "./companies";
 
 /**
@@ -39,6 +40,7 @@ export function ClientRoute() {
   const dealIds = new Set(deals.map((d) => d.id));
   const confirmed = deals.filter((d) => d.stage === "won");
   const open = deals.filter(isOpen);
+  const projects = s.projects.filter((p) => p.companyId === c.id);
   const contacts = s.contacts.filter((x) => x.companyId === c.id);
   const contactIds = new Set(contacts.map((x) => x.id));
   const invoices = s.invoices.filter((i) => i.companyId === c.id && !i.cancelled).sort((a, b) => +new Date(b.issuedAt) - +new Date(a.issuedAt));
@@ -96,6 +98,10 @@ export function ClientRoute() {
           <section>
             <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Services purchased · {confirmed.length}</h2>
             <DealList deals={confirmed} empty="Nothing confirmed yet." />
+          </section>
+          <section>
+            <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Projects · {projects.length}</h2>
+            <ProjectList projects={projects} />
           </section>
           <section>
             <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Open leads · {open.length}</h2>

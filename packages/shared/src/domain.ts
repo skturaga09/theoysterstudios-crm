@@ -90,3 +90,78 @@ export const SERVICES: Record<Business, string[]> = {
   photography: ["Wedding photography", "Wedding videography", "Pre-wedding shoot", "Album", "Drone", "Cinematic film", "Editing"],
   marketing: ["Social media management", "Performance marketing", "Branding", "Website development", "Content creation", "Graphic design", "Video production", "SEO"],
 };
+
+/* ---------- Projects ---------- */
+export const TASK_STATUSES = ["todo", "in_progress", "review", "done"] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+export const TASK_STATUS_LABEL: Record<TaskStatus, string> = { todo: "To do", in_progress: "In progress", review: "In review", done: "Done" };
+export const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
+export type Priority = (typeof PRIORITIES)[number];
+export const PRIORITY_LABEL: Record<Priority, string> = { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" };
+/** Client sign-off on a task: none needed, waiting, approved, or changes asked for. */
+export const APPROVALS = ["none", "pending", "approved", "changes"] as const;
+export type Approval = (typeof APPROVALS)[number];
+export const APPROVAL_LABEL: Record<Approval, string> = { none: "No approval", pending: "Awaiting client", approved: "Approved", changes: "Changes asked" };
+export const PROJECT_STATUSES = ["planning", "active", "delivered", "closed"] as const;
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = { planning: "Planning", active: "Active", delivered: "Delivered", closed: "Closed" };
+export const DELIVERABLE_STATUSES = ["pending", "in_progress", "delivered"] as const;
+export type DeliverableStatus = (typeof DELIVERABLE_STATUSES)[number];
+
+/** Suggested crew roles per business (free text is fine too). */
+export const CREW_ROLES: Record<Business, string[]> = {
+  photography: ["Lead photographer", "Candid photographer", "Traditional photographer", "Videographer", "Drone operator", "Photo editor", "Film editor", "Album designer"],
+  marketing: ["Account manager", "Designer", "Video editor", "Performance marketer", "Content writer", "Social media manager"],
+};
+
+/**
+ * A project template: the checklist and deliverables every new project of a business starts with.
+ * `from` is what a due date counts from — the event (wedding) date or the day the deal was confirmed.
+ */
+export type TemplateItem = { title: string; from: "event" | "confirmed"; days: number; priority: Priority; approval?: boolean };
+export type ProjectTemplate = { tasks: TemplateItem[]; deliverables: { name: string; from: "event" | "confirmed"; days: number }[] };
+export type Templates = Record<Business, ProjectTemplate>;
+
+export const DEFAULT_TEMPLATES: Templates = {
+  photography: {
+    tasks: [
+      { title: "Booking advance received", from: "confirmed", days: 3, priority: "high" },
+      { title: "Confirm functions, timings and venue", from: "event", days: -30, priority: "normal" },
+      { title: "Assign photo and video crew", from: "event", days: -21, priority: "high" },
+      { title: "Pre-wedding shoot (if booked)", from: "event", days: -14, priority: "low" },
+      { title: "Shot list and family groups from the couple", from: "event", days: -7, priority: "normal" },
+      { title: "Equipment check and backups", from: "event", days: -2, priority: "high" },
+      { title: "Wedding day coverage", from: "event", days: 0, priority: "urgent" },
+      { title: "Back up and cull photos", from: "event", days: 2, priority: "high" },
+      { title: "Edit photos", from: "event", days: 14, priority: "normal" },
+      { title: "Edit wedding film", from: "event", days: 30, priority: "normal" },
+      { title: "Client review and approval", from: "event", days: 35, priority: "normal", approval: true },
+      { title: "Album design", from: "event", days: 45, priority: "normal", approval: true },
+      { title: "Final delivery and balance payment", from: "event", days: 60, priority: "high" },
+    ],
+    deliverables: [
+      { name: "Edited photos", from: "event", days: 14 },
+      { name: "Highlight film", from: "event", days: 30 },
+      { name: "Full wedding film", from: "event", days: 45 },
+      { name: "Album", from: "event", days: 60 },
+    ],
+  },
+  marketing: {
+    tasks: [
+      { title: "Kick-off call and onboarding", from: "confirmed", days: 3, priority: "high" },
+      { title: "Collect brand assets and account access", from: "confirmed", days: 5, priority: "normal" },
+      { title: "Strategy and monthly content calendar", from: "confirmed", days: 10, priority: "high" },
+      { title: "Content calendar approval", from: "confirmed", days: 12, priority: "normal", approval: true },
+      { title: "Create the month's creatives", from: "confirmed", days: 20, priority: "normal", approval: true },
+      { title: "Campaign setup", from: "confirmed", days: 21, priority: "normal" },
+      { title: "Publish and monitor", from: "confirmed", days: 30, priority: "normal" },
+      { title: "Monthly report", from: "confirmed", days: 35, priority: "normal" },
+      { title: "Plan next month's calendar", from: "confirmed", days: 40, priority: "normal" },
+    ],
+    deliverables: [
+      { name: "Monthly content calendar", from: "confirmed", days: 10 },
+      { name: "Month's creatives", from: "confirmed", days: 20 },
+      { name: "Monthly report", from: "confirmed", days: 35 },
+    ],
+  },
+};

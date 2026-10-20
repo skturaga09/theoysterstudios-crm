@@ -1,4 +1,4 @@
-import type { Business, Channel, Health, Paise, Role, Stage } from "@pinnacle/shared";
+import type { Approval, Business, Channel, DeliverableStatus, Health, Paise, Priority, ProjectStatus, Role, Stage, TaskStatus } from "@pinnacle/shared";
 
 export type ID = string;
 export type ISO = string;
@@ -138,6 +138,35 @@ export type Task = {
   companyId?: ID;
   /** Create a Google Calendar reminder at the due time. */
   remind?: boolean;
+  /** Project work. Older tasks have none of these; read them with defaults. */
+  projectId?: ID;
+  priority?: Priority;
+  startAt?: ISO;
+  status?: TaskStatus;
+  approval?: Approval;
+  links?: { label: string; url: string }[];
+  comments?: { id: ID; authorId: ID; body: string; at: ISO }[];
+};
+
+/** Work for a confirmed client: a wedding (with its functions) or a marketing engagement. */
+export type Project = {
+  id: ID;
+  name: string;
+  business: Business;
+  companyId: ID;
+  dealId?: ID;
+  status: ProjectStatus;
+  managerId?: ID;
+  startDate?: string;
+  dueDate?: string;
+  events: { id: string; name: string; date?: string; venue?: string }[];
+  crew: { memberId: ID; role: string }[];
+  deliverables: { id: string; name: string; dueDate?: string; status: DeliverableStatus; url?: string }[];
+  retainerPaise?: number;
+  calendarUrl?: string;
+  notes?: string;
+  links: { label: string; url: string }[];
+  createdAt: ISO;
 };
 
 export type InvoiceStatus = "draft" | "sent" | "partial" | "paid" | "overdue" | "cancelled" | "credited";

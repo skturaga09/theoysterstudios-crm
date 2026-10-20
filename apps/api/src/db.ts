@@ -22,7 +22,9 @@ const INDEXES: Record<string, IndexDescription[]> = {
   contacts: [{ key: { companyId: 1 } }, { key: { ownerId: 1 } }, { key: { email: 1 }, unique: true, sparse: true }],
   deals: [{ key: { stage: 1, position: 1 } }, { key: { companyId: 1 } }, { key: { ownerId: 1 } }],
   members: [{ key: { email: 1 }, unique: true }],
-  tasks: [{ key: { assigneeId: 1, done: 1 } }, { key: { dealId: 1 } }],
+  tasks: [{ key: { assigneeId: 1, done: 1 } }, { key: { dealId: 1 } }, { key: { projectId: 1 } }],
+  // One project per confirmed deal; sparse lets projects started by hand have none.
+  projects: [{ key: { dealId: 1 }, unique: true, sparse: true }, { key: { companyId: 1 } }, { key: { managerId: 1 } }],
   activities: [{ key: { at: -1 } }, { key: { dealId: 1, at: -1 } }],
   conversations: [{ key: { channel: 1, externalId: 1 }, unique: true }, { key: { lastMessageAt: -1 } }],
   invoices: [{ key: { number: 1 }, unique: true }, { key: { companyId: 1 } }, { key: { dueAt: 1 } }],

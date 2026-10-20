@@ -3,7 +3,7 @@
  * deals, invoices, tasks and activity (see sync.ts); mutations update the screen first, then save to the API
  * and roll back if that fails. The inbox is still local-only until the channels are connected.
  */
-import { formatCompact, type Business, type BusinessView, type RoutingRule, type Stage, DEFAULT_PIPELINES, stageIn, type Pipelines } from "@pinnacle/shared";
+import { DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatCompact, type Business, type BusinessView, type RoutingRule, type Stage, DEFAULT_PIPELINES, stageIn, type Pipelines } from "@pinnacle/shared";
 import { create } from "zustand";
 import {
   ACTIVITIES,
@@ -18,13 +18,15 @@ import {
   MEMBERS,
   SAMPLE_ROUTING,
   SAMPLE_WORKSPACE,
+  PROJECTS,
   TASKS,
   type ChannelStatus,
 } from "./seed";
 import { toast } from "@pinnacle/ui";
 import { api, save } from "../lib/api";
+import { IS_DEMO } from "../lib/demo";
 import { useSession } from "../lib/session";
-import type { Activity, Company, Contact, Conversation, CreditNote, Deal, Invoice, Lead, Member, Task } from "./types";
+import type { Activity, Company, Contact, Conversation, CreditNote, Deal, Invoice, Lead, Member, Project, Task } from "./types";
 import type { Workspace } from "@pinnacle/shared/schemas";
 
 const uid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 8)}`;
@@ -57,6 +59,9 @@ interface CrmState {
   conversations: Conversation[];
   activities: Activity[];
   tasks: Task[];
+  projects: Project[];
+  /** The checklists new projects start with (Settings → Project templates). */
+  templates: Templates;
   invoices: Invoice[];
   creditNotes: CreditNote[];
   leads: Lead[];
@@ -76,6 +81,9 @@ interface CrmState {
   toggleTask: (id: string) => void;
   addTask: (t: Omit<Task, "id" | "done">) => void;
   updateTask: (id: string, patch: Partial<Task>) => void;
+  commentOnTask: (id: string, body: string) => void;
+  /* projects */
+  updateProject: (id: string, patch: Partial<Project>) => void;
   /* activity: notes, calls… */
   addNote: (dealId: string, body: string) => void;
   addActivity: (entry: ActivityEntry) => void;
@@ -129,6 +137,18 @@ const saveDealChanges = (from: Deal[], to: Deal[]) =>
     }),
   );
 
+/** Fetches the project (and its checklist) the API started for a confirmed deal. */
+async function pullProject(dealId: string) {
+  const [project] = await api<Project[]>(`/projects?dealId=${dealId}`);
+  if (!project) return;
+  const tasks = await api<Task[]>(`/tasks?projectId=${project.id}`);
+  useCrm.setState((s) => ({
+    projects: [project, ...s.projects.filter((p) => p.id !== project.id)],
+    tasks: [...tasks, ...s.tasks.filter((t) => t.projectId !== project.id)],
+  }));
+  toast(`Project started · ${tasks.length} tasks from the ${project.business === "marketing" ? "marketing" : "wedding"} checklist`);
+}
+
 const VIEW_KEY = "oyster.businessView";
 const savedView = (): BusinessView => {
   try {
@@ -165,6 +185,8 @@ const raw = create<CrmState>((set, get) => ({
   conversations: CONVERSATIONS,
   activities: ACTIVITIES,
   tasks: TASKS,
+  projects: PROJECTS,
+  templates: DEFAULT_TEMPLATES,
   invoices: INVOICES,
   creditNotes: [],
   leads: LEADS,
@@ -207,7 +229,17 @@ const raw = create<CrmState>((set, get) => ({
       set({ deals: prev, activities: get().activities.filter((a) => a.id !== entry?.activity.id) });
       entry?.remove();
     };
-    save(saveDealChanges(prev, deals), rollback);
+    const request = saveDealChanges(prev, deals);
+    save(request, rollback);
+    // Confirmed: the API starts the project and its checklist; show them (the demo builds them here).
+    if (stage === "won" && !get().projects.some((p) => p.dealId === id)) {
+      if (IS_DEMO) {
+        const { project, tasks } = projectFromDeal(moved, get().templates);
+        const projectId = uid("p");
+        set({ projects: [{ ...project, id: projectId }, ...get().projects], tasks: [...tasks.map((t) => ({ ...t, id: uid("t"), projectId })), ...get().tasks] });
+        toast(`Project started · ${tasks.length} tasks from the checklist`);
+      } else void request.then(() => pullProject(id), () => {});
+    }
     return () => {
       rollback();
       save(saveDealChanges(deals, prev), () => {});
@@ -332,7 +364,7 @@ const raw = create<CrmState>((set, get) => ({
 
   toggleTask: (id) => {
     const t = get().tasks.find((x) => x.id === id);
-    if (t) get().updateTask(id, { done: !t.done, doneAt: !t.done ? now() : undefined });
+    if (t) get().updateTask(id, { done: !t.done, doneAt: !t.done ? now() : undefined, ...(t.status && { status: t.done ? "todo" : "done" }) });
   },
   addTask: (t) => {
     const temp: Task = { ...t, id: uid("t"), done: false };
@@ -344,6 +376,19 @@ const raw = create<CrmState>((set, get) => ({
         toast(`Couldn't save the task — ${e.message}`);
       },
     );
+  },
+  commentOnTask: (id, body) => {
+    const comment = { id: uid("c"), authorId: ME_ID, body, at: now() };
+    const prev = get().tasks;
+    set({ tasks: prev.map((t) => (t.id === id ? { ...t, comments: [...(t.comments ?? []), comment] } : t)) });
+    save(api(`/tasks/${id}/comments`, { method: "POST", body: { body } }), () => set({ tasks: prev }));
+  },
+  updateProject: (id, changes) => {
+    const prev = get().projects;
+    set({ projects: prev.map((p) => (p.id === id ? { ...p, ...changes } : p)) });
+    // `undefined` means "clear it", which JSON can only say as null.
+    const body = Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, v ?? null]));
+    save(patch(`/projects/${id}`, body), () => set({ projects: prev }));
   },
   updateTask: (id, changes) => {
     const prev = get().tasks;
@@ -400,6 +445,7 @@ function scoped(st: CrmState): CrmState {
       invoices,
       creditNotes: st.creditNotes.filter((c) => invoiceIds.has(c.invoiceId)),
       tasks: st.tasks.filter((t) => fits(t.business ?? dealOf(t.dealId)?.business)),
+      projects: st.projects.filter((p) => fits(p.business)),
       conversations: st.conversations.filter((c) => fits(c.business)),
       activities: st.activities.filter((a) => (a.dealId ? dealIds.has(a.dealId) : a.companyId ? companyIds.has(a.companyId) : true)),
     };

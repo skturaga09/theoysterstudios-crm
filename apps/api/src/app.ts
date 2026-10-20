@@ -25,9 +25,13 @@ import {
   UpdateConversationSchema,
   SetupProgressSchema,
   WorkspaceSchema,
+  CreateProjectSchema,
+  UpdateProjectSchema,
+  TaskCommentSchema,
+  TemplatesSchema,
   type Workspace,
 } from "@pinnacle/shared/schemas";
-import { DEFAULT_PIPELINES, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines } from "@pinnacle/shared";
+import { DEFAULT_PIPELINES, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines } from "@pinnacle/shared";
 import { nameFromEmail, SUPPORT_MEMBER, type Member, type Verify } from "./auth";
 import type { Doc } from "./db";
 import { createCreditNote, createInvoice } from "./invoices";
@@ -42,6 +46,8 @@ const ListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(5000).default(5000),
   stage: z.string().optional(),
   companyId: z.string().optional(),
+  dealId: z.string().optional(),
+  projectId: z.string().optional(),
 });
 
 declare module "fastify" {
@@ -486,12 +492,55 @@ export function buildApp({
     },
     // A lead that's confirmed makes its company (or couple) a client — no need to create the client again.
     after: async (deal) => {
-      if (deal.stage === "won" && deal.companyId)
-        await db.collection<Doc>("companies").updateOne({ _id: String(deal.companyId), clientSince: { $exists: false } }, { $set: { clientSince: String(deal.wonAt ?? now()) } });
+      if (deal.stage !== "won" || !deal.companyId) return;
+      await db.collection<Doc>("companies").updateOne({ _id: String(deal.companyId), clientSince: { $exists: false } }, { $set: { clientSince: String(deal.wonAt ?? now()) } });
+      await startProject(deal);
     },
   });
-  records("tasks", CreateTaskSchema, UpdateTaskSchema, () => ({ done: false }), {
+
+  /* ---------- Projects: started from a template when a lead is confirmed ---------- */
+  const templatesCol = db.collection<{ _id: string } & Templates>("templates");
+  const getTemplates = async (): Promise<Templates> => {
+    const doc = await templatesCol.findOne({ _id: "templates" });
+    return doc ? { photography: doc.photography, marketing: doc.marketing } : DEFAULT_TEMPLATES;
+  };
+  app.get("/project-templates", getTemplates);
+  app.put("/project-templates", { preHandler: adminOnly }, async (req) => {
+    const next = TemplatesSchema.parse(req.body);
+    await templatesCol.replaceOne({ _id: "templates" }, next, { upsert: true });
+    return next;
+  });
+
+  /** One project per confirmed deal (a unique index makes a second confirmation a no-op), with its checklist. */
+  async function startProject(deal: Doc) {
+    const { project, tasks } = projectFromDeal(deal, await getTemplates(), now());
+    const projectId = new ObjectId().toHexString();
+    try {
+      await db.collection<Doc>("projects").insertOne({ _id: projectId, ...project });
+    } catch (e) {
+      if (e instanceof MongoServerError && e.code === 11000) return; // this deal already has its project
+      throw e;
+    }
+    await db.collection<Doc>("tasks").insertMany(tasks.map((t) => ({ _id: new ObjectId().toHexString(), ...t, projectId })));
+  }
+  records("projects", CreateProjectSchema, UpdateProjectSchema, () => ({ createdAt: now() }), {
+    scope: (req, own) => ({ $or: [{ managerId: req.member._id }, { "crew.memberId": req.member._id }, { dealId: { $in: own } }] }),
+  });
+
+  records("tasks", CreateTaskSchema, UpdateTaskSchema, () => ({ done: false, comments: [] }), {
     scope: (req, own) => ({ $or: [{ assigneeId: req.member._id }, { dealId: { $in: own } }] }),
+    // Ticking a task done and moving it to "Done" are the same thing.
+    check: async (next) => {
+      if (next.status !== undefined) next.done = next.status === "done";
+      else if (next.done !== undefined) next.status = next.done ? "done" : "todo";
+      return undefined;
+    },
+  });
+  app.post<{ Params: { id: string } }>("/tasks/:id/comments", async (req, reply) => {
+    const { body } = TaskCommentSchema.parse(req.body);
+    const comment = { id: new ObjectId().toHexString(), authorId: req.member._id, body, at: now() };
+    const saved = await db.collection<Doc>("tasks").findOneAndUpdate({ _id: req.params.id }, { $push: { comments: comment } } as never, { returnDocument: "after" });
+    return saved ? reply.code(201).send(out(saved)) : reply.code(404).send({ error: "Not found" });
   });
 
   /* ---------- Import (admins): CSV rows already mapped to field names ---------- */

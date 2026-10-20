@@ -19,6 +19,8 @@ const routes: RouteObject[] = [
       { path: "pipeline", lazy: async () => ({ Component: (await import("./routes/pipeline/index")).PipelineRoute }) },
       { path: "deals/:id", lazy: async () => ({ Component: (await import("./routes/deal/index")).DealRoute }) },
       { path: "tasks", lazy: async () => ({ Component: (await import("./routes/tasks/index")).TasksRoute }) },
+      { path: "projects", lazy: async () => ({ Component: (await import("./routes/projects/index")).ProjectsRoute }) },
+      { path: "projects/:id", lazy: async () => ({ Component: (await import("./routes/projects/index")).ProjectRoute }) },
       { path: "clients", lazy: async () => ({ Component: (await import("./routes/records/companies")).CompaniesRoute }) },
       { path: "clients/:id", lazy: async () => ({ Component: (await import("./routes/records/client")).ClientRoute }) },
       // Companies became Clients; old links still work.
@@ -36,6 +38,7 @@ const routes: RouteObject[] = [
           { path: "pipeline", lazy: async () => ({ Component: (await import("./routes/settings/sections")).PipelineSettingsRoute }) },
           // The setup guide now lives on each channel's card under Integrations.
           { path: "setup", element: <Navigate to="/settings/integrations" replace /> },
+          { path: "templates", lazy: async () => ({ Component: (await import("./routes/settings/templates")).TemplatesRoute }) },
           { path: "integrations", lazy: async () => ({ Component: (await import("./routes/settings/sections")).IntegrationsRoute }) },
           { path: "routing", lazy: async () => ({ Component: (await import("./routes/settings/sections")).RoutingRoute }) },
           { path: "notifications", lazy: async () => ({ Component: (await import("./routes/settings/sections")).NotificationsRoute }) },
