@@ -3,17 +3,19 @@ import { Compass } from "lucide-react";
 import { createBrowserRouter, createMemoryRouter, Link, Navigate, type RouteObject } from "react-router";
 import { EmptyState } from "./components/empty-state";
 import { AppShell } from "./shell/app-shell";
+import { RouteError } from "./components/route-error";
 
 /** Every screen is its own chunk, so charts and drag-and-drop load only where used. */
 const routes: RouteObject[] = [
   // Printable invoice: full page, outside the app shell (no sidebar), still behind sign-in.
-  { path: "/invoices/:id/print", lazy: async () => ({ Component: (await import("./routes/invoices/print")).InvoicePrintRoute }) },
-  { path: "/quotes/:id/print", lazy: async () => ({ Component: (await import("./routes/invoices/print")).QuotePrintRoute }) },
-  { path: "/quotes/:id/agreement", lazy: async () => ({ Component: (await import("./routes/invoices/print")).AgreementPrintRoute }) },
-  { path: "/credit-notes/:id/print", lazy: async () => ({ Component: (await import("./routes/invoices/print")).CreditNotePrintRoute }) },
+  { path: "/invoices/:id/print", errorElement: <RouteError />, lazy: async () => ({ Component: (await import("./routes/invoices/print")).InvoicePrintRoute }) },
+  { path: "/quotes/:id/print", errorElement: <RouteError />, lazy: async () => ({ Component: (await import("./routes/invoices/print")).QuotePrintRoute }) },
+  { path: "/quotes/:id/agreement", errorElement: <RouteError />, lazy: async () => ({ Component: (await import("./routes/invoices/print")).AgreementPrintRoute }) },
+  { path: "/credit-notes/:id/print", errorElement: <RouteError />, lazy: async () => ({ Component: (await import("./routes/invoices/print")).CreditNotePrintRoute }) },
   {
     path: "/",
     element: <AppShell />,
+    errorElement: <RouteError />,
     children: [
       { index: true, lazy: async () => ({ Component: (await import("./routes/home/index")).HomeRoute }) },
       { path: "inbox", lazy: async () => ({ Component: (await import("./routes/inbox/index")).InboxRoute }) },

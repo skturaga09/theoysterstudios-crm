@@ -287,3 +287,14 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   `profitAndLoss()` and `scheduleFrom()` live in shared and are tested.
 - **Exports:** Excel = CSV with a UTF-8 byte-order mark (opens cleanly in Excel, no library); PDF = the
   browser's print → Save as PDF (quotations, invoices, credit notes, P&L; the app shell hides when printing).
+
+## Releases and open tabs (20 Oct 2026)
+
+- **Symptom:** after a publish, Inbox, Tasks, Expenses or Settings "broke" for people with the CRM already open (or
+  opened from a cached page): each screen is its own file, the old file names were gone, and Hosting answered the
+  missing file with the app page — so the screen couldn't load.
+- **Fix:** Hosting returns 404 for a missing `/assets/**` file instead of the app page; page addresses
+  (`/inbox`, `/expenses`, …) are `no-cache` so a visit always picks up the current release (build files stay
+  cached for a year — their names change every build). In the app, a failed screen load from an old release
+  reloads once (`vite:preloadError` + the router's error screen, `lib/stale.ts`; a 30-second guard stops loops);
+  any other failure shows "This page didn't load" with a Reload button instead of a blank screen.

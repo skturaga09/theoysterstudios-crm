@@ -4,8 +4,15 @@ import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { AuthGate } from "./shell/auth-gate";
+import { reloadForNewVersion } from "./lib/stale";
 
 bootTheme();
+
+// A tab opened before the latest publish may ask for page files that are gone: reload once for the new version.
+window.addEventListener("vite:preloadError", (e) => {
+  e.preventDefault();
+  reloadForNewVersion();
+});
 
 // The public privacy page (/privacy) needs no sign-in; everything else is behind the gate.
 const isPrivacy = window.location.pathname === "/privacy";
