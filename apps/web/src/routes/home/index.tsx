@@ -1,3 +1,5 @@
+import { accessOf } from "@pinnacle/shared";
+import { Navigate } from "react-router";
 import { fmtAgo, fmtDay, fmtEyebrow, greeting, type Health } from "@pinnacle/shared";
 import { Avatar, ChannelChip, Checkbox, cn, HealthDot, Ledger, MoneyText, Pill, rise, spring, StrikeText, Table, TBody, TD, TH, THead, TR, type LedgerCell } from "@pinnacle/ui";
 import { ArrowRight, Waypoints } from "lucide-react";
@@ -44,6 +46,13 @@ function useSummary() {
 }
 
 export function HomeRoute() {
+  const me = useMe();
+  // Crew have no leads or sales numbers: their home is their work.
+  if (accessOf(me.role, "sales") === "none") return <Navigate to="/tasks" replace />;
+  return <SalesHome />;
+}
+
+function SalesHome() {
   const me = useMe();
   const deals = useCrm((s) => s.deals);
   const summary = useSummary();

@@ -9,7 +9,7 @@ import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
 import { isOpen } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
-import { useCanEdit, useCrm, useIsManager } from "../../data/store";
+import { useCanEdit, useCrm, useCanAssign } from "../../data/store";
 import type { Company, Deal } from "../../data/types";
 import { DealStage } from "../../components/deal/deal-stage";
 import { runFor, stageRank } from "../../data/pipeline";
@@ -25,7 +25,7 @@ export const Monogram = ({ name }: { name: string }) => (
 );
 
 export function CompaniesRoute() {
-  const isManager = useIsManager();
+  const isManager = useCanAssign();
   const s = useCrm();
   const navigate = useNavigate();
   // Clients = at least one confirmed deal; prospects = not yet.

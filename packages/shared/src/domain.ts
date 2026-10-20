@@ -62,8 +62,31 @@ export const HEALTH_LABEL: Record<Health, string> = {
   risk: "At risk",
 };
 
-export const ROLES = ["admin", "manager", "member"] as const;
+/* ---------- Roles and what each may do ---------- */
+export const ROLES = ["admin", "sales", "pm", "finance", "crew"] as const;
 export type Role = (typeof ROLES)[number];
+export const ROLE_LABEL: Record<Role, string> = { admin: "Owner / Admin", sales: "Sales", pm: "Project manager", finance: "Finance", crew: "Team / Freelancer" };
+export const ROLE_HELP: Record<Role, string> = {
+  admin: "Everything, including the team, integrations, stages and templates.",
+  sales: "Leads, Inbox, follow-ups and clients they own; sees projects and invoices.",
+  pm: "Runs projects, crews and checklists; sees leads and clients.",
+  finance: "Invoices, payments and credit notes; sees leads, clients and projects.",
+  crew: "Only the projects they're on and their own tasks.",
+};
+/** Old role names, from before the five roles. */
+export const roleOf = (r: string): Role => ((ROLES as readonly string[]).includes(r) ? (r as Role) : r === "member" || r === "manager" ? "sales" : "crew");
+
+/** The three areas of work. "own" = sales: change only your own records; crew: only your projects and tasks. */
+export type Area = "sales" | "projects" | "finance";
+export type Access = "edit" | "own" | "view" | "none";
+export const ACCESS: Record<Role, Record<Area, Access>> = {
+  admin: { sales: "edit", projects: "edit", finance: "edit" },
+  sales: { sales: "own", projects: "view", finance: "view" },
+  pm: { sales: "view", projects: "edit", finance: "none" },
+  finance: { sales: "view", projects: "view", finance: "edit" },
+  crew: { sales: "none", projects: "own", finance: "none" },
+};
+export const accessOf = (role: string, area: Area): Access => ACCESS[roleOf(role)][area];
 
 /** The studio runs two businesses from one CRM; most records belong to one of them. */
 export const BUSINESSES = ["photography", "marketing"] as const;

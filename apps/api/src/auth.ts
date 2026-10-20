@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { ObjectId, type Db } from "mongodb";
+import type { Role } from "@pinnacle/shared";
 
 export type Claims = { email?: string; email_verified?: boolean; name?: string; picture?: string };
 export type Verify = (idToken: string) => Promise<Claims>;
@@ -18,7 +19,7 @@ export type Member = {
   _id: string;
   email: string;
   name: string;
-  role: "admin" | "manager" | "member";
+  role: Role;
   title: string;
   status: "invited" | "active" | "removed";
   addedAt: string;

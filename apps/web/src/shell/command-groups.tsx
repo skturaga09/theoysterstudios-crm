@@ -4,19 +4,20 @@ import { Building2, CheckSquare, Contrast, FileText, KanbanSquare, MessageSquare
 import { useNavigate } from "react-router";
 import { useCrm } from "../data/store";
 import { useUi } from "../lib/ui-store";
-import { NAV } from "./nav";
+import { useNav } from "./nav";
 
 /** Local search over the store. Server-side search (debounced 150ms) replaces this in M3. */
 export function useCommandGroups(): CommandGroup[] {
   const navigate = useNavigate();
   const s = useCrm();
+  const nav = useNav();
   const go = (to: string) => navigate(to, { viewTransition: true });
   const coName = (id?: string) => s.companies.find((c) => c.id === id)?.name ?? "";
   return [
     {
       heading: "Jump to",
       items: [
-        ...NAV.flatMap((x) => x.items).map((n) => ({
+        ...nav.flatMap((x) => x.items).map((n) => ({
           id: `nav-${n.to}`,
           label: n.label,
           icon: <n.icon strokeWidth={1.5} />,

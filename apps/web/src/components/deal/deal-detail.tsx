@@ -21,7 +21,7 @@ import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { invoiceStatus, invoiceTotals } from "../../data/derive";
 import { probabilityOf } from "../../data/pipeline";
-import { useCanEdit, useCrm, useIsManager } from "../../data/store";
+import { useCanEdit, useCrm, useAccess } from "../../data/store";
 import type { Deal } from "../../data/types";
 import { changeStage } from "../../lib/actions";
 import { useUi } from "../../lib/ui-store";
@@ -279,7 +279,7 @@ export function DealActivity({ deal }: { deal: Deal }) {
 }
 
 export function DealSide({ deal }: { deal: Deal }) {
-  const isManager = useIsManager();
+  const canInvoice = useAccess("finance") === "edit";
   const s = useCrm();
   const contacts = s.contacts.filter((c) => c.companyId === deal.companyId);
   const invoices = s.invoices.filter((i) => i.dealId === deal.id);
@@ -319,7 +319,7 @@ export function DealSide({ deal }: { deal: Deal }) {
         ) : (
           <p className="t-meta m-0 text-ink-3">None yet.{deal.stage !== "won" && " Raise one once the deal is won."}</p>
         )}
-        {deal.stage === "won" && isManager && (
+        {deal.stage === "won" && canInvoice && (
           <Button size="sm" className="mt-2" onClick={() => useUi.getState().openComposer("invoice", { dealId: deal.id })}>
             <FileText strokeWidth={1.5} /> Raise invoice
           </Button>

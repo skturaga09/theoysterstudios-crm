@@ -8,7 +8,7 @@ import { BulkButton, DataTable } from "../../components/data-table";
 import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
 import { ME_ID } from "../../data/seed";
-import { useCrm, useIsManager } from "../../data/store";
+import { useCrm, useCanAssign } from "../../data/store";
 import type { Contact } from "../../data/types";
 import { api, save } from "../../lib/api";
 import { DealStage } from "../../components/deal/deal-stage";
@@ -18,7 +18,7 @@ import { useUi } from "../../lib/ui-store";
 type Row = Contact & { company: string; ownerName: string; reach: string; last: number };
 
 export function ContactsRoute() {
-  const isManager = useIsManager();
+  const isManager = useCanAssign();
   const s = useCrm();
   const navigate = useNavigate();
   const [openId, setOpenId] = useState<string>();

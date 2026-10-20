@@ -2,7 +2,7 @@ import { BUSINESS_LABEL, BUSINESSES, PRIORITIES, PRIORITY_LABEL, type Business, 
 import { Button, Input, Segmented, Select, toast } from "@pinnacle/ui";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useCrm, useMe } from "../../data/store";
+import { useAccess, useCrm } from "../../data/store";
 import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
 import { SettingsHeader } from "./layout";
@@ -17,7 +17,7 @@ const swap = <T,>(list: T[], i: number, j: number) => {
 /** The checklist and deliverables every new project starts with, per business. Changes apply to new projects only. */
 export function TemplatesRoute() {
   const saved = useCrm((s) => s.templates);
-  const canEdit = useMe().role === "admin";
+  const canEdit = useAccess("projects") === "edit";
   const view = useCrm((s) => s.businessView);
   const [business, setBusiness] = useState<Business>(view === "all" ? "photography" : view);
   const [draft, setDraft] = useState<Templates>(saved);
@@ -40,7 +40,7 @@ export function TemplatesRoute() {
         body="When a lead is confirmed, its project starts with this checklist and these deliverables. Days count from the event date (or the confirmation day when there's no event date). Changes apply to new projects."
       />
       <Segmented label="Business" value={business} onChange={setBusiness} options={BUSINESSES.map((b) => ({ value: b, label: BUSINESS_LABEL[b] }))} className="mb-4" />
-      {!canEdit && <p className="t-dense mb-4 rounded-card bg-sunken px-4 py-3 text-ink-2">Only admins can change the templates.</p>}
+      {!canEdit && <p className="t-dense mb-4 rounded-card bg-sunken px-4 py-3 text-ink-2">Only admins and project managers can change the templates.</p>}
 
       <h2 className="t-eyebrow m-0 mb-1 text-ink-3">Checklist · {t.tasks.length}</h2>
       <ol className="m-0 list-none p-0">

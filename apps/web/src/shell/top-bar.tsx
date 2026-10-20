@@ -1,11 +1,13 @@
 import { BUSINESS_SHORT, type BusinessView } from "@pinnacle/shared";
 import { Button, Kbd, Segmented, Select, useCommandMenu } from "@pinnacle/ui";
-import { useCrm } from "../data/store";
+import { useAccess, useCrm } from "../data/store";
 import { useUi } from "../lib/ui-store";
 import { Menu, Plus, Search } from "lucide-react";
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {
   const openCmd = () => useCommandMenu.getState().setOpen(true);
+  const sales = useAccess("sales");
+  const canLead = sales === "edit" || sales === "own";
   const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
   return (
     <div className="flex h-[52px] shrink-0 items-center gap-3 border-b border-line px-4 md:px-8">
@@ -28,7 +30,8 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
           onClick={() => {
             const create = useUi.getState().create;
             if (create) create();
-            else useUi.getState().openComposer("deal");
+            // Only roles that work on leads start one here; everyone else adds a task.
+            else useUi.getState().openComposer(canLead ? "deal" : "task");
           }}
         >
           <Plus strokeWidth={1.5} />

@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { PageHeader } from "../../components/page-header";
 import { agingBucket, daysOverdue, invoiceStatus, invoiceTotals, sum } from "../../data/derive";
-import { useCrm, useIsManager, useWorkspace } from "../../data/store";
+import { useCrm, useAccess, useWorkspace } from "../../data/store";
 import type { CreditNote, Invoice } from "../../data/types";
 import { api } from "../../lib/api";
 import { useCreateAction, useListNav } from "../../lib/hooks";
@@ -21,7 +21,7 @@ export function InvoicesRoute() {
   const [params] = useSearchParams();
   const [filter, setFilter] = useState<Filter>(params.get("open") ? "all" : "outstanding");
   const [openId, setOpenId] = useState(params.get("open") ?? undefined);
-  const isManager = useIsManager();
+  const isManager = useAccess("finance") === "edit";
   useCreateAction(isManager ? () => useUi.getState().openComposer("invoice") : undefined);
 
   const rows = useMemo(
@@ -223,7 +223,7 @@ function InvoiceDetail({ inv }: { inv: Invoice }) {
 }
 
 function InvoiceActions({ inv }: { inv: Invoice }) {
-  const isManager = useIsManager();
+  const isManager = useAccess("finance") === "edit";
   const st = invoiceStatus(inv);
   const t = invoiceTotals(inv);
   const navigate = useNavigate();

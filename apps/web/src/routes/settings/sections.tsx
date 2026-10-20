@@ -112,10 +112,10 @@ export function WorkspaceRoute() {
         <Row label="Time zone"><span className="t-dense font-mono">Asia/Kolkata (IST, UTC+5:30)</span></Row>
 
         <h2 className="t-eyebrow m-0 mt-10 mb-1 text-ink-2">Access</h2>
-        <Row label="Members see all deals" hint="Off: someone with the Member role sees only the deals they own, with those deals' tasks, activity and invoices. Admins and Managers always see everything.">
+        <Row label="Sales see everyone's leads" hint="Off: someone with the Sales role sees only the leads they own, with those leads' tasks, activity and invoices. Other roles see what their role allows.">
           <label className="t-dense inline-flex cursor-pointer items-center gap-2">
             <input type="checkbox" checked={form.membersSeeAllDeals} disabled={!canEdit} onChange={(e) => setForm({ ...form, membersSeeAllDeals: e.target.checked })} className="size-4 accent-[var(--ink)]" />
-            {form.membersSeeAllDeals ? "Yes — everyone can see every deal" : "No — Members see only their own deals"}
+            {form.membersSeeAllDeals ? "Yes — Sales see every lead" : "No — Sales see only their own leads"}
           </label>
         </Row>
 

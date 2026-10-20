@@ -28,7 +28,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
 import { ME_ID } from "../../data/seed";
-import { useCrm } from "../../data/store";
+import { useAccess, useCrm } from "../../data/store";
 import type { Project, Task } from "../../data/types";
 import { usePref } from "../../lib/hooks";
 
@@ -98,6 +98,8 @@ export function ProjectRoute() {
   const { id } = useParams();
   const navigate = useNavigate();
   const s = useCrm();
+  // Admins and project managers change the project; others see it and update the tasks given to them.
+  const canEdit = useAccess("projects") === "edit";
   const p = s.projects.find((x) => x.id === id);
   if (!p)
     return (
@@ -123,7 +125,7 @@ export function ProjectRoute() {
         eyebrow={<>{BUSINESS_LABEL[p.business]} · {client ? <Link to={`/clients/${client.id}`} className="hover:underline">{client.name}</Link> : "—"} · {pr.done}/{pr.total} tasks done</>}
         title={p.name}
         actions={
-          <Select aria-label="Project status" value={p.status} onChange={(e) => set({ status: e.target.value as ProjectStatus })} className="w-[140px]">
+          <Select aria-label="Project status" disabled={!canEdit} value={p.status} onChange={(e) => set({ status: e.target.value as ProjectStatus })} className="w-[140px]">
             {PROJECT_STATUSES.map((x) => <option key={x} value={x}>{PROJECT_STATUS_LABEL[x]}</option>)}
           </Select>
         }
@@ -131,10 +133,11 @@ export function ProjectRoute() {
 
       <div className="grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-10">
-          {wedding && <Functions p={p} set={set} />}
-          <Checklist p={p} tasks={tasks} />
-          <Deliverables p={p} set={set} />
+          {wedding && <fieldset disabled={!canEdit} className="contents"><Functions p={p} set={set} /></fieldset>}
+          <Checklist p={p} tasks={tasks} canEdit={canEdit} />
+          <fieldset disabled={!canEdit} className="contents"><Deliverables p={p} set={set} /></fieldset>
         </div>
+        <fieldset disabled={!canEdit} className="contents">
         <aside className="flex min-w-0 flex-col gap-8">
           <section>
             <h2 className="t-eyebrow m-0 mb-3 text-ink-3">Details</h2>
@@ -174,6 +177,7 @@ export function ProjectRoute() {
           </section>
           <Links p={p} set={set} />
         </aside>
+        </fieldset>
       </div>
     </>
   );
@@ -222,7 +226,7 @@ function Functions({ p, set }: { p: Project; set: (patch: Partial<Project>) => v
   );
 }
 
-function Checklist({ p, tasks }: { p: Project; tasks: Task[] }) {
+function Checklist({ p, tasks, canEdit }: { p: Project; tasks: Task[]; canEdit: boolean }) {
   const s = useCrm();
   const [open, setOpen] = useState<string>();
   const [title, setTitle] = useState("");
@@ -236,10 +240,11 @@ function Checklist({ p, tasks }: { p: Project; tasks: Task[] }) {
         {tasks.map((t) => {
           const upd = (patch: Partial<Task>) => useCrm.getState().updateTask(t.id, patch);
           const expanded = open === t.id;
+          const mine = canEdit || t.assigneeId === ME_ID;
           return (
             <li key={t.id} className="border-b border-line">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2">
-                <Checkbox checked={t.done} label={t.title} onCheckedChange={() => useCrm.getState().toggleTask(t.id)} />
+                <fieldset disabled={!mine} className="contents"><Checkbox checked={t.done} label={t.title} onCheckedChange={() => useCrm.getState().toggleTask(t.id)} /></fieldset>
                 <button onClick={() => setOpen(expanded ? undefined : t.id)} className="flex min-w-0 flex-1 basis-[200px] items-center gap-1.5 text-left" aria-expanded={expanded}>
                   <StrikeText done={t.done} className="t-dense truncate">{t.title}</StrikeText>
                   {!!t.comments?.length && <span className="flex items-center gap-0.5 font-mono text-[11px] text-ink-3"><MessageSquare size={11} strokeWidth={1.5} />{t.comments.length}</span>}
@@ -248,13 +253,13 @@ function Checklist({ p, tasks }: { p: Project; tasks: Task[] }) {
                 {t.priority && t.priority !== "normal" && t.priority !== "low" && <Pill tone={PRIORITY_TONE[t.priority]}>{PRIORITY_LABEL[t.priority]}</Pill>}
                 {t.approval && t.approval !== "none" && <Pill tone={t.approval === "approved" ? "ok" : t.approval === "changes" ? "risk" : "warn"}>{APPROVAL_LABEL[t.approval]}</Pill>}
                 <span className={cn("w-[56px] text-right font-mono text-[11.5px]", overdue(t) ? "text-risk" : "text-ink-2")}>{fmtDay(t.dueAt)}</span>
-                <Select aria-label={`Who does ${t.title}`} value={t.assigneeId} onChange={(e) => upd({ assigneeId: e.target.value })} className="w-[130px]">
+                <Select aria-label={`Who does ${t.title}`} disabled={!canEdit} value={t.assigneeId} onChange={(e) => upd({ assigneeId: e.target.value })} className="w-[130px]">
                   {people.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </Select>
               </div>
               {expanded && (
                 <div className="mb-3 ml-7 flex flex-col gap-3 rounded-card bg-sunken p-3">
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <fieldset disabled={!mine} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <label className="flex flex-col gap-1"><span className="t-meta text-ink-3">Status</span>
                       <Select value={statusOf(t)} onChange={(e) => upd({ status: e.target.value as TaskStatus, done: e.target.value === "done" })}>
                         {TASK_STATUSES.map((x) => <option key={x} value={x}>{TASK_STATUS_LABEL[x]}</option>)}
@@ -273,7 +278,7 @@ function Checklist({ p, tasks }: { p: Project; tasks: Task[] }) {
                     <label className="flex flex-col gap-1"><span className="t-meta text-ink-3">Due</span>
                       <Input type="date" value={istDay(t.dueAt)} onChange={(e) => e.target.value && upd({ dueAt: dueOn(e.target.value) })} />
                     </label>
-                  </div>
+                  </fieldset>
                   <Comments t={t} />
                 </div>
               )}
@@ -281,7 +286,7 @@ function Checklist({ p, tasks }: { p: Project; tasks: Task[] }) {
           );
         })}
       </ul>
-      <form
+      {canEdit && <form
         className="mt-2 flex flex-wrap items-center gap-2"
         onSubmit={(e) => {
           e.preventDefault();
@@ -293,7 +298,7 @@ function Checklist({ p, tasks }: { p: Project; tasks: Task[] }) {
         <Input aria-label="New task" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Add a task to this project…" className="h-8 min-w-0 flex-1 basis-[200px]" />
         <Input type="date" aria-label="Due" value={due} onChange={(e) => setDue(e.target.value)} className="h-8 w-[150px]" />
         <Button type="submit" size="sm" variant="ink" disabled={!title.trim()}><Plus strokeWidth={1.5} /> Add</Button>
-      </form>
+      </form>}
     </section>
   );
 }

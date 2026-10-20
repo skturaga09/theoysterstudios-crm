@@ -26,7 +26,7 @@ export const AddMemberSchema = z.object({
     .toLowerCase()
     .pipe(z.email({ message: "Enter a valid Google or Gmail address" })),
   name: z.string().trim().min(1).max(80).optional(),
-  role: RoleSchema.default("member"),
+  role: RoleSchema.default("crew"),
 });
 export type AddMemberInput = z.infer<typeof AddMemberSchema>;
 

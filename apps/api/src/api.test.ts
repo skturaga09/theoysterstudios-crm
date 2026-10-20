@@ -101,15 +101,15 @@ describe("auth", () => {
 
   it("admins manage the team; removal cuts access immediately", async () => {
     const riya = "riya@gmail.com";
-    const added = await call("POST", "/members", { email: " Riya@Gmail.com ", role: "member" });
+    const added = await call("POST", "/members", { email: " Riya@Gmail.com ", role: "sales" });
     expect(added.statusCode).toBe(201);
     const id = added.json().id;
     expect(added.json()).toMatchObject({ email: riya, name: "Riya", status: "invited" });
     expect((await call("POST", "/members", { email: riya })).statusCode).toBe(409);
     expect((await call("GET", "/me", undefined, `ok:${riya}`)).json().status).toBe("active");
-    // Members can't manage the team.
+    // Only admins manage the team.
     expect((await call("POST", "/members", { email: "x@gmail.com" }, `ok:${riya}`)).statusCode).toBe(403);
-    expect((await call("PATCH", `/members/${id}`, { role: "manager" })).json().role).toBe("manager");
+    expect((await call("PATCH", `/members/${id}`, { role: "pm" })).json().role).toBe("pm");
     expect((await call("DELETE", `/members/${id}`)).statusCode).toBe(204);
     expect((await call("GET", "/deals", undefined, `ok:${riya}`)).statusCode).toBe(403);
     expect((await call("GET", "/members")).json().map((m: { email: string }) => m.email)).toEqual([ADMIN]);
@@ -165,11 +165,10 @@ describe("auth", () => {
     expect((await call("POST", "/import/companies", { rows: [{ name: "X", ownerId: "sr" }] }, "ok:importer@gmail.com")).statusCode).toBe(403);
   });
 
-  it("enforces roles: members work on their own records; invoices are view-only for them", async () => {
+  it("enforces roles: Sales work on their own records; invoices are view-only for them", async () => {
     const add = async (email: string, role: string) => (await call("POST", "/members", { email, role })).json().id as string;
-    const meera = await add("meera@gmail.com", "member");
-    const kabir = await add("kabir@gmail.com", "member");
-    await add("manager@gmail.com", "manager");
+    const meera = await add("meera@gmail.com", "sales");
+    const kabir = await add("kabir@gmail.com", "sales");
     const as = (who: string) => `ok:${who}@gmail.com`;
     const deal = (ownerId: string) => ({ title: "Shoot", companyId: "c1", valuePaise: 100, closeAt: "2026-12-01T00:00:00+05:30", ownerId, channel: "instagram" });
 
@@ -179,14 +178,14 @@ describe("auth", () => {
     expect((await call("PATCH", `/deals/${mine.id}`, { stage: "proposal" }, as("meera"))).statusCode).toBe(200);
     expect((await call("PATCH", `/deals/${kabirs.id}`, { stage: "proposal" }, as("meera"))).statusCode).toBe(403); // not hers
     expect((await call("PATCH", `/deals/${mine.id}`, { ownerId: kabir }, as("meera"))).statusCode).toBe(403); // can't reassign
-    expect((await call("PATCH", `/deals/${mine.id}`, { ownerId: kabir }, as("manager"))).statusCode).toBe(200); // managers can
+    expect((await call("PATCH", `/deals/${mine.id}`, { ownerId: kabir })).statusCode).toBe(200); // admins can
     expect((await call("DELETE", `/deals/${kabirs.id}`, undefined, as("meera"))).statusCode).toBe(403);
 
-    // Invoices: members may look, not touch.
+    // Invoices: Sales may look, not touch.
     expect((await call("GET", "/invoices", undefined, as("meera"))).statusCode).toBe(200);
     expect((await call("POST", "/invoices", { companyId: "c1", dueAt: "2026-12-01T00:00:00+05:30", supply: "intra", lines: [{ desc: "x", sac: "998391", qty: 1, ratePaise: 1 }] }, as("meera"))).statusCode).toBe(403);
 
-    // With "members see all deals" off, Meera sees only her own deals and their tasks.
+    // With "Sales see everyone's leads" off, Meera sees only her own deals and their tasks.
     expect((await call("GET", "/deals", undefined, as("meera"))).json().some((d: { id: string }) => d.id === kabirs.id)).toBe(true);
     const ws = (await call("GET", "/workspace")).json();
     await call("PUT", "/workspace", { ...ws, membersSeeAllDeals: false });
@@ -195,9 +194,70 @@ describe("auth", () => {
     expect(seen).not.toContain(kabirs.id);
     expect((await call("GET", `/deals/${kabirs.id}`, undefined, as("meera"))).statusCode).toBe(404);
     expect((await call("GET", "/tasks", undefined, as("meera"))).json().some((t: { title: string }) => t.title === "Kabir's follow-up")).toBe(false);
-    expect((await call("GET", "/deals", undefined, as("manager"))).json().map((d: { id: string }) => d.id)).toContain(kabirs.id); // managers see all
+    expect((await call("GET", "/deals")).json().map((d: { id: string }) => d.id)).toContain(kabirs.id); // admins see all
     await call("PUT", "/workspace", { ...ws, membersSeeAllDeals: true });
   });
+
+  it("gives each of the five roles its own access; old role names become Sales", async () => {
+    const add = async (email: string, role: string) => (await call("POST", "/members", { email, role })).json().id as string;
+    const as = (who: string) => `ok:${who}@gmail.com`;
+    const seller = await add("seema@gmail.com", "sales");
+    await add("pm@gmail.com", "pm");
+    await add("accounts@gmail.com", "finance");
+    const raj = await add("raj@gmail.com", "crew");
+    expect((await call("POST", "/members", { email: "fresh@gmail.com" })).json().role).toBe("crew"); // least access by default
+
+    const co = (await call("POST", "/companies", { name: "Isha & Dev", ownerId: seller, business: "photography" })).json();
+    const other = (await call("POST", "/companies", { name: "Someone else", ownerId: seller })).json();
+    const d = (await call("POST", "/deals", { title: "Isha & Dev wedding", companyId: co.id, valuePaise: 1, closeAt: "2027-01-10T00:00:00+05:30", ownerId: seller, channel: "instagram", business: "photography", stage: "won", eventDate: "2027-01-10" })).json();
+    const p = (await call("GET", `/projects?dealId=${d.id}`)).json()[0];
+    const tasks = (await call("GET", `/tasks?projectId=${p.id}`)).json() as { id: string; title: string }[];
+
+    // Crew: nothing until they're on a project; then that project, its client and its tasks — no leads, no money.
+    expect((await call("GET", "/projects", undefined, as("raj"))).json()).toEqual([]);
+    for (const path of ["/deals", "/invoices", "/credit-notes", "/conversations", "/activities"]) expect((await call("GET", path, undefined, as("raj"))).json()).toEqual([]);
+    await call("PATCH", `/projects/${p.id}`, { crew: [{ memberId: raj, role: "Candid photographer" }] });
+    expect((await call("GET", "/projects", undefined, as("raj"))).json().map((x: { id: string }) => x.id)).toEqual([p.id]);
+    const theirClients = (await call("GET", "/companies", undefined, as("raj"))).json().map((x: { id: string }) => x.id);
+    expect(theirClients).toContain(co.id);
+    expect(theirClients).not.toContain(other.id);
+    expect((await call("GET", `/tasks?projectId=${p.id}`, undefined, as("raj"))).json()).toHaveLength(tasks.length);
+    const t = tasks[0]!;
+    expect((await call("PATCH", `/tasks/${t.id}`, { status: "in_progress" }, as("raj"))).statusCode).toBe(403); // not given to him
+    await call("PATCH", `/tasks/${t.id}`, { assigneeId: raj });
+    expect((await call("PATCH", `/tasks/${t.id}`, { status: "done" }, as("raj"))).json().done).toBe(true);
+    expect((await call("PATCH", `/tasks/${t.id}`, { assigneeId: seller }, as("raj"))).statusCode).toBe(403);
+    expect((await call("POST", `/tasks/${t.id}/comments`, { body: "Done, uploaded" }, as("raj"))).statusCode).toBe(201);
+    expect((await call("PATCH", `/projects/${p.id}`, { status: "delivered" }, as("raj"))).statusCode).toBe(403);
+    expect((await call("POST", "/deals", { title: "x", companyId: co.id, valuePaise: 1, closeAt: "2027-01-10T00:00:00+05:30", ownerId: raj, channel: "web" }, as("raj"))).statusCode).toBe(403);
+    // Crew can't comment on tasks they can't see.
+    const hidden = (await call("POST", "/tasks", { title: "Internal", dueAt: "2027-01-01T10:00:00+05:30", assigneeId: seller })).json();
+    expect((await call("POST", `/tasks/${hidden.id}/comments`, { body: "hi" }, as("raj"))).statusCode).toBe(404);
+
+    // Project manager: runs projects and templates; sees leads but doesn't change them; no invoices.
+    expect((await call("PATCH", `/projects/${p.id}`, { status: "delivered" }, as("pm"))).statusCode).toBe(200);
+    expect((await call("PATCH", `/tasks/${t.id}`, { assigneeId: seller }, as("pm"))).statusCode).toBe(200);
+    expect((await call("PUT", "/project-templates", (await call("GET", "/project-templates")).json(), as("pm"))).statusCode).toBe(200);
+    expect((await call("GET", "/deals", undefined, as("pm"))).json().length).toBeGreaterThan(0);
+    expect((await call("PATCH", `/deals/${d.id}`, { title: "x" }, as("pm"))).statusCode).toBe(403);
+    expect((await call("GET", "/invoices", undefined, as("pm"))).json()).toEqual([]);
+    expect((await call("POST", "/invoices", {}, as("pm"))).statusCode).toBe(403);
+
+    // Finance: invoices yes (the body is checked next), projects and leads view-only.
+    expect((await call("POST", "/invoices", {}, as("accounts"))).statusCode).toBe(400);
+    expect((await call("PATCH", `/projects/${p.id}`, { status: "closed" }, as("accounts"))).statusCode).toBe(403);
+    expect((await call("PATCH", `/deals/${d.id}`, { title: "x" }, as("accounts"))).statusCode).toBe(403);
+    expect((await call("POST", "/activities", { type: "note", dealId: d.id, text: "added a note" }, as("accounts"))).statusCode).toBe(403);
+
+    // Sales: own leads; projects view-only; templates admins and PMs only.
+    expect((await call("PATCH", `/deals/${d.id}`, { title: "Isha & Dev — wedding" }, as("seema"))).statusCode).toBe(200);
+    expect((await call("PATCH", `/projects/${p.id}`, { status: "closed" }, as("seema"))).statusCode).toBe(403);
+    expect((await call("PUT", "/project-templates", (await call("GET", "/project-templates")).json(), as("seema"))).statusCode).toBe(403);
+
+    // Someone saved under the old "manager" role signs in as Sales.
+    await deps.db.collection("members").insertOne({ _id: "legacy", email: "old@gmail.com", name: "Old", role: "manager", title: "—", status: "active", addedAt: "2026-01-01T00:00:00Z" } as never);
+    expect((await call("GET", "/me", undefined, as("old"))).json().role).toBe("sales");
+  }, 60_000);
 
   it("saves setup progress and keeps integration secrets write-only, admins only", async () => {
     expect((await call("PUT", "/setup/progress", { done: ["g-project", "g-project", "m-business"] })).json().done).toEqual(["g-project", "m-business"]);
@@ -343,7 +403,7 @@ describe("auth", () => {
   it("never leaves the team without an admin", async () => {
     const adminId = (await call("GET", "/me")).json().id;
     expect((await call("DELETE", `/members/${adminId}`)).statusCode).toBe(409);
-    expect((await call("PATCH", `/members/${adminId}`, { role: "member" })).statusCode).toBe(409);
+    expect((await call("PATCH", `/members/${adminId}`, { role: "sales" })).statusCode).toBe(409);
   });
 });
 

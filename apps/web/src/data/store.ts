@@ -3,7 +3,7 @@
  * deals, invoices, tasks and activity (see sync.ts); mutations update the screen first, then save to the API
  * and roll back if that fails. The inbox is still local-only until the channels are connected.
  */
-import { DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatCompact, type Business, type BusinessView, type RoutingRule, type Stage, DEFAULT_PIPELINES, stageIn, type Pipelines } from "@pinnacle/shared";
+import { accessOf, type Area, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatCompact, type Business, type BusinessView, type RoutingRule, type Stage, DEFAULT_PIPELINES, stageIn, type Pipelines } from "@pinnacle/shared";
 import { create } from "zustand";
 import {
   ACTIVITIES,
@@ -478,16 +478,21 @@ export const useMe = () => {
   const session = useSession((s) => s.me);
   return (member ?? session)!;
 };
-/** Admins and Managers can change anything and reassign work; Members only what they own (enforced by the API too). */
-export const useIsManager = () => useMe().role !== "member";
+/** What my role may do in an area (the API enforces the same table). */
+export const useAccess = (area: Area) => accessOf(useMe().role, area);
+/** Only roles with full access to leads and clients hand them to someone else. */
+export const useCanAssign = () => useAccess("sales") === "edit";
+/** Leads and clients: full access, or Sales on their own records. */
 export const useCanEdit = (ownerId?: string) => {
   const me = useMe();
-  return me.role !== "member" || ownerId === me.id;
+  const a = accessOf(me.role, "sales");
+  return a === "edit" || (a === "own" && ownerId === me.id);
 };
 /** Same check outside React (e.g. a drag on the board). */
 export const canEditNow = (ownerId?: string) => {
   const me = useCrm.getState().members.find((m) => m.id === ME_ID) ?? useSession.getState().me;
-  return !!me && (me.role !== "member" || ownerId === me.id);
+  const a = me && accessOf(me.role, "sales");
+  return a === "edit" || (a === "own" && ownerId === me!.id);
 };
 /** Default owner for new work: me, unless I'm the support login — then the first teammate. */
 export const defaultOwnerId = () => {

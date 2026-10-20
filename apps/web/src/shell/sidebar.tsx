@@ -1,3 +1,4 @@
+import { ROLE_LABEL, roleOf } from "@pinnacle/shared";
 import { HEALTH_LABEL } from "@pinnacle/shared";
 import { Avatar, Button, cn, Tooltip, useTheme } from "@pinnacle/ui";
 import { signOut } from "firebase/auth";
@@ -7,7 +8,7 @@ import { NavLink } from "react-router";
 import { invoiceStatus, isOpen, taskGroup } from "../data/derive";
 import { useCrm, useMe } from "../data/store";
 import { auth } from "../lib/firebase";
-import { NAV, SIGNAL_COUNT, type CountKey } from "./nav";
+import { SIGNAL_COUNT, useNav, type CountKey } from "./nav";
 
 const dot = { ok: "bg-ok", warn: "bg-warn", risk: "bg-risk" } as const;
 export const fmtMin = (m: number) => (m < 1 ? "now" : m < 60 ? `${m}m` : m < 60 * 24 ? `${Math.round(m / 60)}h` : `${Math.round(m / 1440)}d`);
@@ -30,6 +31,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const studioName = useCrm((s) => s.workspace.studioName);
   const channels = useCrm((s) => s.channels);
   const counts = useCounts();
+  const nav = useNav();
   return (
     <div className="flex h-full flex-col bg-bg">
       <div className="flex h-[52px] items-center gap-2.5 px-4">
@@ -41,7 +43,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav aria-label="Main" className="min-h-0 flex-1 overflow-y-auto px-2.5 pt-1 pb-4">
-        {NAV.map((section, si) => (
+        {nav.map((section, si) => (
           <div key={si} className={cn(si > 0 && "mt-5")}>
             {section.label && <div className="t-eyebrow px-2.5 pb-2 text-ink-3">{section.label}</div>}
             <ul className="m-0 flex list-none flex-col gap-px p-0">
@@ -118,7 +120,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <div className="min-w-0 flex-1 leading-tight">
           <div className="truncate text-[12.5px] font-medium">{me.name}</div>
           <div className="truncate text-[11px] text-ink-3">
-            {me.title} · {me.role === "admin" ? "Admin" : me.role === "manager" ? "Manager" : "Member"}
+            {me.title} · {ROLE_LABEL[roleOf(me.role)]}
           </div>
         </div>
         <Button variant="ghost" size="icon-sm" aria-label="Toggle theme" onClick={toggle}>

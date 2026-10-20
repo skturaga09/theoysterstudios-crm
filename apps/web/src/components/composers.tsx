@@ -1,10 +1,11 @@
-import { BUSINESS_LABEL, BUSINESSES, CHANNEL_LABEL, CHANNELS, formatCompact, formatFull, gstState, invoiceTotals, lakh, rupees, type Business, type Channel, type Stage, SERVICES, stageIn } from "@pinnacle/shared";
+import { ROLE_LABEL, roleOf, BUSINESS_LABEL, BUSINESSES, CHANNEL_LABEL, CHANNELS, formatCompact, formatFull, gstState, invoiceTotals, lakh, rupees, type Business, type Channel, type Stage, SERVICES, stageIn } from "@pinnacle/shared";
 import { Button, Input, Select, Sheet, Textarea, toast } from "@pinnacle/ui";
 import { Plus, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { Link } from "react-router";
-import { defaultBusiness, defaultOwnerId, useCrm, useIsManager } from "../data/store";
+import { ME_ID } from "../data/seed";
+import { defaultBusiness, defaultOwnerId, useAccess, useCrm, useCanAssign, useMe } from "../data/store";
 import type { Company, Contact, Deal, Invoice } from "../data/types";
 import { api, save } from "../lib/api";
 import { useUi } from "../lib/ui-store";
@@ -28,7 +29,7 @@ const plusDays = (n: number) => {
 
 /** New lead, laid out like the client's brief. Creates the client (company or couple) and contact with it. */
 function NewDealForm({ stage, business: initialBusiness, onDone }: { stage?: string; business?: Business; onDone: () => void }) {
-  const isManager = useIsManager();
+  const isManager = useCanAssign();
   const s = useCrm();
   const [business, setBusiness] = useState<Business>(initialBusiness ?? defaultBusiness());
   const run = runFor(s.pipelines, business);
@@ -154,7 +155,7 @@ function NewDealForm({ stage, business: initialBusiness, onDone }: { stage?: str
         </Field>
       </div>
       <Field label="Assigned to">
-        <Select value={owner} onChange={(e) => setOwner(e.target.value)} disabled={!isManager} title={isManager ? undefined : "Only admins and managers can assign to someone else"}>
+        <Select value={owner} onChange={(e) => setOwner(e.target.value)} disabled={!isManager} title={isManager ? undefined : "Only admins can assign to someone else"}>
           {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </Select>
       </Field>
@@ -171,7 +172,9 @@ function NewTaskForm({ dealId, onDone }: { dealId?: string; onDone: () => void }
   const [title, setTitle] = useState("");
   const [due, setDue] = useState(plusDays(1));
   const [time, setTime] = useState("11:00");
-  const [assignee, setAssignee] = useState(defaultOwnerId);
+  // Only admins and project managers give tasks to someone else.
+  const canAssign = useAccess("projects") === "edit";
+  const [assignee, setAssignee] = useState(() => (canAssign ? defaultOwnerId() : ME_ID));
   const [deal, setDeal] = useState(dealId ?? "");
   return (
     <form
@@ -199,7 +202,7 @@ function NewTaskForm({ dealId, onDone }: { dealId?: string; onDone: () => void }
         </Field>
       </div>
       <Field label="Assignee">
-        <Select value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+        <Select value={assignee} onChange={(e) => setAssignee(e.target.value)} disabled={!canAssign} title={canAssign ? undefined : "Only admins and project managers give tasks to someone else"}>
           {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </Select>
       </Field>
@@ -432,7 +435,7 @@ function NewInvoiceForm({ dealId, invoiceId, onDone }: { dealId?: string; invoic
 const compact = (o: Record<string, string | undefined>) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, v?.trim()]).filter(([, v]) => v));
 
 function NewCompanyForm({ onDone }: { onDone: () => void }) {
-  const isManager = useIsManager();
+  const isManager = useCanAssign();
   const s = useCrm();
   const [f, setF] = useState({ name: "", domain: "", industry: "", city: "", gstin: "", address: "" });
   const [business, setBusiness] = useState<Business | "">(() => (useCrm.getState().businessView === "all" ? "" : defaultBusiness()));
@@ -474,7 +477,7 @@ function NewCompanyForm({ onDone }: { onDone: () => void }) {
         <Field label="City"><Input value={f.city} onChange={set("city")} placeholder="Goa" /></Field>
         <Field label="Industry"><Input value={f.industry} onChange={set("industry")} placeholder="Hospitality" /></Field>
         <Field label="Owner">
-          <Select value={owner} onChange={(e) => setOwner(e.target.value)} disabled={!isManager} title={isManager ? undefined : "Only admins and managers can assign to someone else"}>
+          <Select value={owner} onChange={(e) => setOwner(e.target.value)} disabled={!isManager} title={isManager ? undefined : "Only admins can assign to someone else"}>
             {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </Select>
         </Field>
@@ -491,7 +494,7 @@ function NewCompanyForm({ onDone }: { onDone: () => void }) {
 }
 
 function NewContactForm({ onDone }: { onDone: () => void }) {
-  const isManager = useIsManager();
+  const isManager = useCanAssign();
   const s = useCrm();
   const [f, setF] = useState({ name: "", company: "", title: "", email: "", phone: "", handle: "", city: "" });
   const [business, setBusiness] = useState<Business | "">(() => (useCrm.getState().businessView === "all" ? "" : defaultBusiness()));
@@ -552,7 +555,7 @@ function NewContactForm({ onDone }: { onDone: () => void }) {
         </Field>
       </div>
       <Field label="Owner">
-        <Select value={owner} onChange={(e) => setOwner(e.target.value)} disabled={!isManager} title={isManager ? undefined : "Only admins and managers can assign to someone else"}>
+        <Select value={owner} onChange={(e) => setOwner(e.target.value)} disabled={!isManager} title={isManager ? undefined : "Only admins can assign to someone else"}>
           {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </Select>
       </Field>
@@ -566,14 +569,19 @@ const SUBMIT = { deal: "Add lead", task: "Add task", call: "Log call", invoice: 
 
 export function Composers() {
   const c = useUi((s) => s.composer);
+  const me = useMe();
+  const sales = useAccess("sales");
+  const finance = useAccess("finance");
   const close = () => useUi.getState().closeComposer();
+  // The API refuses these for the role anyway; say so up front instead of after filling the form in.
+  const blocked = c && ((["deal", "company", "contact", "call"].includes(c.kind) && sales !== "edit" && sales !== "own") || (c.kind === "invoice" && finance !== "edit"));
   return (
     <Sheet
       open={!!c}
       onOpenChange={(o) => !o && close()}
       title={c ? (c.invoiceId ? "Edit draft invoice" : TITLES[c.kind]) : ""}
       footer={
-        c && (
+        c && !blocked && (
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={close}>Cancel</Button>
             <Button variant="ink" type="submit" form="composer-form">{c.invoiceId ? "Save draft" : SUBMIT[c.kind]}</Button>
@@ -581,12 +589,13 @@ export function Composers() {
         )
       }
     >
-      {c?.kind === "deal" && <NewDealForm stage={c.stage} business={c.business} onDone={close} />}
-      {c?.kind === "task" && <NewTaskForm dealId={c.dealId} onDone={close} />}
-      {c?.kind === "call" && <LogCallForm dealId={c.dealId} onDone={close} />}
-      {c?.kind === "invoice" && <NewInvoiceForm key={c.invoiceId ?? "new"} dealId={c.dealId} invoiceId={c.invoiceId} onDone={close} />}
-      {c?.kind === "company" && <NewCompanyForm onDone={close} />}
-      {c?.kind === "contact" && <NewContactForm onDone={close} />}
+      {blocked && <p className="t-body m-0 text-ink-2">Your role ({ROLE_LABEL[roleOf(me.role)]}) can look at {c.kind === "invoice" ? "invoices" : "leads and clients"} but not add or change them. Ask an admin if that should change.</p>}
+      {blocked ? null : c?.kind === "deal" && <NewDealForm stage={c.stage} business={c.business} onDone={close} />}
+      {!blocked && c?.kind === "task" && <NewTaskForm dealId={c.dealId} onDone={close} />}
+      {!blocked && c?.kind === "call" && <LogCallForm dealId={c.dealId} onDone={close} />}
+      {!blocked && c?.kind === "invoice" && <NewInvoiceForm key={c.invoiceId ?? "new"} dealId={c.dealId} invoiceId={c.invoiceId} onDone={close} />}
+      {!blocked && c?.kind === "company" && <NewCompanyForm onDone={close} />}
+      {!blocked && c?.kind === "contact" && <NewContactForm onDone={close} />}
     </Sheet>
   );
 }

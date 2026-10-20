@@ -20,7 +20,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ME_ID } from "../../data/seed";
-import { defaultBusiness, defaultOwnerId, useCrm, useIsManager } from "../../data/store";
+import { defaultBusiness, defaultOwnerId, useAccess, useCrm, useCanAssign } from "../../data/store";
 import type { Conversation } from "../../data/types";
 import { IS_DEMO } from "../../lib/demo";
 import { useCreateAction, useListNav } from "../../lib/hooks";
@@ -186,7 +186,9 @@ function ConvRow({ c, index, selected, active, onOpen }: { c: Conversation; inde
 /* ---------------------------------------------------------------- */
 
 function Thread({ c }: { c: Conversation }) {
-  const isManager = useIsManager();
+  const isManager = useCanAssign();
+  // Project managers and Finance can read the Inbox but not act on it.
+  const readOnly = useAccess("sales") === "view";
   const navigate = useNavigate();
   const s = useCrm();
   const assignee = s.members.find((m) => m.id === c.assigneeId);
@@ -238,7 +240,7 @@ function Thread({ c }: { c: Conversation }) {
         <div className="flex items-center gap-2">
           <Menu>
             <MenuTrigger asChild>
-              <Button size="sm">
+              <Button size="sm" disabled={readOnly}>
                 {assignee ? <><Avatar name={assignee.name} me={assignee.id === ME_ID} size="sm" /> {assignee.name.split(" ")[0]}</> : "Assign"}
                 <ChevronDown strokeWidth={1.5} className="text-ink-3" />
               </Button>
@@ -255,7 +257,7 @@ function Thread({ c }: { c: Conversation }) {
             <Button size="sm" onClick={() => useUi.getState().openDeal(c.dealId!)}>
               Open deal <ArrowUpRight strokeWidth={1.5} />
             </Button>
-          ) : (
+          ) : readOnly ? null : (
             <Button id="create-deal" size="sm" variant="signal" disabled={converting} onClick={() => void convert()}>
               Create deal
             </Button>
@@ -264,7 +266,7 @@ function Thread({ c }: { c: Conversation }) {
       </header>
 
       {/* extracted details */}
-      {!c.dealId && (
+      {!c.dealId && !readOnly && (
         <section aria-label="Deal details" className="mt-4 rounded-card border border-dashed border-line-2 p-3">
           <div className="mb-2.5 flex items-center gap-2">
             {c.extracted ? (
@@ -333,7 +335,7 @@ function Thread({ c }: { c: Conversation }) {
         })}
       </ol>
 
-      <Composer c={c} />
+      {!readOnly && <Composer c={c} />}
     </article>
   );
 }

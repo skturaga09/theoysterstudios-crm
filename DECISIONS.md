@@ -27,7 +27,7 @@ Open items are marked **(open)**.
 
 Admins manage who can use the CRM:
 - **Settings → Team & access** (admin-only): add a person by Google / Gmail address, set role
-  (Admin, Manager, Member), change role, remove access. Shows status (Invited / Active) and last sign-in.
+  (now the five roles below), change role, remove access. Shows status (Invited / Active) and last sign-in.
 - **Sign-in:** Google sign-in via Identity Platform, then an **allowlist check** — only emails on this
   list (status ≠ removed) get a session. Any Google account works, including personal `@gmail.com`.
   This replaces §8's "restricted to the client's Workspace domain".
@@ -122,10 +122,7 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   browser's "Save as PDF" makes the file. No server-side PDF yet — needed only when invoices are emailed from the CRM.
 - **Cancelling:** only unsent drafts can be cancelled, with a reason; they stay listed as "Cancelled" so the number
   series has no gaps. Sent invoices need a credit note (not built). "Send invoice" is labelled "Mark as sent" — no email.
-- **Permissions (enforced by the API, mirrored in the UI):** Admin — everything. Manager — all records and
-  invoices, can reassign, no settings. Member — creates and changes only deals/companies/contacts they own,
-  can't assign to others, invoices view-only. Workspace "Members see all deals" (default on, pending the
-  client's answer): off limits a Member's deals, tasks, activity and invoices to their own deals.
+- **Permissions (enforced by the API, mirrored in the UI):** superseded by the five roles below (slice 5).
 - **Billing address** on companies; invoices snapshot the buyer (name, GSTIN, address, city) like the seller.
 - **Draft edits and credit notes:** drafts can change deal, due date, tax type and lines (not company or issue
   date — the number belongs to that year). Seller/buyer details are re-captured when an invoice is marked sent.
@@ -209,3 +206,24 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   Tasks → "My work" is the person's own list. Permissions per role come in slice 5.
 - **Update schemas** use `patchOf()` instead of zod's `.partial()`, which kept create-time defaults and so reset
   unmentioned fields (e.g. a task's reminder) on every PATCH.
+- **Five roles** (slice 5; `ACCESS` in shared, used by API and UI). Three areas — sales (leads, Inbox, clients,
+  contacts, activity), projects (with tasks), finance (invoices, credit notes, payments) — each edit / own /
+  view / none:
+
+  | Role | Sales | Projects | Finance |
+  |---|---|---|---|
+  | Owner / Admin | edit | edit | edit |
+  | Sales | own | view | view |
+  | Project manager | view | edit | none |
+  | Finance | view | view | edit |
+  | Team / Freelancer | none | own | none |
+
+  Sales "own" is the old Member rule (change only records you own, never reassign; workspace switch, now
+  "Sales see everyone's leads", limits what they see). Crew "own": only projects they're on (manager, crew, or
+  a task of theirs), those projects' clients and contacts, and tasks given to them or in those projects. Tasks:
+  admins and PMs change any; everyone else only tasks given to them, and can't hand them on; comments need the
+  task to be visible. Settings stay admin-only, except project templates (admins and PMs). Lists a role can't
+  see return `[]` rather than 403, so the app loads the same way for everyone; changes return 403 with the
+  reason. New people default to Team / Freelancer (least access). Old roles are renamed on the person's next
+  request: Manager and Member both become Sales. In the UI the menu hides what a role can't open, crew land on
+  Tasks, forms a role can't submit say so instead, and project pages are read-only outside one's own tasks.

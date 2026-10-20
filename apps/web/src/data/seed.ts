@@ -39,9 +39,9 @@ export const setMeId = (id: string) => {
 };
 export const MEMBERS: Member[] = [
   { id: "sr", name: "Saksham Rao", email: "saksham@theoysterstudios.in", role: "admin", title: "Founder", status: "active", lastSignInAt: ago(4), addedAt: at(-420) },
-  { id: "rv", name: "Riya V", email: "riya@theoysterstudios.in", role: "manager", title: "Account lead", status: "active", lastSignInAt: ago(38), addedAt: at(-300) },
-  { id: "ak", name: "Aditi K", email: "aditi.k@gmail.com", role: "member", title: "Producer", status: "active", lastSignInAt: ago(60 * 20), addedAt: at(-210) },
-  { id: "dp", name: "Dev Patel", email: "dev@theoysterstudios.in", role: "member", title: "New business", status: "active", lastSignInAt: ago(60 * 3), addedAt: at(-150) },
+  { id: "rv", name: "Riya V", email: "riya@theoysterstudios.in", role: "pm", title: "Account lead", status: "active", lastSignInAt: ago(38), addedAt: at(-300) },
+  { id: "ak", name: "Aditi K", email: "aditi.k@gmail.com", role: "crew", title: "Producer", status: "active", lastSignInAt: ago(60 * 20), addedAt: at(-210) },
+  { id: "dp", name: "Dev Patel", email: "dev@theoysterstudios.in", role: "sales", title: "New business", status: "active", lastSignInAt: ago(60 * 3), addedAt: at(-150) },
 ];
 
 /* ---------- companies ---------- */

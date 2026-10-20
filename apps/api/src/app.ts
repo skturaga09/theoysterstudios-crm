@@ -31,7 +31,7 @@ import {
   TemplatesSchema,
   type Workspace,
 } from "@pinnacle/shared/schemas";
-import { DEFAULT_PIPELINES, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines } from "@pinnacle/shared";
+import { accessOf, ROLE_LABEL, roleOf, type Area, DEFAULT_PIPELINES, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines } from "@pinnacle/shared";
 import { nameFromEmail, SUPPORT_MEMBER, type Member, type Verify } from "./auth";
 import type { Doc } from "./db";
 import { createCreditNote, createInvoice } from "./invoices";
@@ -113,6 +113,11 @@ export function buildApp({
     }
     const member = await members.findOne({ email: claims.email.toLowerCase(), status: { $ne: "removed" } });
     if (!member) return reply.code(403).send({ error: "not_on_team", email: claims.email });
+    if (roleOf(member.role) !== member.role) {
+      // Renames the old Manager / Member roles (both become Sales) the first time that person is seen.
+      member.role = roleOf(member.role);
+      await members.updateOne({ _id: member._id }, { $set: { role: member.role } });
+    }
     req.member = member;
     if (req.url === "/me") {
       // First sign-in activates the invite and fills name/photo from Google.
@@ -126,18 +131,32 @@ export function buildApp({
     if (req.member.role !== "admin") return reply.code(403).send({ error: "Admins only" });
   };
   /*
-   * Roles, as described in Settings → Team & access. Admin: everything. Manager: all records, no settings.
-   * Member: works on records they own; can't reassign to others; invoices are view-only; and with
-   * "Members see all deals" off, sees only their own deals and what hangs off them.
+   * Roles (the shared ACCESS table, explained in Settings → Team & access). Each area — sales (leads, Inbox,
+   * clients, activity), projects (and their tasks), finance (invoices) — is edit, own, view or none per role.
+   * Sales "own": change only records you own, never hand them to someone else, and with "Sales sees everyone's
+   * leads" off, see only your own deals. Crew "own": only the projects you're on and the tasks given to you.
+   * Lists a role can't see come back empty, so the app loads the same way for everyone.
    */
-  const isMember = (req: FastifyRequest) => req.member.role === "member";
-  const notMember = async (req: FastifyRequest, reply: FastifyReply) => {
-    if (isMember(req)) return reply.code(403).send({ error: "Members can view invoices but only admins and managers can change them" });
+  const access = (req: FastifyRequest, area: Area) => accessOf(req.member.role, area);
+  const AREA_NAME: Record<Area, string> = { sales: "leads and clients", projects: "projects", finance: "invoices" };
+  const denied = (req: FastifyRequest, area: Area) => `${ROLE_LABEL[roleOf(req.member.role)]} can't change ${AREA_NAME[area]}`;
+  /** preHandler: the role must be able to change this area (fully, or — with `own` — their own part of it). */
+  const mayChange = (area: Area, own = true) => async (req: FastifyRequest, reply: FastifyReply) => {
+    const a = access(req, area);
+    if (a !== "edit" && !(own && a === "own")) return reply.code(403).send({ error: denied(req, area) });
   };
-  /** For a Member who can't see others' deals: the ids of the deals they own. Otherwise undefined (no limit). */
+  const NOTHING: Filter<Doc> = { _id: { $in: [] as string[] } };
+  /** For Sales who can't see others' deals: the ids of the deals they own. Otherwise undefined (no limit). */
   const ownDealIds = async (req: FastifyRequest): Promise<string[] | undefined> => {
-    if (!isMember(req) || (await getWorkspace()).membersSeeAllDeals) return undefined;
+    if (access(req, "sales") !== "own" || (await getWorkspace()).membersSeeAllDeals) return undefined;
     return (await db.collection<Doc>("deals").find({ ownerId: req.member._id }, { projection: { _id: 1 } }).toArray()).map((d) => d._id);
+  };
+  /** Crew: the projects they're on — as manager, in the crew, or with a task of theirs. Otherwise undefined. */
+  const crewProjects = async (req: FastifyRequest) => {
+    if (access(req, "projects") !== "own") return undefined;
+    const me = req.member._id;
+    const viaTasks = (await db.collection<Doc>("tasks").find({ assigneeId: me, projectId: { $exists: true } }, { projection: { projectId: 1 } }).toArray()).map((t) => String(t.projectId));
+    return db.collection<Doc>("projects").find({ $or: [{ managerId: me }, { "crew.memberId": me }, { _id: { $in: viaTasks } }] }, { projection: { companyId: 1 } }).toArray();
   };
   const isLastAdmin = async (m: Member) => m.role === "admin" && (await members.countDocuments({ role: "admin", status: { $ne: "removed" } })) <= 1;
 
@@ -309,11 +328,12 @@ export function buildApp({
   /* ---------- Inbox conversations (filled by the channel integrations) ---------- */
   const conversationsCol = db.collection<Doc>("conversations");
   app.get("/conversations", async (req) => {
-    // A Member limited to their own deals sees the conversations assigned to them.
+    if (access(req, "sales") === "none") return [];
+    // Sales limited to their own deals sees the conversations assigned to them.
     const mine = (await ownDealIds(req)) ? { assigneeId: req.member._id } : {};
     return (await conversationsCol.find(mine).sort({ lastMessageAt: -1 }).limit(2000).toArray()).map(({ _id, externalId: _, ...c }) => ({ id: _id, ...c }));
   });
-  app.patch<{ Params: { id: string } }>("/conversations/:id", async (req, reply) => {
+  app.patch<{ Params: { id: string } }>("/conversations/:id", { preHandler: mayChange("sales") }, async (req, reply) => {
     const changes = UpdateConversationSchema.parse(req.body);
     // null clears a link (e.g. undoing "Create deal"); anything else is set.
     const update: UpdateFilter<Doc> = {};
@@ -371,9 +391,10 @@ export function buildApp({
   });
 
   /**
-   * List / get / create / patch / delete for a plain collection. `owned` collections (deals, companies,
-   * contacts) apply the Member rules: create and change only records they own, never hand them to someone else.
-   * `scope` narrows what a Member may see when "Members see all deals" is off (given their own deals' ids).
+   * List / get / create / patch / delete for a plain collection in one area. Who may change what follows the
+   * role's access to that area; `owned` collections (deals, companies, contacts) let Sales change their own
+   * records. `scope` narrows what someone sees (undefined = no limit); a role with no access sees nothing.
+   * `write` replaces the change rule (tasks: people update the ones given to them).
    */
   function records(
     name: string,
@@ -381,42 +402,47 @@ export function buildApp({
     update: ZodType<Record<string, unknown>>,
     defaults: () => Record<string, unknown> = () => ({}),
     {
+      area,
       owned = false,
       scope,
+      write,
       check,
       after,
     }: {
+      area: Area;
       owned?: boolean;
-      scope?: (req: FastifyRequest, ownDeals: string[]) => Filter<Doc>;
+      scope?: (req: FastifyRequest) => Promise<Filter<Doc> | undefined>;
+      write?: (req: FastifyRequest, next: Record<string, unknown>, existing?: Doc) => string | undefined;
       /** Validates (and may complete) a create or change against the record as it would end up; returns an error message. */
       check?: (next: Record<string, unknown>, existing?: Doc) => Promise<string | undefined>;
       /** Runs after a create or change is saved (e.g. a confirmed deal makes its company a client). */
       after?: (saved: Doc) => Promise<void>;
-    } = {},
+    },
   ) {
     const col = db.collection<Doc>(name);
-    const visible = async (req: FastifyRequest): Promise<Filter<Doc>> => {
-      const own = scope && (await ownDealIds(req));
-      return own ? scope(req, own) : {};
-    };
-    const memberError = (req: FastifyRequest, ownerId: unknown, existingOwner?: unknown) => {
-      if (!owned || !isMember(req)) return undefined;
-      if (existingOwner !== undefined && existingOwner !== req.member._id) return "Members can only change records they own";
-      if (ownerId !== undefined && ownerId !== req.member._id) return "Only admins and managers can assign records to someone else";
-      return undefined;
-    };
+    const visible = async (req: FastifyRequest): Promise<Filter<Doc>> => (await scope?.(req)) ?? (access(req, area) === "none" ? NOTHING : {});
+    const writeError =
+      write ??
+      ((req: FastifyRequest, next: Record<string, unknown>, existing?: Doc) => {
+        const a = access(req, area);
+        if (a === "edit") return undefined;
+        if (a !== "own" || !owned) return denied(req, area);
+        if (existing && existing.ownerId !== req.member._id) return "You can only change records you own";
+        if (next.ownerId !== undefined && next.ownerId !== req.member._id) return "Only admins can assign records to someone else";
+        return undefined;
+      });
     app.get(`/${name}`, async (req) => {
       const { limit, ...filter } = ListQuery.parse(req.query);
       return (await col.find({ ...filter, ...(await visible(req)) }).sort({ _id: -1 }).limit(limit).toArray()).map(out);
     });
     app.get<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
-      const doc = await col.findOne({ _id: req.params.id, ...(await visible(req)) });
+      const doc = await col.findOne({ $and: [{ _id: req.params.id }, await visible(req)] });
       return doc ? out(doc) : reply.code(404).send({ error: "Not found" });
     });
     app.post(`/${name}`, async (req, reply) => {
       const body = create.parse(req.body);
-      const denied = memberError(req, body.ownerId);
-      if (denied) return reply.code(403).send({ error: denied });
+      const no = writeError(req, body);
+      if (no) return reply.code(403).send({ error: no });
       const invalid = check && (await check(body));
       if (invalid) return reply.code(422).send({ error: invalid });
       const doc: Doc = { _id: new ObjectId().toHexString(), ...defaults(), ...body };
@@ -428,8 +454,8 @@ export function buildApp({
       const changes = update.parse(req.body);
       const existing = await col.findOne({ _id: req.params.id });
       if (!existing) return reply.code(404).send({ error: "Not found" });
-      const denied = memberError(req, changes.ownerId, existing.ownerId);
-      if (denied) return reply.code(403).send({ error: denied });
+      const no = writeError(req, changes, existing);
+      if (no) return reply.code(403).send({ error: no });
       const invalid = check && (await check(changes, existing));
       if (invalid) return reply.code(422).send({ error: invalid });
       // null clears an optional field (e.g. the next follow-up once it's done).
@@ -445,16 +471,32 @@ export function buildApp({
     app.delete<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
       const existing = await col.findOne({ _id: req.params.id });
       if (!existing) return reply.code(404).send({ error: "Not found" });
-      const denied = memberError(req, undefined, existing.ownerId);
-      if (denied) return reply.code(403).send({ error: denied });
+      const no = writeError(req, {}, existing);
+      if (no) return reply.code(403).send({ error: no });
       await col.deleteOne({ _id: existing._id });
       return reply.code(204).send();
     });
+    return { visible };
   }
 
   const now = () => new Date().toISOString();
-  records("companies", CreateCompanySchema, UpdateCompanySchema, () => ({ lastActivityAt: now() }), { owned: true });
-  records("contacts", CreateContactSchema, UpdateContactSchema, () => ({ lastActivityAt: now() }), { owned: true });
+  // Crew see the clients (and their people) of the projects they're on — no leads, no money.
+  records("companies", CreateCompanySchema, UpdateCompanySchema, () => ({ lastActivityAt: now() }), {
+    area: "sales",
+    owned: true,
+    scope: async (req) => {
+      const mine = await crewProjects(req);
+      return mine && { _id: { $in: mine.map((p) => String(p.companyId)) } };
+    },
+  });
+  records("contacts", CreateContactSchema, UpdateContactSchema, () => ({ lastActivityAt: now() }), {
+    area: "sales",
+    owned: true,
+    scope: async (req) => {
+      const mine = await crewProjects(req);
+      return mine && { companyId: { $in: mine.map((p) => String(p.companyId)) } };
+    },
+  });
   /* ---------- Pipelines: each business's stages ---------- */
   const pipelinesCol = db.collection<{ _id: string } & Pipelines>("pipelines");
   const getPipelines = async (): Promise<Pipelines> => {
@@ -478,8 +520,9 @@ export function buildApp({
   });
 
   records("deals", CreateDealSchema, UpdateDealSchema, () => ({ createdAt: now(), position: 0 }), {
+    area: "sales",
     owned: true,
-    scope: (req) => ({ ownerId: req.member._id }),
+    scope: async (req) => ((await ownDealIds(req)) ? { ownerId: req.member._id } : undefined),
     // The stage must exist in the deal's business pipeline; reaching the won stage records when.
     check: async (next, existing) => {
       if (next.stage === undefined && next.business === undefined) return undefined;
@@ -505,7 +548,7 @@ export function buildApp({
     return doc ? { photography: doc.photography, marketing: doc.marketing } : DEFAULT_TEMPLATES;
   };
   app.get("/project-templates", getTemplates);
-  app.put("/project-templates", { preHandler: adminOnly }, async (req) => {
+  app.put("/project-templates", { preHandler: mayChange("projects", false) }, async (req) => {
     const next = TemplatesSchema.parse(req.body);
     await templatesCol.replaceOne({ _id: "templates" }, next, { upsert: true });
     return next;
@@ -524,11 +567,29 @@ export function buildApp({
     await db.collection<Doc>("tasks").insertMany(tasks.map((t) => ({ _id: new ObjectId().toHexString(), ...t, projectId })));
   }
   records("projects", CreateProjectSchema, UpdateProjectSchema, () => ({ createdAt: now() }), {
-    scope: (req, own) => ({ $or: [{ managerId: req.member._id }, { "crew.memberId": req.member._id }, { dealId: { $in: own } }] }),
+    area: "projects",
+    scope: async (req) => {
+      const mine = await crewProjects(req);
+      return mine && { _id: { $in: mine.map((p) => p._id) } };
+    },
   });
 
-  records("tasks", CreateTaskSchema, UpdateTaskSchema, () => ({ done: false, comments: [] }), {
-    scope: (req, own) => ({ $or: [{ assigneeId: req.member._id }, { dealId: { $in: own } }] }),
+  const tasks = records("tasks", CreateTaskSchema, UpdateTaskSchema, () => ({ done: false, comments: [] }), {
+    area: "projects",
+    scope: async (req) => {
+      const me = req.member._id;
+      const mine = await crewProjects(req);
+      if (mine) return { $or: [{ assigneeId: me }, { projectId: { $in: mine.map((p) => p._id) } }] };
+      const own = await ownDealIds(req);
+      return own && { $or: [{ assigneeId: me }, { dealId: { $in: own } }] };
+    },
+    // Admins and project managers run every task; everyone else updates the ones given to them.
+    write: (req, next, existing) => {
+      if (access(req, "projects") === "edit") return undefined;
+      if (existing && existing.assigneeId !== req.member._id) return "You can only update tasks given to you";
+      if (next.assigneeId !== undefined && next.assigneeId !== req.member._id) return "Only admins and project managers can give tasks to someone else";
+      return undefined;
+    },
     // Ticking a task done and moving it to "Done" are the same thing.
     check: async (next) => {
       if (next.status !== undefined) next.done = next.status === "done";
@@ -539,7 +600,7 @@ export function buildApp({
   app.post<{ Params: { id: string } }>("/tasks/:id/comments", async (req, reply) => {
     const { body } = TaskCommentSchema.parse(req.body);
     const comment = { id: new ObjectId().toHexString(), authorId: req.member._id, body, at: now() };
-    const saved = await db.collection<Doc>("tasks").findOneAndUpdate({ _id: req.params.id }, { $push: { comments: comment } } as never, { returnDocument: "after" });
+    const saved = await db.collection<Doc>("tasks").findOneAndUpdate({ $and: [{ _id: req.params.id }, await tasks.visible(req)] }, { $push: { comments: comment } } as never, { returnDocument: "after" });
     return saved ? reply.code(201).send(out(saved)) : reply.code(404).send({ error: "Not found" });
   });
 
@@ -599,13 +660,14 @@ export function buildApp({
   const activities = db.collection<Doc>("activities");
   app.get("/activities", async (req) => {
     const { dealId } = z.object({ dealId: z.string().optional() }).parse(req.query);
+    if (access(req, "sales") === "none") return [];
     const own = await ownDealIds(req);
-    // A Member limited to their own deals sees those deals' activity, plus their own entries without a deal.
+    // Sales limited to their own deals see those deals' activity, plus their own entries without a deal.
     const scope = own ? { $or: [{ dealId: { $in: own } }, { dealId: { $exists: false }, actorId: req.member._id }] } : {};
     // shortcut: the newest 2000 are loaded at sign-in; page older history when a deal's timeline needs it.
     return (await activities.find({ ...(dealId ? { dealId } : {}), ...scope }).sort({ at: -1 }).limit(2000).toArray()).map(out);
   });
-  app.post("/activities", async (req, reply) => {
+  app.post("/activities", { preHandler: mayChange("sales") }, async (req, reply) => {
     const doc: Doc = { _id: new ObjectId().toHexString(), ...CreateActivitySchema.parse(req.body), actorId: req.member._id, at: now() };
     await activities.insertOne(doc);
     return reply.code(201).send(out(doc));
@@ -620,10 +682,11 @@ export function buildApp({
   const invoices = db.collection<InvoiceDoc>("invoices");
   app.get("/invoices", async (req) => {
     const { limit, companyId } = ListQuery.parse(req.query);
+    if (access(req, "finance") === "none") return [];
     const own = await ownDealIds(req);
     return (await invoices.find({ ...(companyId ? { companyId } : {}), ...(own ? { dealId: { $in: own } } : {}) }).sort({ issuedAt: -1 }).limit(limit).toArray()).map(out);
   });
-  app.post("/invoices", { preHandler: notMember }, async (req, reply) => {
+  app.post("/invoices", { preHandler: mayChange("finance") }, async (req, reply) => {
     const input = CreateInvoiceSchema.parse(req.body);
     const { legalName, gstin } = await getWorkspace();
     if (!legalName || !gstin) return reply.code(422).send({ error: "Add the studio's legal name and GSTIN in Settings → Workspace first" });
@@ -643,7 +706,7 @@ export function buildApp({
     const str = (v: unknown) => (typeof v === "string" ? v : "");
     return { seller: { legalName, gstin, address }, buyer: { name: str(company?.name), gstin: str(company?.gstin), address: str(company?.address), city: str(company?.city) } };
   };
-  app.post<{ Params: { id: string } }>("/invoices/:id/send", { preHandler: notMember }, async (req, reply) => {
+  app.post<{ Params: { id: string } }>("/invoices/:id/send", { preHandler: mayChange("finance") }, async (req, reply) => {
     const inv = await invoices.findOne({ _id: req.params.id, cancelled: { $ne: true } });
     if (!inv) return reply.code(404).send({ error: "Not found, or cancelled" });
     // Issuing is the moment that counts: refresh the copies in case details were corrected while it was a draft.
@@ -651,7 +714,7 @@ export function buildApp({
     return out((await invoices.findOneAndUpdate({ _id: inv._id }, { $set: { sent: true, ...snapshot } }, { returnDocument: "after" }))!);
   });
   /** Edit a draft. Sent invoices can't change — that's what credit notes are for. */
-  app.patch<{ Params: { id: string } }>("/invoices/:id", { preHandler: notMember }, async (req, reply) => {
+  app.patch<{ Params: { id: string } }>("/invoices/:id", { preHandler: mayChange("finance") }, async (req, reply) => {
     const changes = UpdateDraftInvoiceSchema.parse(req.body);
     const inv = await invoices.findOne({ _id: req.params.id });
     if (!inv) return reply.code(404).send({ error: "Not found" });
@@ -660,12 +723,13 @@ export function buildApp({
       return reply.code(422).send({ error: "That deal doesn't belong to this company" });
     return out((await invoices.findOneAndUpdate({ _id: inv._id }, { $set: changes }, { returnDocument: "after" }))!);
   });
-  app.post<{ Params: { id: string } }>("/invoices/:id/credit-notes", { preHandler: notMember }, async (req, reply) => {
+  app.post<{ Params: { id: string } }>("/invoices/:id/credit-notes", { preHandler: mayChange("finance") }, async (req, reply) => {
     const result = await createCreditNote(db, client, req.params.id, CreditNoteSchema.parse(req.body), req.member._id);
     if ("error" in result) return reply.code(result.error === "Not found" ? 404 : 409).send({ error: result.error });
     return reply.code(201).send({ creditNote: out(result.note), invoice: out(result.invoice) });
   });
   app.get("/credit-notes", async (req) => {
+    if (access(req, "finance") === "none") return [];
     const own = await ownDealIds(req);
     return (await db.collection<Doc>("creditNotes").find(own ? { dealId: { $in: own } } : {}).sort({ issuedAt: -1 }).limit(5000).toArray()).map(out);
   });
@@ -673,7 +737,7 @@ export function buildApp({
    * Cancels a draft. The invoice stays (marked cancelled) so the number series has no gaps; a sent invoice
    * needs a credit note instead, so it can't be cancelled here.
    */
-  app.post<{ Params: { id: string } }>("/invoices/:id/cancel", { preHandler: notMember }, async (req, reply) => {
+  app.post<{ Params: { id: string } }>("/invoices/:id/cancel", { preHandler: mayChange("finance") }, async (req, reply) => {
     const { reason } = z.object({ reason: z.string().trim().min(1, "Say why it's being cancelled").max(200) }).parse(req.body);
     const doc = await invoices.findOneAndUpdate(
       { _id: req.params.id, sent: false, cancelled: { $ne: true } },
@@ -683,7 +747,7 @@ export function buildApp({
     return doc ? out(doc) : reply.code(409).send({ error: "Only a draft that hasn't been sent can be cancelled" });
   });
   /** In a transaction so two payments recorded at once can't together exceed the balance. */
-  app.post<{ Params: { id: string } }>("/invoices/:id/payments", { preHandler: notMember }, async (req, reply) => {
+  app.post<{ Params: { id: string } }>("/invoices/:id/payments", { preHandler: mayChange("finance") }, async (req, reply) => {
     const { amountPaise, at = now() } = RecordPaymentSchema.parse(req.body);
     const session = client.startSession();
     try {

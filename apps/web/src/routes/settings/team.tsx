@@ -1,3 +1,4 @@
+import { ROLE_HELP, ROLE_LABEL } from "@pinnacle/shared";
 import { fmtAgo, fmtDate, type Role } from "@pinnacle/shared";
 import { Avatar, Button, cn, Input, Pill, Select, toast } from "@pinnacle/ui";
 import { Copy, Lock, Trash2, UserPlus } from "lucide-react";
@@ -8,12 +9,6 @@ import { useMe } from "../../data/store";
 import type { SessionMember as Member } from "../../lib/session";
 import { SettingsHeader } from "./layout";
 
-const ROLE_LABEL: Record<Role, string> = { admin: "Admin", manager: "Manager", member: "Member" };
-const ROLE_HELP: Record<Role, string> = {
-  admin: "Everything, including team, workspace, lead routing, integrations and import / export.",
-  manager: "All deals, companies, contacts and invoices. Can reassign work. No settings.",
-  member: "Works on the deals, companies and contacts they own; can't reassign them. Sees others' deals unless Workspace turns that off. Invoices are view-only.",
-};
 const SIGN_IN_URL = window.location.origin;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -83,7 +78,7 @@ export function TeamRoute() {
 
       <section className="mt-10">
         <h2 className="t-eyebrow m-0 mb-3 text-ink-2">Roles</h2>
-        <dl className="m-0 grid grid-cols-1 gap-x-6 gap-y-2 border-t border-line pt-3 t-dense sm:grid-cols-[120px_1fr]">
+        <dl className="m-0 grid grid-cols-1 gap-x-6 gap-y-2 border-t border-line pt-3 t-dense sm:grid-cols-[140px_1fr]">
           {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
             <div key={r} className="contents">
               <dt className="font-medium">{ROLE_LABEL[r]}</dt>
@@ -99,7 +94,7 @@ export function TeamRoute() {
 function AddMember({ members, onChange }: { members: Member[]; onChange: () => void }) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<Role>("member");
+  const [role, setRole] = useState<Role>("crew");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -116,7 +111,7 @@ function AddMember({ members, onChange }: { members: Member[]; onChange: () => v
           toast(`Added ${m.name} · share the sign-in link with them`);
           setEmail("");
           setName("");
-          setRole("member");
+          setRole("crew");
           setError(undefined);
           onChange();
         } catch (err) {
