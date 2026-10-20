@@ -1,4 +1,6 @@
-import { Button, Kbd, useCommandMenu } from "@pinnacle/ui";
+import { BUSINESS_SHORT, type BusinessView } from "@pinnacle/shared";
+import { Button, Kbd, Segmented, Select, useCommandMenu } from "@pinnacle/ui";
+import { useCrm } from "../data/store";
 import { useUi } from "../lib/ui-store";
 import { Menu, Plus, Search } from "lucide-react";
 
@@ -19,6 +21,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         <Kbd className="hidden sm:inline-flex">{isMac ? "⌘K" : "Ctrl K"}</Kbd>
       </button>
       <div className="ml-auto flex items-center gap-2">
+        <BusinessSwitch />
         <Button
           variant="ink"
           size="sm"
@@ -34,5 +37,25 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+const VIEWS: { value: BusinessView; label: string }[] = [
+  { value: "all", label: "Both" },
+  { value: "photography", label: BUSINESS_SHORT.photography },
+  { value: "marketing", label: BUSINESS_SHORT.marketing },
+];
+
+/** Which business every screen shows. A dropdown on phones, a segmented control otherwise. */
+function BusinessSwitch() {
+  const view = useCrm((s) => s.businessView);
+  const set = useCrm.getState().setBusinessView;
+  return (
+    <>
+      <Segmented label="Business" value={view} onChange={set} options={VIEWS} className="hidden md:inline-flex" />
+      <Select aria-label="Business" value={view} onChange={(e) => set(e.target.value as BusinessView)} className="md:hidden">
+        {VIEWS.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+      </Select>
+    </>
   );
 }

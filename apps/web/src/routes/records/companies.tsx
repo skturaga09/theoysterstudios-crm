@@ -1,5 +1,5 @@
-import { fmtAgo, STAGE_LABEL, STAGES, type Stage } from "@pinnacle/shared";
-import { Avatar, Button, ChannelChip, Input, Menu, MenuContent, MenuItem, MenuTrigger, MoneyText, Sheet, StageMeter, Textarea, toast } from "@pinnacle/ui";
+import { fmtAgo, STAGE_LABEL, STAGES, type Stage, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
+import { Avatar, Button, ChannelChip, Input, Menu, MenuContent, MenuItem, MenuTrigger, MoneyText, Select, Sheet, StageMeter, Textarea, toast } from "@pinnacle/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Building2, ChevronDown, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -164,6 +164,7 @@ function CompanyDetail({ c }: { c: Row }) {
   const canEdit = useCanEdit(c.ownerId);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Record<EditableKey, string>>({ name: "", domain: "", industry: "", city: "", gstin: "", address: "" });
+  const [business, setBusiness] = useState<Business | "">("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const deals = s.deals.filter((d) => d.companyId === c.id);
@@ -171,6 +172,7 @@ function CompanyDetail({ c }: { c: Row }) {
   const acts = s.activities.filter((a) => a.companyId === c.id);
   const startEditing = () => {
     setForm(Object.fromEntries(EDITABLE.map((f) => [f.key, c[f.key] ?? ""])) as Record<EditableKey, string>);
+    setBusiness(c.business ?? "");
     setError(undefined);
     setEditing(true);
   };
@@ -185,7 +187,7 @@ function CompanyDetail({ c }: { c: Row }) {
           if (s.companies.some((x) => x.id !== c.id && x.name.trim().toLowerCase() === form.name.trim().toLowerCase())) return setError(`Another company is already called ${form.name.trim()}.`);
           setBusy(true);
           try {
-            const saved = await api<Company>(`/companies/${c.id}`, { method: "PATCH", body: Object.fromEntries(EDITABLE.map((f) => [f.key, form[f.key].trim()])) });
+            const saved = await api<Company>(`/companies/${c.id}`, { method: "PATCH", body: { ...Object.fromEntries(EDITABLE.map((f) => [f.key, form[f.key].trim()])), ...(business && { business }) } });
             useCrm.setState((x) => ({ companies: x.companies.map((co) => (co.id === c.id ? saved : co)) }));
             toast(`Saved ${saved.name}`);
             setEditing(false);
@@ -206,6 +208,13 @@ function CompanyDetail({ c }: { c: Row }) {
             )}
           </label>
         ))}
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[12.5px] font-medium">Business</span>
+          <Select value={business} onChange={(e) => setBusiness(e.target.value as Business | "")}>
+            {!business && <option value="">Both / not set</option>}
+            {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_LABEL[b]}</option>)}
+          </Select>
+        </label>
         {error && <p role="alert" className="t-meta m-0 text-risk">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
@@ -217,6 +226,7 @@ function CompanyDetail({ c }: { c: Row }) {
   return (
     <div className="flex flex-col gap-6">
       <dl className="m-0 grid grid-cols-[110px_1fr] gap-y-2.5 t-dense">
+        <dt className="text-ink-3">Business</dt><dd className="m-0">{c.business ? BUSINESS_LABEL[c.business] : "Both / not set"}</dd>
         <dt className="text-ink-3">Website</dt><dd className="m-0 font-mono text-[12.5px]">{c.domain || "—"}</dd>
         <dt className="text-ink-3">Industry</dt><dd className="m-0">{c.industry || "—"}</dd>
         <dt className="text-ink-3">City</dt><dd className="m-0">{c.city || "—"}</dd>

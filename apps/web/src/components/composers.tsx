@@ -1,10 +1,10 @@
-import { CHANNEL_LABEL, CHANNELS, formatCompact, formatFull, gstState, invoiceTotals, lakh, rupees, STAGE_LABEL, STAGES, type Channel, type Stage } from "@pinnacle/shared";
+import { BUSINESS_LABEL, BUSINESSES, CHANNEL_LABEL, CHANNELS, formatCompact, formatFull, gstState, invoiceTotals, lakh, rupees, STAGE_LABEL, STAGES, type Business, type Channel, type Stage } from "@pinnacle/shared";
 import { Button, Input, Select, Sheet, Textarea, toast } from "@pinnacle/ui";
 import { Plus, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { Link } from "react-router";
-import { defaultOwnerId, useCrm, useIsManager } from "../data/store";
+import { defaultBusiness, defaultOwnerId, useCrm, useIsManager } from "../data/store";
 import type { Company, Contact, Deal, Invoice } from "../data/types";
 import { api, save } from "../lib/api";
 import { useUi } from "../lib/ui-store";
@@ -34,6 +34,7 @@ function NewDealForm({ stage, onDone }: { stage?: string; onDone: () => void }) 
   const [st, setSt] = useState<Stage>((stage as Stage) ?? "new");
   const [owner, setOwner] = useState(defaultOwnerId);
   const [channel, setChannel] = useState<Channel>("referral");
+  const [business, setBusiness] = useState<Business>(defaultBusiness);
   const [close, setClose] = useState(plusDays(30));
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -52,7 +53,7 @@ function NewDealForm({ stage, onDone }: { stage?: string; onDone: () => void }) 
         let newCompany: Company | undefined;
         try {
           let co = s.companies.find((c) => c.name.toLowerCase() === company.trim().toLowerCase());
-          if (!co) co = newCompany = await api<Company>("/companies", { method: "POST", body: { name: company.trim(), domain: "—", industry: "—", city: "—", ownerId: owner, tags: ["New"] } });
+          if (!co) co = newCompany = await api<Company>("/companies", { method: "POST", body: { name: company.trim(), domain: "—", industry: "—", city: "—", ownerId: owner, tags: ["New"], business } });
           const deal = await api<Deal>("/deals", {
             method: "POST",
             body: {
@@ -65,6 +66,7 @@ function NewDealForm({ stage, onDone }: { stage?: string; onDone: () => void }) 
               channel,
               health: "ok",
               position: s.deals.filter((d) => d.stage === st).length,
+              business,
             },
           });
           useCrm.setState((x) => ({ companies: newCompany ? [newCompany, ...x.companies] : x.companies, deals: [...x.deals, deal] }));
@@ -86,6 +88,11 @@ function NewDealForm({ stage, onDone }: { stage?: string; onDone: () => void }) 
         }
       }}
     >
+      <Field label="Business">
+        <Select value={business} onChange={(e) => setBusiness(e.target.value as Business)}>
+          {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_LABEL[b]}</option>)}
+        </Select>
+      </Field>
       <Field label="Company" hint="Pick an existing company or type a new name.">
         <Input list="company-options" value={company} onChange={(e) => setCompany(e.target.value)} autoFocus placeholder="Atlas Athletic" />
         <datalist id="company-options">
@@ -138,7 +145,8 @@ function NewTaskForm({ dealId, onDone }: { dealId?: string; onDone: () => void }
         e.preventDefault();
         if (!title.trim()) return;
         const d = s.deals.find((x) => x.id === deal);
-        s.addTask({ title: title.trim(), dueAt: new Date(`${due}T${time}:00`).toISOString(), assigneeId: assignee, dealId: d?.id, companyId: d?.companyId });
+        const view = useCrm.getState().businessView;
+        s.addTask({ title: title.trim(), dueAt: new Date(`${due}T${time}:00`).toISOString(), assigneeId: assignee, dealId: d?.id, companyId: d?.companyId, business: d?.business ?? (view === "all" ? undefined : view) });
         toast("Task added");
         onDone();
       }}
@@ -372,6 +380,7 @@ function NewCompanyForm({ onDone }: { onDone: () => void }) {
   const isManager = useIsManager();
   const s = useCrm();
   const [f, setF] = useState({ name: "", domain: "", industry: "", city: "", gstin: "", address: "" });
+  const [business, setBusiness] = useState<Business | "">(() => (useCrm.getState().businessView === "all" ? "" : defaultBusiness()));
   const [owner, setOwner] = useState(defaultOwnerId);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -387,7 +396,7 @@ function NewCompanyForm({ onDone }: { onDone: () => void }) {
         if (s.companies.some((c) => c.name.trim().toLowerCase() === f.name.trim().toLowerCase())) return setError(`${f.name.trim()} is already in Companies.`);
         setBusy(true);
         try {
-          const co = await api<Company>("/companies", { method: "POST", body: { ...compact(f), ownerId: owner, tags: [] } });
+          const co = await api<Company>("/companies", { method: "POST", body: { ...compact(f), ownerId: owner, tags: [], ...(business && { business }) } });
           useCrm.setState((x) => ({ companies: [co, ...x.companies] }));
           toast(`Added ${co.name}`);
           onDone();
@@ -399,6 +408,12 @@ function NewCompanyForm({ onDone }: { onDone: () => void }) {
       }}
     >
       <Field label="Company name"><Input value={f.name} onChange={set("name")} autoFocus placeholder="Halcyon Hotels" /></Field>
+      <Field label="Business" hint="Leave as Both if they buy from both businesses.">
+        <Select value={business} onChange={(e) => setBusiness(e.target.value as Business | "")}>
+          <option value="">Both</option>
+          {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_LABEL[b]}</option>)}
+        </Select>
+      </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Website"><Input value={f.domain} onChange={set("domain")} placeholder="halcyon.in" className="font-mono" /></Field>
         <Field label="City"><Input value={f.city} onChange={set("city")} placeholder="Goa" /></Field>
@@ -424,6 +439,7 @@ function NewContactForm({ onDone }: { onDone: () => void }) {
   const isManager = useIsManager();
   const s = useCrm();
   const [f, setF] = useState({ name: "", company: "", title: "", email: "", phone: "", handle: "", city: "" });
+  const [business, setBusiness] = useState<Business | "">(() => (useCrm.getState().businessView === "all" ? "" : defaultBusiness()));
   const [source, setSource] = useState<Channel>("referral");
   const [owner, setOwner] = useState(defaultOwnerId);
   const [error, setError] = useState<string>();
@@ -443,9 +459,9 @@ function NewContactForm({ onDone }: { onDone: () => void }) {
         try {
           const name = f.company.trim();
           let co = name ? s.companies.find((c) => c.name.toLowerCase() === name.toLowerCase()) : undefined;
-          if (name && !co) co = newCompany = await api<Company>("/companies", { method: "POST", body: { name, domain: "", industry: "", city: f.city.trim(), ownerId: owner, tags: [] } });
+          if (name && !co) co = newCompany = await api<Company>("/companies", { method: "POST", body: { name, domain: "", industry: "", city: f.city.trim(), ownerId: owner, tags: [], ...(business && { business }) } });
           const { company: _, ...fields } = f;
-          const contact = await api<Contact>("/contacts", { method: "POST", body: { ...compact(fields), companyId: co?.id, ownerId: owner, source } });
+          const contact = await api<Contact>("/contacts", { method: "POST", body: { ...compact(fields), companyId: co?.id, ownerId: owner, source, ...(business && { business }) } });
           useCrm.setState((x) => ({ companies: newCompany ? [newCompany, ...x.companies] : x.companies, contacts: [contact, ...x.contacts] }));
           toast(`Added ${contact.name}${newCompany ? ` and ${newCompany.name}` : ""}`);
           onDone();
@@ -458,6 +474,12 @@ function NewContactForm({ onDone }: { onDone: () => void }) {
       }}
     >
       <Field label="Name"><Input value={f.name} onChange={set("name")} autoFocus placeholder="Riya Mehta" /></Field>
+      <Field label="Business">
+        <Select value={business} onChange={(e) => setBusiness(e.target.value as Business | "")}>
+          <option value="">Both</option>
+          {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_LABEL[b]}</option>)}
+        </Select>
+      </Field>
       <Field label="Company" hint="Pick an existing company or type a new name. Optional.">
         <Input list="contact-company-options" value={f.company} onChange={set("company")} placeholder="Halcyon Hotels" />
         <datalist id="contact-company-options">{s.companies.map((c) => <option key={c.id} value={c.name} />)}</datalist>

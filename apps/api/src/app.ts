@@ -513,10 +513,12 @@ export function buildApp({
     const { legalName, gstin } = await getWorkspace();
     if (!legalName || !gstin) return reply.code(422).send({ error: "Add the studio's legal name and GSTIN in Settings → Workspace first" });
     if (!(await db.collection<Doc>("companies").countDocuments({ _id: input.companyId }, { limit: 1 }))) return reply.code(422).send({ error: "That company doesn't exist" });
-    if (input.dealId && !(await db.collection<Doc>("deals").countDocuments({ _id: input.dealId, companyId: input.companyId }, { limit: 1 })))
-      return reply.code(422).send({ error: "That deal doesn't belong to this company" });
+    const deal = input.dealId ? await db.collection<Doc>("deals").findOne({ _id: input.dealId, companyId: input.companyId }) : null;
+    if (input.dealId && !deal) return reply.code(422).send({ error: "That deal doesn't belong to this company" });
+    // The business comes from the deal when there is one (one legal entity and number series either way).
+    const business = input.business ?? (deal?.business as typeof input.business);
     // Our and the client's details are copied onto the invoice, so later edits don't change issued invoices.
-    return reply.code(201).send(out(await createInvoice(db, client, { ...input, ...(await parties(input.companyId)) })));
+    return reply.code(201).send(out(await createInvoice(db, client, { ...input, ...(business && { business }), ...(await parties(input.companyId)) })));
   });
 
   /** Our and the client's details as they are now — copied onto an invoice when it's created and when it's issued. */

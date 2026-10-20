@@ -168,3 +168,14 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   (first run only starts tracking; 410 → restart); a new meeting with an outside guest who isn't a contact opens a
   `calendar` conversation, with a known contact it becomes a "meeting" activity on their open deal. Appointment-
   schedule bookings can't be told apart reliably, so every new meeting with an outside guest counts.
+
+## Two businesses (client requirements, Oct 2026)
+
+- **Business** (`photography` | `marketing`) on deals, companies, contacts, tasks, invoices and conversations.
+  One legal entity: GST invoices always come from The Oyster Studios in one series, tagged by business; an
+  invoice takes its deal's business. The CRM stays branded The Oyster Studios ("Pinnacle" = the client's existing
+  customer base, importable later).
+- **View switch** (Both / Photography / Marketing, per device) in the top bar. `useCrm` reads through `scoped()`,
+  a memoised filter over the store, so every screen respects it without its own code; writes go to the whole
+  store. Records without a business show in every view (e.g. a new DM) so nothing is missed.
+- **Inbox fix:** the "create a deal" fields now show for real conversations (they only appeared on samples).

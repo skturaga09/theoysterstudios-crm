@@ -480,6 +480,15 @@ describe("api", () => {
     expect((await call("GET", "/credit-notes")).json()[0].invoiceNumber).toBe(draft.number);
   });
 
+  it("tags records with a business; invoices take it from their deal", async () => {
+    const d = (await call("POST", "/deals", { title: "Wedding — Riya & Arjun", companyId: c1, valuePaise: 1, closeAt: "2026-12-01T00:00:00+05:30", ownerId: "sr", channel: "instagram", business: "photography" })).json();
+    expect(d.business).toBe("photography");
+    expect((await call("POST", "/deals", { title: "x", companyId: c1, valuePaise: 1, closeAt: "2026-12-01T00:00:00+05:30", ownerId: "sr", channel: "web", business: "bakery" })).statusCode).toBe(400);
+    const inv = (await call("POST", "/invoices", { companyId: c1, dealId: d.id, dueAt: "2026-12-01T00:00:00+05:30", supply: "intra", lines: [{ desc: "x", sac: "998391", qty: 1, ratePaise: 100 }] })).json();
+    expect(inv.business).toBe("photography");
+    expect((await call("PATCH", `/deals/${d.id}`, { business: "marketing" })).json().business).toBe("marketing");
+  });
+
   it("deletes records and keeps a deal's board position", async () => {
     const d = (await call("POST", "/deals", { title: "Film", companyId: "c1", valuePaise: 1, closeAt: "2026-11-30T00:00:00+05:30", ownerId: "sr", channel: "web", position: 3 })).json();
     expect(d.position).toBe(3);

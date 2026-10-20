@@ -1,4 +1,4 @@
-import { fmtDay, formatCompact, STAGE_LABEL, type Stage } from "@pinnacle/shared";
+import { fmtDay, formatCompact, STAGE_LABEL, type Stage, BUSINESS_SHORT } from "@pinnacle/shared";
 import { Avatar, ChannelChip, cn, HealthDot, MoneyText } from "@pinnacle/ui";
 import {
   closestCorners,
@@ -222,6 +222,7 @@ const DealCard = memo(function DealCard({ deal, lifted }: { deal: Deal; lifted?:
   const company = useCrm((s) => s.companies.find((c) => c.id === deal.companyId));
   const owner = useCrm((s) => s.members.find((m) => m.id === deal.ownerId));
   const pulse = useUi((s) => s.wonPulse === deal.id);
+  const showBusiness = useCrm((s) => s.businessView === "all");
   const overdue = deal.stage !== "won" && deal.stage !== "lost" && new Date(deal.closeAt) < new Date(new Date().toDateString());
   return (
     <article
@@ -237,6 +238,7 @@ const DealCard = memo(function DealCard({ deal, lifted }: { deal: Deal; lifted?:
         <ChannelChip channel={deal.channel} className="ml-auto" />
       </div>
       <div className="mt-0.5 truncate pl-4 text-[12.5px] text-ink-2">{deal.title}</div>
+      {showBusiness && deal.business && <div className="mt-1 pl-4 font-mono text-[10.5px] tracking-wide text-ink-3 uppercase">{BUSINESS_SHORT[deal.business]}</div>}
       <div className="mt-3 flex items-center gap-2 pl-4">
         <MoneyText paise={deal.valuePaise} className="text-[13px]" />
         <span className={cn("font-mono text-[11px]", overdue ? "text-risk" : "text-ink-3")}>{fmtDay(deal.closeAt)}</span>

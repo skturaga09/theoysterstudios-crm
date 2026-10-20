@@ -333,3 +333,12 @@ export const CHANNEL_STATUS: ChannelStatus[] = [
   { channel: "whatsapp", label: "WhatsApp", status: "ok", lastEventMin: 1, account: "+91 80 4718 2200" },
   { channel: "web", label: "Website", status: "ok", lastEventMin: 12, account: "theoysterstudios.in/contact" },
 ];
+
+/* Demo: split the sample work across the two businesses (keywords first, then alternate for an even mix). */
+DEALS.forEach((d, i) => {
+  d.business = /wedding|shoot|film|photo|lookbook|album|pre-wedding/i.test(d.title) ? "photography" : i % 2 ? "photography" : "marketing";
+});
+for (const c of COMPANIES) c.business = DEALS.find((d) => d.companyId === c.id)?.business;
+for (const p of CONTACTS) p.business = COMPANIES.find((c) => c.id === p.companyId)?.business;
+for (const inv of INVOICES) inv.business = DEALS.find((d) => d.id === inv.dealId)?.business ?? COMPANIES.find((c) => c.id === inv.companyId)?.business;
+for (const t of TASKS) t.business = DEALS.find((d) => d.id === t.dealId)?.business;

@@ -3,13 +3,14 @@
  * web bundle doesn't ship zod until forms need it (M1+).
  */
 import { z } from "zod";
-import { CHANNELS, HEALTHS, ROLES, STAGES } from "./domain";
+import { BUSINESSES, CHANNELS, HEALTHS, ROLES, STAGES } from "./domain";
 import { gstState, GSTIN_RE } from "./gst";
 
 export const StageSchema = z.enum([...STAGES, "lost"]);
 export const ChannelSchema = z.enum(CHANNELS);
 export const HealthSchema = z.enum(HEALTHS);
 export const RoleSchema = z.enum(ROLES);
+export const BusinessSchema = z.enum(BUSINESSES);
 
 /**
  * Team & access (admin-only). Sign-in is allowed only for addresses on this list.
@@ -48,6 +49,7 @@ export const CreateCompanySchema = z.object({
   /** Billing address, printed under "Bill to" on invoices. */
   address: z.string().trim().max(300).optional(),
   employees: z.number().int().positive().optional(),
+  business: BusinessSchema.optional(),
 });
 export const UpdateCompanySchema = CreateCompanySchema.partial();
 
@@ -61,6 +63,7 @@ export const CreateContactSchema = z.object({
   city: z.string().trim().max(80).default(""),
   ownerId: id,
   source: ChannelSchema,
+  business: BusinessSchema.optional(),
 });
 export const UpdateContactSchema = CreateContactSchema.partial();
 
@@ -76,6 +79,7 @@ export const CreateDealSchema = z.object({
   health: HealthSchema.default("ok"),
   nextStep: optionalText(240),
   position: z.number().int().nonnegative().optional(),
+  business: BusinessSchema.optional(),
 });
 export const UpdateDealSchema = CreateDealSchema.partial().extend({
   lostReason: optionalText(240),
@@ -95,6 +99,8 @@ export const CreateInvoiceSchema = z.object({
   issuedAt: iso.optional(),
   dueAt: iso,
   supply: z.enum(["intra", "inter"]),
+  /** Which business the work was for; taken from the deal when there is one. One legal entity and series either way. */
+  business: BusinessSchema.optional(),
   lines: z
     .array(z.object({ desc: z.string().trim().min(1).max(240), sac: z.string().trim().regex(/^\d{4,8}$/), qty: z.number().positive(), ratePaise: paise }))
     .min(1)
@@ -136,6 +142,7 @@ export const CreateTaskSchema = z.object({
   companyId: id.optional(),
   /** Create a Google Calendar reminder at the due time (once Calendar is connected). */
   remind: z.boolean().default(false),
+  business: BusinessSchema.optional(),
 });
 export const UpdateTaskSchema = CreateTaskSchema.partial().extend({
   done: z.boolean().optional(),
@@ -182,6 +189,7 @@ export const IntegrationKeysSchema = z.object({
 
 export const UpdateConversationSchema = z.object({
   unread: z.boolean().optional(),
+  business: BusinessSchema.nullable().optional(),
   assigneeId: id.nullable().optional(),
   dealId: id.nullable().optional(),
   contactId: id.nullable().optional(),

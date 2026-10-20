@@ -1,4 +1,4 @@
-import { CHANNEL_LABEL, fmtDate, fmtDay, formatFull, HEALTH_LABEL, lakh, rupees } from "@pinnacle/shared";
+import { CHANNEL_LABEL, fmtDate, fmtDay, formatFull, HEALTH_LABEL, lakh, rupees, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
 import {
   Avatar,
   Button,
@@ -163,6 +163,12 @@ export function DealProperties({ deal }: { deal: Deal }) {
           <option value="ok">On track</option>
           <option value="warn">Watch</option>
           <option value="risk">At risk</option>
+        </Select>
+      </Prop>
+      <Prop label="Business">
+        <Select aria-label="Business" value={deal.business ?? ""} onChange={(e) => e.target.value && s.updateDeal(deal.id, { business: e.target.value as Business })}>
+          {!deal.business && <option value="">Not set</option>}
+          {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_LABEL[b]}</option>)}
         </Select>
       </Prop>
       <Prop label="Source">

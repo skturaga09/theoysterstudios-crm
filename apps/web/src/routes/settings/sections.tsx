@@ -1,4 +1,4 @@
-import { CHANNEL_LABEL, CHANNELS, formatCompact, gstState, lakh, parseCsv, STAGE_LABEL, STAGES, toCsv, type Channel, type RoutingRule } from "@pinnacle/shared";
+import { CHANNEL_LABEL, CHANNELS, formatCompact, gstState, lakh, parseCsv, STAGE_LABEL, STAGES, toCsv, type Channel, type RoutingRule, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
 import type { Workspace } from "@pinnacle/shared/schemas";
 import { Button, ChannelChip, cn, Input, Pill, Segmented, Select, toast } from "@pinnacle/ui";
 import { ArrowDown, ArrowRight, ArrowUp, Download, Plus, RefreshCw, Trash2, Unplug, Upload } from "lucide-react";
@@ -455,6 +455,7 @@ const IMPORT_FIELDS: Record<ImportTarget, ImportField[]> = {
     { key: "city", label: "City", guess: /city|location|town/i },
     { key: "gstin", label: "GSTIN", guess: /gst/i },
     { key: "address", label: "Billing address", guess: /address|billing/i },
+    { key: "business", label: "Business", guess: /business|division|vertical|brand/i },
     { key: "tags", label: "Tags", guess: /tag|label/i },
   ],
   contacts: [
@@ -466,12 +467,17 @@ const IMPORT_FIELDS: Record<ImportTarget, ImportField[]> = {
     { key: "city", label: "City", guess: /city|location|town/i },
     { key: "handle", label: "Instagram", guess: /insta|handle|^ig$/i },
     { key: "source", label: "Source", guess: /source|channel/i },
+    { key: "business", label: "Business", guess: /business|division|vertical|brand/i },
   ],
 };
 /** Spreadsheet wording → channel ("Insta DM" → instagram). Unknown → the default chosen above the preview. */
 const channelFrom = (v: string): Channel | undefined =>
   /insta|\big\b/i.test(v) ? "instagram" : /whats/i.test(v) ? "whatsapp" : /facebook|\bfb\b|meta|lead ad/i.test(v) ? "facebook"
   : /calendar|meeting|booking/i.test(v) ? "calendar" : /web|site|form/i.test(v) ? "web" : /mail/i.test(v) ? "gmail" : /refer|friend|word/i.test(v) ? "referral" : undefined;
+
+/** "Weddings", "Photo" → photography; "Agency", "Social media" → marketing. Unknown → the default above. */
+const businessFrom = (v: string): Business | undefined =>
+  /photo|wedding|shoot|film|album/i.test(v) ? "photography" : /market|agency|social|brand|seo|ads|digital|web/i.test(v) ? "marketing" : undefined;
 
 function guessMapping(target: ImportTarget, headers: string[]) {
   const used = new Set<number>();
@@ -493,6 +499,7 @@ function ImportPanel() {
   const [mapping, setMapping] = useState<Record<string, number>>({});
   const [ownerId, setOwnerId] = useState(defaultOwnerId);
   const [source, setSource] = useState<Channel>("referral");
+  const [importBusiness, setImportBusiness] = useState<Business | "">("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ImportResult>();
   const fields = IMPORT_FIELDS[target];
@@ -502,8 +509,9 @@ function ImportPanel() {
     for (const f of fields) {
       const v = (cells[mapping[f.key] ?? -1] ?? "").trim();
       if (!v) continue;
-      r[f.key] = f.key === "tags" ? v.split(/[;,]/).map((t) => t.trim()).filter(Boolean) : f.key === "source" ? channelFrom(v) : v;
+      r[f.key] = f.key === "tags" ? v.split(/[;,]/).map((t) => t.trim()).filter(Boolean) : f.key === "source" ? channelFrom(v) : f.key === "business" ? businessFrom(v) : v;
     }
+    r.business ??= importBusiness || undefined;
     if (target === "contacts") r.source ??= source;
     return r;
   });
@@ -551,6 +559,13 @@ function ImportPanel() {
             <label className="flex flex-col gap-1.5">
               <span className="text-[12px] text-ink-3">Owner for all rows</span>
               <Select value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>{members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</Select>
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12px] text-ink-3">Business when not given</span>
+              <Select value={importBusiness} onChange={(e) => setImportBusiness(e.target.value as Business | "")}>
+                <option value="">Both / not set</option>
+                {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_LABEL[b]}</option>)}
+              </Select>
             </label>
             {target === "contacts" && (
               <label className="flex flex-col gap-1.5">

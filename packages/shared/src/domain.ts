@@ -46,3 +46,11 @@ export const HEALTH_LABEL: Record<Health, string> = {
 
 export const ROLES = ["admin", "manager", "member"] as const;
 export type Role = (typeof ROLES)[number];
+
+/** The studio runs two businesses from one CRM; most records belong to one of them. */
+export const BUSINESSES = ["photography", "marketing"] as const;
+export type Business = (typeof BUSINESSES)[number];
+export const BUSINESS_LABEL: Record<Business, string> = { photography: "Wedding Photography", marketing: "Marketing Agency" };
+export const BUSINESS_SHORT: Record<Business, string> = { photography: "Photography", marketing: "Marketing" };
+/** "all" = both businesses together. */
+export type BusinessView = Business | "all";

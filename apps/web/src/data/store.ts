@@ -3,7 +3,7 @@
  * deals, invoices, tasks and activity (see sync.ts); mutations update the screen first, then save to the API
  * and roll back if that fails. The inbox is still local-only until the channels are connected.
  */
-import { formatCompact, STAGE_LABEL, type RoutingRule, type Stage } from "@pinnacle/shared";
+import { formatCompact, STAGE_LABEL, type Business, type BusinessView, type RoutingRule, type Stage } from "@pinnacle/shared";
 import { create } from "zustand";
 import {
   ACTIVITIES,
@@ -35,9 +35,13 @@ export type ConvertInput = {
   valuePaise: number;
   city: string;
   ownerId: string;
+  business: Business;
 };
 
 interface CrmState {
+  /** Which business the screens show: one of them, or both. Remembered on this device. */
+  businessView: BusinessView;
+  setBusinessView: (v: BusinessView) => void;
   workspace: Workspace;
   /** Connected lead channels and their health. Sample statuses in the demo; none until integrations exist. */
   channels: ChannelStatus[];
@@ -123,7 +127,26 @@ const saveDealChanges = (from: Deal[], to: Deal[]) =>
     }),
   );
 
-export const useCrm = create<CrmState>((set, get) => ({
+const VIEW_KEY = "oyster.businessView";
+const savedView = (): BusinessView => {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return v === "photography" || v === "marketing" ? v : "all";
+  } catch {
+    return "all";
+  }
+};
+
+const raw = create<CrmState>((set, get) => ({
+  businessView: savedView(),
+  setBusinessView: (v) => {
+    set({ businessView: v });
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* private window: the choice just isn't remembered */
+    }
+  },
   workspace: SAMPLE_WORKSPACE,
   channels: CHANNEL_STATUS,
   routing: SAMPLE_ROUTING,
@@ -226,6 +249,7 @@ export const useCrm = create<CrmState>((set, get) => ({
             city: input.city,
             ownerId: input.ownerId,
             tags: ["New"],
+            business: input.business,
           },
         });
         created.push(`/companies/${company.id}`);
@@ -236,7 +260,7 @@ export const useCrm = create<CrmState>((set, get) => ({
       if (!contact) {
         contact = await api<Contact>("/contacts", {
           method: "POST",
-          body: { name: conv.name, companyId: company.id, title: "—", city: input.city, ownerId: input.ownerId, source: conv.channel, ...reach },
+          body: { name: conv.name, companyId: company.id, title: "—", city: input.city, ownerId: input.ownerId, source: conv.channel, business: input.business, ...reach },
         });
         created.push(`/contacts/${contact.id}`);
       }
@@ -246,6 +270,7 @@ export const useCrm = create<CrmState>((set, get) => ({
         method: "POST",
         body: {
           title: input.service,
+          business: input.business,
           companyId: company.id,
           contactId: contact.id,
           stage: "new",
@@ -266,12 +291,12 @@ export const useCrm = create<CrmState>((set, get) => ({
         contacts: latest.contacts.some((c) => c.id === ct.id) ? latest.contacts : [ct, ...latest.contacts],
         deals: [...latest.deals, deal],
         conversations: latest.conversations.map((c) =>
-          c.id === id ? { ...c, dealId: deal.id, contactId: ct.id, assigneeId: input.ownerId, unread: false } : c,
+          c.id === id ? { ...c, dealId: deal.id, contactId: ct.id, assigneeId: input.ownerId, unread: false, business: input.business } : c,
         ),
         activities: [entry.activity, ...latest.activities],
       });
       // Link the conversation to what was created (saved; the sample inbox in the demo just keeps it on screen).
-      save(patch(`/conversations/${id}`, { dealId: deal.id, contactId: ct.id, assigneeId: input.ownerId, unread: false }), () => {});
+      save(patch(`/conversations/${id}`, { dealId: deal.id, contactId: ct.id, assigneeId: input.ownerId, unread: false, business: input.business }), () => {});
       return {
         deal,
         undo: () => {
@@ -337,6 +362,55 @@ export const useCrm = create<CrmState>((set, get) => ({
     save(Promise.all(next.filter((c, i) => c !== prev[i]).map((c) => patch(`/companies/${c.id}`, { tags: c.tags }))), () => set({ companies: prev }));
   },
 }));
+
+/**
+ * What the screens see: the store narrowed to the chosen business. A record with no business yet (e.g. a new
+ * Instagram DM) shows in every view so nothing is missed. Memoised per state, so selectors stay stable.
+ * Writes (getState / setState) always work on the whole store.
+ */
+let memo: { st?: CrmState; out?: CrmState } = {};
+function scoped(st: CrmState): CrmState {
+  if (memo.st === st) return memo.out!;
+  const v = st.businessView;
+  let out = st;
+  if (v !== "all") {
+    const fits = (b?: Business) => !b || b === v;
+    const deals = st.deals.filter((d) => fits(d.business));
+    const dealIds = new Set(deals.map((d) => d.id));
+    const dealOf = (id?: string) => (id ? st.deals.find((d) => d.id === id) : undefined);
+    const companies = st.companies.filter((c) => fits(c.business));
+    const companyIds = new Set(companies.map((c) => c.id));
+    const invoices = st.invoices.filter((i) => fits(i.business ?? dealOf(i.dealId)?.business));
+    const invoiceIds = new Set(invoices.map((i) => i.id));
+    out = {
+      ...st,
+      deals,
+      companies,
+      contacts: st.contacts.filter((c) => fits(c.business)),
+      invoices,
+      creditNotes: st.creditNotes.filter((c) => invoiceIds.has(c.invoiceId)),
+      tasks: st.tasks.filter((t) => fits(t.business ?? dealOf(t.dealId)?.business)),
+      conversations: st.conversations.filter((c) => fits(c.business)),
+      activities: st.activities.filter((a) => (a.dealId ? dealIds.has(a.dealId) : a.companyId ? companyIds.has(a.companyId) : true)),
+    };
+  }
+  memo = { st, out };
+  return out;
+}
+
+type CrmHook = {
+  (): CrmState;
+  <T>(selector: (s: CrmState) => T): T;
+} & Pick<typeof raw, "getState" | "setState" | "subscribe" | "getInitialState">;
+export const useCrm: CrmHook = Object.assign(
+  <T,>(selector?: (s: CrmState) => T) => raw((st) => (selector ? selector(scoped(st)) : scoped(st)) as T),
+  { getState: raw.getState, setState: raw.setState, subscribe: raw.subscribe, getInitialState: raw.getInitialState },
+) as CrmHook;
+/** The business new records should get: the one being viewed, else photography. */
+export const defaultBusiness = (): Business => {
+  const v = raw.getState().businessView;
+  return v === "all" ? "photography" : v;
+};
 
 /* ---------- lookups (non-reactive helpers for render) ---------- */
 export const useWorkspace = () => useCrm((s) => s.workspace);

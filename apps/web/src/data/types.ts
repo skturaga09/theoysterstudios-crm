@@ -1,4 +1,4 @@
-import type { Channel, Health, Paise, Role, Stage } from "@pinnacle/shared";
+import type { Business, Channel, Health, Paise, Role, Stage } from "@pinnacle/shared";
 
 export type ID = string;
 export type ISO = string;
@@ -15,6 +15,8 @@ export type Member = {
 };
 
 export type Company = {
+  /** Which of the two businesses it belongs to; unset = not decided yet (shown in every view). */
+  business?: Business;
   id: ID;
   name: string;
   domain: string;
@@ -30,6 +32,8 @@ export type Company = {
 };
 
 export type Contact = {
+  /** Which of the two businesses it belongs to; unset = not decided yet (shown in every view). */
+  business?: Business;
   id: ID;
   name: string;
   companyId?: ID;
@@ -44,6 +48,8 @@ export type Contact = {
 };
 
 export type Deal = {
+  /** Which of the two businesses it belongs to; unset = not decided yet (shown in every view). */
+  business?: Business;
   id: ID;
   title: string;
   companyId: ID;
@@ -66,6 +72,8 @@ export type Intent = "quote" | "meeting" | "question" | "other";
 export type Message = { id: ID; direction: "in" | "out"; body: string; at: ISO; authorId?: ID };
 
 export type Conversation = {
+  /** Which of the two businesses it belongs to; unset = not decided yet (shown in every view). */
+  business?: Business;
   id: ID;
   channel: Channel;
   name: string;
@@ -106,6 +114,8 @@ export type Activity = {
 };
 
 export type Task = {
+  /** Which of the two businesses it belongs to; unset = not decided yet (shown in every view). */
+  business?: Business;
   id: ID;
   title: string;
   dueAt: ISO;
@@ -138,6 +148,8 @@ export type CreditNote = {
 };
 export type InvoiceLine = { desc: string; sac: string; qty: number; ratePaise: Paise };
 export type Invoice = {
+  /** Which of the two businesses it belongs to; unset = not decided yet (shown in every view). */
+  business?: Business;
   id: ID;
   number: string;
   dealId?: ID;

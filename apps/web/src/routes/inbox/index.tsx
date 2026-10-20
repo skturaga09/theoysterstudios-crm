@@ -1,4 +1,4 @@
-import { type Channel, CHANNEL_LABEL, CHANNEL_MONOGRAM, fmtAgo, fmtTime, formatCompact, lakh, routeLead } from "@pinnacle/shared";
+import { type Channel, CHANNEL_LABEL, CHANNEL_MONOGRAM, fmtAgo, fmtTime, formatCompact, lakh, routeLead, BUSINESSES, BUSINESS_SHORT, type Business } from "@pinnacle/shared";
 import {
   Avatar,
   Button,
@@ -20,7 +20,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ME_ID } from "../../data/seed";
-import { defaultOwnerId, useCrm, useIsManager } from "../../data/store";
+import { defaultBusiness, defaultOwnerId, useCrm, useIsManager } from "../../data/store";
 import type { Conversation } from "../../data/types";
 import { IS_DEMO } from "../../lib/demo";
 import { useCreateAction, useListNav } from "../../lib/hooks";
@@ -194,6 +194,7 @@ function Thread({ c }: { c: Conversation }) {
     service: c.extracted?.service ?? "",
     value: c.extracted ? (c.extracted.estValuePaise / 1e7).toFixed(1) : "",
     city: c.extracted?.city ?? c.city,
+    business: c.business ?? defaultBusiness(),
     // A Member converts leads to themselves. Otherwise lead routing decides first; then the suggested owner; then the default.
     ownerId: !isManager ? ME_ID :
       routeLead(s.routing, { channel: c.channel, city: c.extracted?.city ?? c.city, valuePaise: c.extracted?.estValuePaise }, (id) => s.members.some((m) => m.id === id)) ??
@@ -209,7 +210,7 @@ function Thread({ c }: { c: Conversation }) {
     }
     setConverting(true);
     try {
-      const { deal, undo } = await s.convert(c.id, { service: draft.service.trim(), valuePaise: lakh(v), city: draft.city, ownerId: draft.ownerId });
+      const { deal, undo } = await s.convert(c.id, { service: draft.service.trim(), valuePaise: lakh(v), city: draft.city, ownerId: draft.ownerId, business: draft.business });
       toast(`Deal created in New · ${formatCompact(deal.valuePaise)}`, { action: { label: "Undo", onClick: undo } });
     } catch (e) {
       toast(`Couldn't create the deal — ${(e as Error).message}`);
@@ -263,14 +264,26 @@ function Thread({ c }: { c: Conversation }) {
       </header>
 
       {/* extracted details */}
-      {c.extracted && !c.dealId && (
-        <section aria-label="Suggested details" className="mt-4 rounded-card border border-dashed border-line-2 p-3">
+      {!c.dealId && (
+        <section aria-label="Deal details" className="mt-4 rounded-card border border-dashed border-line-2 p-3">
           <div className="mb-2.5 flex items-center gap-2">
-            <Sparkles size={13} strokeWidth={1.5} className="text-ink-3" />
-            <span className="t-eyebrow text-ink-3">Suggested from this message</span>
-            <span className="ml-auto font-mono text-[11px] text-ink-3">{Math.round(c.extracted.confidence * 100)}% confident · edit before creating</span>
+            {c.extracted ? (
+              <>
+                <Sparkles size={13} strokeWidth={1.5} className="text-ink-3" />
+                <span className="t-eyebrow text-ink-3">Suggested from this message</span>
+                <span className="ml-auto font-mono text-[11px] text-ink-3">{Math.round(c.extracted.confidence * 100)}% confident · edit before creating</span>
+              </>
+            ) : (
+              <span className="t-eyebrow text-ink-3">Fill in to create a deal from this conversation</span>
+            )}
           </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+            <label className="flex flex-col gap-1">
+              <span className="text-[11.5px] text-ink-3">Business</span>
+              <Select value={draft.business} onChange={(e) => setDraft({ ...draft, business: e.target.value as Business })} className="[&_select]:h-8">
+                {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_SHORT[b]}</option>)}
+              </Select>
+            </label>
             <label className="flex flex-col gap-1">
               <span className="text-[11.5px] text-ink-3">Service</span>
               <Input value={draft.service} onChange={(e) => setDraft({ ...draft, service: e.target.value })} className="h-8" />
