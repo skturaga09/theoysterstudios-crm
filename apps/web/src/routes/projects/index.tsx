@@ -2,7 +2,6 @@ import {
   APPROVAL_LABEL,
   APPROVALS,
   BUSINESS_LABEL,
-  BUSINESS_SHORT,
   CREW_ROLES,
   DELIVERABLE_STATUSES,
   fmtAgo,
@@ -30,6 +29,7 @@ import { ArrowLeft, ChevronDown, ExternalLink, FolderKanban, FolderPlus, Message
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { EmptyState } from "../../components/empty-state";
+import { BUSINESS_TEXT, BusinessIcon } from "../../components/business-icon";
 import { PageHeader } from "../../components/page-header";
 import { DoneBy } from "../../components/done-by";
 import { Timeline } from "../../components/deal/timeline";
@@ -81,10 +81,17 @@ export function ProjectsRoute() {
             const manager = s.members.find((m) => m.id === p.managerId);
             return (
               <li key={p.id}>
-                <Link to={`/projects/${p.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line py-3 hover:bg-hover">
-                  <span className="min-w-0 flex-1 basis-[220px]">
-                    <span className="t-dense block truncate font-medium">{p.name}</span>
-                    <span className="text-[11.5px] text-ink-3">{client?.name ?? "—"} · {BUSINESS_SHORT[p.business]}{p.dueDate ? ` · ${p.business === "photography" ? "event" : "due"} ${fmtDate(p.dueDate)}` : ""}</span>
+                <Link to={`/projects/${p.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line py-3.5 hover:bg-hover">
+                  <span className="flex min-w-0 flex-1 basis-[260px] items-center gap-3">
+                    <BusinessIcon business={p.business} />
+                    <span className="min-w-0">
+                      {/* The client first, in the business colour; then the project and its date. */}
+                      <span className={cn("block truncate text-[15px] font-medium", BUSINESS_TEXT[p.business])}>{client?.name ?? "No client"}</span>
+                      <span className="block truncate text-[12px] text-ink-2">
+                        {p.name}
+                        <span className="text-ink-3">{p.dueDate ? ` · ${p.business === "photography" ? "event" : "due"} ${fmtDate(p.dueDate)}` : ""}</span>
+                      </span>
+                    </span>
                   </span>
                   {late > 0 && <Pill tone="risk">{late} overdue</Pill>}
                   <span className="flex w-[140px] items-center gap-2">
@@ -136,7 +143,7 @@ export function ProjectRoute() {
         <ArrowLeft size={13} strokeWidth={1.5} /> Back
       </button>
       <PageHeader
-        eyebrow={<>{BUSINESS_LABEL[p.business]} · {client ? <Link to={`/clients/${client.id}`} className="hover:underline">{client.name}</Link> : "—"} · {pr.done}/{pr.total} tasks done</>}
+        eyebrow={<span className="inline-flex flex-wrap items-center gap-x-2"><BusinessIcon business={p.business} size="sm" />{BUSINESS_LABEL[p.business]} · {client ? <Link to={`/clients/${client.id}`} className={cn("hover:underline", BUSINESS_TEXT[p.business])}>{client.name}</Link> : "—"} · {pr.done}/{pr.total} tasks done</span>}
         title={p.name}
         actions={
           <Select aria-label="Project status" disabled={!canEdit} value={p.status} onChange={(e) => set({ status: e.target.value as ProjectStatus })} className="w-[140px]">
