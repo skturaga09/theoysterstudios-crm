@@ -3,6 +3,7 @@ import { Button, cn, Input, MoneyText, Pill, Segmented, Sheet, Table, TBody, TD,
 import { Ban, FileDown, FileText, Pencil, Plus, ReceiptText, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import { PaymentsDue } from "../../components/payments-due";
 import { PageHeader } from "../../components/page-header";
 import { agingBucket, daysOverdue, invoiceStatus, invoiceTotals, sum } from "../../data/derive";
 import { useCrm, useAccess, useWorkspace } from "../../data/store";
@@ -73,6 +74,7 @@ export function InvoicesRoute() {
         }
       />
 
+      <div className="mb-10"><PaymentsDue /></div>
       <section aria-label="Overdue aging" className="mb-10">
         <h2 className="t-eyebrow m-0 mb-3 text-ink-2">Overdue by age (days past due)</h2>
         <div className="grid grid-cols-2 border-t border-ink md:grid-cols-4">

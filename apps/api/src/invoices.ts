@@ -25,8 +25,8 @@ export function financialYear(at: Date): string {
 export type Seller = { legalName: string; gstin: string; address: string };
 export type Buyer = { name: string; gstin: string; address: string; city: string };
 
-/** Next serial for a series in a financial year, inside the caller's transaction. */
-async function nextNumber(db: Db, series: string, prefix: string, fy: string, session: ClientSession) {
+/** Next serial for a series in a financial year, inside the caller's transaction (quotations need none). */
+export async function nextNumber(db: Db, series: string, prefix: string, fy: string, session?: ClientSession) {
   const counter = await db.collection<{ _id: string; seq: number }>("counters").findOneAndUpdate({ _id: `${series}:${fy}` }, { $inc: { seq: 1 } }, { upsert: true, returnDocument: "after", session });
   return `${prefix}/${fy}/${String(counter!.seq).padStart(3, "0")}`;
 }

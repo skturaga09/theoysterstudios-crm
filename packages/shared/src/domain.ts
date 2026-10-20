@@ -188,3 +188,46 @@ export const DEFAULT_TEMPLATES: Templates = {
     ],
   },
 };
+
+/* ---------- Finance: packages, payment plans, expenses ---------- */
+/** SAC codes per business: photography & videography services; advertising services. Confirm with the CA. */
+export const DEFAULT_SAC: Record<Business, string> = { photography: "998383", marketing: "998361" };
+
+export type Package = { id: string; business: Business; name: string; description?: string; pricePaise: number; monthly?: boolean; addOn?: boolean };
+/** One stage of a payment plan: a share of the total, due a number of days from the event or the booking. */
+export type PlanStep = { label: string; percent: number; from: "event" | "confirmed"; days: number };
+export type FinanceSettings = { packages: Package[]; plans: Record<Business, PlanStep[]>; terms: Record<Business, string> };
+
+const L = 100_000_00; // ₹1 lakh in paise
+export const DEFAULT_FINANCE: FinanceSettings = {
+  packages: [
+    { id: "ph-classic", business: "photography", name: "Classic wedding", description: "1 day · candid + traditional photography · highlight film · 300 edited photos", pricePaise: 1.5 * L },
+    { id: "ph-signature", business: "photography", name: "Signature wedding", description: "2 days · candid + traditional photo & video · highlight + full film · album", pricePaise: 3 * L },
+    { id: "ph-premium", business: "photography", name: "Premium wedding", description: "3 days · full crew · drone · cinematic film · 2 albums", pricePaise: 5 * L },
+    { id: "ph-prewed", business: "photography", name: "Pre-wedding shoot", description: "Half day, one location", pricePaise: 0.5 * L, addOn: true },
+    { id: "ph-drone", business: "photography", name: "Drone coverage", description: "Per day", pricePaise: 0.25 * L, addOn: true },
+    { id: "ph-album", business: "photography", name: "Extra album", description: "40 pages, premium binding", pricePaise: 0.3 * L, addOn: true },
+    { id: "ph-sde", business: "photography", name: "Same-day edit", description: "Short film shown at the reception", pricePaise: 0.4 * L, addOn: true },
+    { id: "mk-starter", business: "marketing", name: "Social Starter", description: "12 posts + 4 reels a month, 2 platforms, monthly report", pricePaise: 0.4 * L, monthly: true },
+    { id: "mk-growth", business: "marketing", name: "Social Growth", description: "20 posts + 8 reels, community management, content calendar", pricePaise: 0.75 * L, monthly: true },
+    { id: "mk-ads", business: "marketing", name: "Ads management", description: "Meta + Google campaigns; ad spend billed separately", pricePaise: 0.5 * L, monthly: true },
+    { id: "mk-shoot", business: "marketing", name: "Brand shoot", description: "Half-day product or brand shoot, 30 edited photos", pricePaise: 0.6 * L, addOn: true },
+  ],
+  plans: {
+    photography: [
+      { label: "Booking advance", percent: 30, from: "confirmed", days: 0 },
+      { label: "Before the wedding", percent: 50, from: "event", days: -7 },
+      { label: "On delivery", percent: 20, from: "event", days: 45 },
+    ],
+    marketing: [{ label: "Advance", percent: 100, from: "confirmed", days: 0 }],
+  },
+  terms: {
+    photography:
+      "The booking is confirmed when the advance is received. The advance is non-refundable but can move to a new date once, subject to availability. Travel and stay outside the city are billed at actuals. Edited photos are delivered within 3 weeks and films within 6 weeks of the event. Prices exclude GST at 18%.",
+    marketing:
+      "Monthly fees are payable in advance. Either side may end the engagement with 30 days' written notice. Ad spend is paid directly to the platforms and is not included. Prices exclude GST at 18%.",
+  },
+};
+
+export const EXPENSE_CATEGORIES = ["Freelancers & crew", "Travel & stay", "Equipment & rentals", "Printing & albums", "Ad spend", "Software & subscriptions", "Studio rent & utilities", "Food & hospitality", "Salaries", "Other"] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];

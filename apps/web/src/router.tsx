@@ -8,6 +8,7 @@ import { AppShell } from "./shell/app-shell";
 const routes: RouteObject[] = [
   // Printable invoice: full page, outside the app shell (no sidebar), still behind sign-in.
   { path: "/invoices/:id/print", lazy: async () => ({ Component: (await import("./routes/invoices/print")).InvoicePrintRoute }) },
+  { path: "/quotes/:id/print", lazy: async () => ({ Component: (await import("./routes/invoices/print")).QuotePrintRoute }) },
   { path: "/credit-notes/:id/print", lazy: async () => ({ Component: (await import("./routes/invoices/print")).CreditNotePrintRoute }) },
   {
     path: "/",
@@ -26,6 +27,10 @@ const routes: RouteObject[] = [
       // Companies became Clients; old links still work.
       { path: "companies", element: <Navigate to="/clients" replace /> },
       { path: "contacts", lazy: async () => ({ Component: (await import("./routes/records/contacts")).ContactsRoute }) },
+      { path: "quotes", lazy: async () => ({ Component: (await import("./routes/quotes/index")).QuotesRoute }) },
+      { path: "quotes/:id", lazy: async () => ({ Component: (await import("./routes/quotes/index")).QuoteRoute }) },
+      { path: "expenses", lazy: async () => ({ Component: (await import("./routes/money/expenses")).ExpensesRoute }) },
+      { path: "profit", lazy: async () => ({ Component: (await import("./routes/money/profit")).ProfitRoute }) },
       { path: "invoices", lazy: async () => ({ Component: (await import("./routes/invoices/index")).InvoicesRoute }) },
       { path: "dashboard", lazy: async () => ({ Component: (await import("./routes/dashboard/index")).DashboardRoute }) },
       { path: "reports", lazy: async () => ({ Component: (await import("./routes/reports/index")).ReportsRoute }) },
@@ -39,6 +44,7 @@ const routes: RouteObject[] = [
           { path: "pipeline", lazy: async () => ({ Component: (await import("./routes/settings/sections")).PipelineSettingsRoute }) },
           // The setup guide now lives on each channel's card under Integrations.
           { path: "setup", element: <Navigate to="/settings/integrations" replace /> },
+          { path: "packages", lazy: async () => ({ Component: (await import("./routes/settings/packages")).PackagesRoute }) },
           { path: "templates", lazy: async () => ({ Component: (await import("./routes/settings/templates")).TemplatesRoute }) },
           { path: "integrations", lazy: async () => ({ Component: (await import("./routes/settings/sections")).IntegrationsRoute }) },
           { path: "routing", lazy: async () => ({ Component: (await import("./routes/settings/sections")).RoutingRoute }) },

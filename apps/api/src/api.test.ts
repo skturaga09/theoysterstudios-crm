@@ -73,7 +73,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify, fetch: fakeGoogle });
@@ -622,6 +622,40 @@ describe("api", () => {
     const mp = (await call("GET", `/projects?dealId=${m.id}`)).json()[0];
     expect(mp.events).toEqual([]);
     expect((await call("GET", `/tasks?projectId=${mp.id}`)).json().map((x: { title: string }) => x.title)).toEqual(["Onboarding"]);
+  });
+
+  it("quotes from packages; accepting confirms the deal with its payment schedule; stages become invoices; expenses", async () => {
+    await call("PUT", "/workspace", { ...(await call("GET", "/workspace")).json(), ...studio });
+    const fin = (await call("GET", "/finance-settings")).json();
+    expect(fin.plans.photography.map((x: { percent: number }) => x.percent)).toEqual([30, 50, 20]);
+    expect((await call("PUT", "/finance-settings", { ...fin, plans: { ...fin.plans, marketing: [{ label: "Half", percent: 50, from: "confirmed", days: 0 }] } })).statusCode).toBe(400); // must add up to 100%
+
+    const co = (await call("POST", "/companies", { name: "Tara & Neil", ownerId: "sr", business: "photography", gstin: "27ABCDE1234F1Z5" })).json();
+    const d = (await call("POST", "/deals", { title: "Tara & Neil wedding", companyId: co.id, valuePaise: 1, closeAt: "2027-02-01T00:00:00+05:30", ownerId: "sr", channel: "instagram", business: "photography", stage: "proposal", eventDate: "2027-02-01" })).json();
+    const schedule = [{ id: "m1", label: "Booking advance", amountPaise: 90_000_00, dueDate: "2026-10-20" }, { id: "m2", label: "Before the wedding", amountPaise: 2_10_000_00, dueDate: "2027-01-25" }];
+    const q = (await call("POST", "/quotes", { companyId: co.id, dealId: d.id, ownerId: "sr", business: "photography", validUntil: "2026-11-20", lines: [{ desc: "Signature wedding", sac: "998383", qty: 1, ratePaise: 3_00_000_00 }], schedule })).json();
+    expect(q.number).toMatch(/^TOS\/Q\/\d\d-\d\d\/\d{3}$/);
+    expect(q.status).toBe("draft");
+    expect((await call("PATCH", `/quotes/${q.id}`, { status: "accepted" })).statusCode).toBe(200);
+    expect((await call("PATCH", `/quotes/${q.id}`, { terms: "changed" })).statusCode).toBe(422); // accepted quotes are fixed
+    const won = (await call("GET", `/deals/${d.id}`)).json();
+    expect(won).toMatchObject({ stage: "won", valuePaise: 3_00_000_00, schedule });
+    expect((await call("GET", `/projects?dealId=${d.id}`)).json()).toHaveLength(1); // the booking started its project
+
+    const raised = await call("POST", `/deals/${d.id}/schedule/m1/invoice`);
+    expect(raised.statusCode).toBe(201);
+    expect(raised.json().invoice).toMatchObject({ dealId: d.id, business: "photography", supply: "inter", lines: [{ desc: "Booking advance — Tara & Neil wedding", sac: "998383", ratePaise: 90_000_00 }] });
+    expect((await call("POST", `/deals/${d.id}/schedule/m1/invoice`)).statusCode).toBe(409);
+    expect((await call("PUT", `/deals/${d.id}/schedule`, { schedule: [schedule[1]] })).statusCode).toBe(409); // invoiced stage can't go
+    expect((await call("PUT", `/deals/${d.id}/schedule`, { schedule: [{ ...schedule[0], invoiceId: raised.json().invoice.id }, { ...schedule[1], dueDate: "2027-01-20" }] })).statusCode).toBe(200);
+
+    const e = await call("POST", "/expenses", { date: "2026-10-18", business: "photography", category: "Travel & stay", description: "Udaipur recce", amountPaise: 12_000_00 });
+    expect(e.statusCode).toBe(201);
+    expect((await call("POST", "/expenses", { date: "2026-10-18", category: "Snacks", description: "x", amountPaise: 1 })).statusCode).toBe(400);
+    await call("POST", "/members", { email: "pat@gmail.com", role: "sales" });
+    expect((await call("GET", "/expenses", undefined, "ok:pat@gmail.com")).json()).toEqual([]); // Sales don't see costs
+    expect((await call("POST", `/deals/${d.id}/schedule/m2/invoice`, undefined, "ok:pat@gmail.com")).statusCode).toBe(403);
+    expect((await call("PUT", "/finance-settings", fin, "ok:pat@gmail.com")).statusCode).toBe(403);
   });
 
   it("deletes records and keeps a deal's board position", async () => {

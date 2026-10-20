@@ -4,7 +4,10 @@ import {
   BarChart3,
   Building2,
   CheckSquare,
+  FileSignature,
   FileText,
+  Receipt,
+  TrendingUp,
   Gauge,
   FolderKanban,
   Home,
@@ -16,7 +19,7 @@ import {
 } from "lucide-react";
 
 export type CountKey = "inbox" | "pipeline" | "tasks" | "companies" | "contacts" | "invoices";
-export type NavItem = { to: string; label: string; icon: LucideIcon; count?: CountKey; shortcut?: string; /** Hidden from roles with no access to it. */ area?: Area; /** Owners / admins only. */ admin?: boolean };
+export type NavItem = { to: string; label: string; icon: LucideIcon; count?: CountKey; shortcut?: string; /** Hidden from roles with no access to it. */ area?: Area; /** Only roles that can change this area (e.g. expenses: owners and Finance). */ edit?: boolean; /** Owners / admins only. */ admin?: boolean };
 export type NavSection = { label?: string; items: NavItem[] };
 
 export const NAV: NavSection[] = [
@@ -34,6 +37,7 @@ export const NAV: NavSection[] = [
     items: [
       { to: "/clients", label: "Clients", icon: Building2, count: "companies", area: "sales" },
       { to: "/contacts", label: "Contacts", icon: Users, count: "contacts", area: "sales" },
+      { to: "/quotes", label: "Quotations", icon: FileSignature, area: "sales" },
       { to: "/invoices", label: "Invoices", icon: FileText, count: "invoices", area: "finance" },
     ],
   },
@@ -41,6 +45,8 @@ export const NAV: NavSection[] = [
     label: "Insights",
     items: [
       { to: "/dashboard", label: "Owner dashboard", icon: Gauge, admin: true },
+      { to: "/expenses", label: "Expenses", icon: Receipt, area: "finance", edit: true },
+      { to: "/profit", label: "Profit & loss", icon: TrendingUp, area: "finance", edit: true },
       { to: "/reports", label: "Reports", icon: BarChart3, area: "sales" },
       { to: "/settings", label: "Settings", icon: Settings },
     ],
@@ -53,5 +59,5 @@ export const SIGNAL_COUNT = new Set(["/inbox"]);
 /** The menu for my role: sections without anything I can open are left out. */
 export function useNav(): NavSection[] {
   const role = useMe().role;
-  return NAV.map((s) => ({ ...s, items: s.items.filter((i) => (!i.area || accessOf(role, i.area) !== "none") && (!i.admin || roleOf(role) === "admin")) })).filter((s) => s.items.length);
+  return NAV.map((s) => ({ ...s, items: s.items.filter((i) => (!i.area || accessOf(role, i.area) !== "none") && (!i.edit || !i.area || accessOf(role, i.area) === "edit") && (!i.admin || roleOf(role) === "admin")) })).filter((s) => s.items.length);
 }

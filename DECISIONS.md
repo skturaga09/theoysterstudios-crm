@@ -233,3 +233,33 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   (invoiced incl. GST, received, outstanding, overdue) and a per-person team table. Follows the top bar's
   business switch; on Both it adds Photography vs Marketing side by side. The numbers come from
   `ownerSummary()` in shared (pure, tested); computed in the browser from data already loaded.
+
+## Phase 2: finance (Oct 2026, sensible defaults until the client sends theirs)
+
+- **Packages & payments** (`financeSettings/finance`, Settings → Packages & payments; owners and Finance edit):
+  price list per business (packages, add-ons, monthly retainers; before GST), a payment plan per business
+  (stages as % of the total, due N days from the booking or the event; must add up to 100%) and standard terms.
+  Defaults: weddings 30% booking / 50% a week before / 20% 45 days after; marketing 100% in advance.
+  SAC 998383 (photography & videography) and 998361 (advertising) — to confirm with the CA.
+- **Quotations** (`quotes`, `/quotes`, `/quotes/:id`, printable `/quotes/:id/print`): Sales' documents with the
+  deals' rules (own records; scope with the "Sales see everyone's leads" switch). Numbered `TOS/Q/<FY>/<NNN>`
+  (own counter, no transaction — gaps don't matter for quotations). Lines from packages or custom, GST type
+  from the two GSTINs, terms, and a payment plan recalculated from the standard one when the items change.
+  **Accepting** a quotation (status → accepted, then locked) sets the deal's value to the quoted amount before
+  GST, copies the plan as the deal's payment schedule (unless stages are already invoiced) and confirms the deal
+  — which makes the client and starts the project, the same `onConfirmed()` as moving it to Confirmed.
+- **Payment schedules** (`deal.schedule`, `PUT /deals/:id/schedule`: Sales on their deals or Finance): stages
+  before GST. `POST /deals/:id/schedule/:item/invoice` (Finance/owners) raises a draft invoice for a stage
+  (line "<stage> — <service>", the business's SAC, IGST when the client's GSTIN is another state's, due on the
+  stage date or today) and links it; invoiced stages can't be changed or removed. A stage reads planned / due
+  (within 7 days) / overdue / invoiced / part paid / paid.
+- **Reminders:** "Payments due" (owner dashboard, Invoices) lists stages overdue or due within a week, with
+  Invoice and a WhatsApp "Remind" link (`wa.me`, message typed, the person presses send). No messages are sent
+  automatically — that needs the WhatsApp Cloud API (Phase 3).
+- **Expenses** (`expenses`, `/expenses`; owners and Finance only — others get an empty list): date, business,
+  category, what, vendor, amount before GST, GST paid, optional project and receipt link.
+- **Profit & loss** (`/profit`; owners and Finance): accrual basis, before GST — sent invoices' taxable value
+  less credit notes, minus expenses — by month, this financial year, by expense category and by project.
+  `profitAndLoss()` and `scheduleFrom()` live in shared and are tested.
+- **Exports:** Excel = CSV with a UTF-8 byte-order mark (opens cleanly in Excel, no library); PDF = the
+  browser's print → Save as PDF (quotations, invoices, credit notes, P&L; the app shell hides when printing).

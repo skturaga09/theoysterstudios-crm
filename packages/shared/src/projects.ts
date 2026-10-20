@@ -3,7 +3,7 @@ import type { Business, Priority, ProjectTemplate } from "./domain";
 const DAY = 86_400_000;
 /** The IST calendar day (YYYY-MM-DD) of an instant. */
 export const istDay = (at: string | Date) => new Date(new Date(at).getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);
-const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
+export const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
 
 export type PlannedTask = { title: string; dueAt: string; priority: Priority; approval: "none" | "pending" };
 export type PlannedDeliverable = { id: string; name: string; dueDate: string; status: "pending" };

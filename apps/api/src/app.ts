@@ -25,16 +25,22 @@ import {
   UpdateConversationSchema,
   SetupProgressSchema,
   WorkspaceSchema,
+  FinanceSettingsSchema,
+  ScheduleSchema,
+  CreateQuoteSchema,
+  UpdateQuoteSchema,
+  CreateExpenseSchema,
+  UpdateExpenseSchema,
   CreateProjectSchema,
   UpdateProjectSchema,
   TaskCommentSchema,
   TemplatesSchema,
   type Workspace,
 } from "@pinnacle/shared/schemas";
-import { accessOf, ROLE_LABEL, roleOf, type Area, DEFAULT_PIPELINES, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines } from "@pinnacle/shared";
+import { DEFAULT_FINANCE, DEFAULT_SAC, gstState, invoiceTotals as totalsOf, istDay, type FinanceSettings, accessOf, ROLE_LABEL, roleOf, type Area, DEFAULT_PIPELINES, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines } from "@pinnacle/shared";
 import { nameFromEmail, SUPPORT_MEMBER, type Member, type Verify } from "./auth";
 import type { Doc } from "./db";
-import { createCreditNote, createInvoice } from "./invoices";
+import { createCreditNote, createInvoice, financialYear, nextNumber } from "./invoices";
 import { exchangeGoogleCode, googleAuthorizeUrl, revokeGoogle, syncGoogle, type GoogleAccount } from "./google";
 import { authorizeUrl, exchangeCode, handleWebhook, newVerifyToken, subscribeMessages, validSignature, type Fetch, type InstagramIntegration, type SetupKeys } from "./instagram";
 
@@ -400,7 +406,7 @@ export function buildApp({
     name: string,
     create: ZodType<Record<string, unknown>>,
     update: ZodType<Record<string, unknown>>,
-    defaults: () => Record<string, unknown> = () => ({}),
+    defaults: () => Record<string, unknown> | Promise<Record<string, unknown>> = () => ({}),
     {
       area,
       owned = false,
@@ -445,7 +451,7 @@ export function buildApp({
       if (no) return reply.code(403).send({ error: no });
       const invalid = check && (await check(body));
       if (invalid) return reply.code(422).send({ error: invalid });
-      const doc: Doc = { _id: new ObjectId().toHexString(), ...defaults(), ...body };
+      const doc: Doc = { _id: new ObjectId().toHexString(), ...(await defaults()), ...body };
       await col.insertOne(doc);
       await after?.(doc);
       return reply.code(201).send(out(doc));
@@ -534,12 +540,14 @@ export function buildApp({
       return undefined;
     },
     // A lead that's confirmed makes its company (or couple) a client — no need to create the client again.
-    after: async (deal) => {
-      if (deal.stage !== "won" || !deal.companyId) return;
-      await db.collection<Doc>("companies").updateOne({ _id: String(deal.companyId), clientSince: { $exists: false } }, { $set: { clientSince: String(deal.wonAt ?? now()) } });
-      await startProject(deal);
-    },
+    after: async (deal) => onConfirmed(deal),
   });
+  /** A confirmed deal makes its company a client (once) and starts its project. */
+  async function onConfirmed(deal: Doc) {
+    if (deal.stage !== "won" || !deal.companyId) return;
+    await db.collection<Doc>("companies").updateOne({ _id: String(deal.companyId), clientSince: { $exists: false } }, { $set: { clientSince: String(deal.wonAt ?? now()) } });
+    await startProject(deal);
+  }
 
   /* ---------- Projects: started from a template when a lead is confirmed ---------- */
   const templatesCol = db.collection<{ _id: string } & Templates>("templates");
@@ -602,6 +610,92 @@ export function buildApp({
     const comment = { id: new ObjectId().toHexString(), authorId: req.member._id, body, at: now() };
     const saved = await db.collection<Doc>("tasks").findOneAndUpdate({ $and: [{ _id: req.params.id }, await tasks.visible(req)] }, { $push: { comments: comment } } as never, { returnDocument: "after" });
     return saved ? reply.code(201).send(out(saved)) : reply.code(404).send({ error: "Not found" });
+  });
+
+  /* ---------- Finance: packages, payment plans, quotations, schedules, expenses ---------- */
+  const settingsCol = db.collection<{ _id: string } & FinanceSettings>("financeSettings");
+  const getFinance = async (): Promise<FinanceSettings> => {
+    const doc = await settingsCol.findOne({ _id: "finance" });
+    return doc ? { packages: doc.packages, plans: doc.plans, terms: doc.terms } : DEFAULT_FINANCE;
+  };
+  app.get("/finance-settings", getFinance);
+  app.put("/finance-settings", { preHandler: mayChange("finance", false) }, async (req) => {
+    const next = FinanceSettingsSchema.parse(req.body);
+    await settingsCol.replaceOne({ _id: "finance" }, next, { upsert: true });
+    return next;
+  });
+
+  // Quotations are Sales' documents: same rules as deals. Numbered TOS/Q/<FY>/<NNN>; gaps don't matter here.
+  const quoteNumber = async () => nextNumber(db, "quote", "TOS/Q", financialYear(new Date()));
+  records("quotes", CreateQuoteSchema, UpdateQuoteSchema, async () => ({ number: await quoteNumber(), createdAt: now() }), {
+    area: "sales",
+    owned: true,
+    scope: async (req) => ((await ownDealIds(req)) ? { ownerId: req.member._id } : undefined),
+    check: async (_next, existing) => (existing?.status === "accepted" ? "An accepted quotation can't change — make a new one" : undefined),
+    after: async (q) => {
+      if (q.status !== "accepted" || q.appliedAt || !q.dealId) return;
+      // Accepting confirms the booking: the deal takes the quoted value and payment schedule, and becomes won.
+      const deals = db.collection<Doc>("deals");
+      const deal = await deals.findOne({ _id: String(q.dealId) });
+      if (!deal) return;
+      const subtotal = totalsOf({ supply: q.supply as "intra" | "inter", lines: q.lines as { qty: number; ratePaise: number }[], payments: [] }).subtotal;
+      const invoiced = ((deal.schedule as { invoiceId?: string }[] | undefined) ?? []).some((m) => m.invoiceId);
+      const $set: Record<string, unknown> = { valuePaise: subtotal, ...(!invoiced && { schedule: q.schedule }) };
+      if (deal.stage !== "won") Object.assign($set, { stage: "won", wonAt: now() });
+      const saved = (await deals.findOneAndUpdate({ _id: deal._id }, { $set }, { returnDocument: "after" }))!;
+      await onConfirmed(saved);
+      await db.collection<Doc>("quotes").updateOne({ _id: q._id }, { $set: { appliedAt: now() } });
+    },
+  });
+
+  /** Payment schedule of a deal: Sales on their own deals, or Finance. Stages already invoiced stay as they are. */
+  app.put<{ Params: { id: string } }>("/deals/:id/schedule", async (req, reply) => {
+    const { schedule } = ScheduleSchema.parse(req.body);
+    const deal = await db.collection<Doc>("deals").findOne({ _id: req.params.id });
+    if (!deal) return reply.code(404).send({ error: "Not found" });
+    const sales = access(req, "sales");
+    if (!(access(req, "finance") === "edit" || sales === "edit" || (sales === "own" && deal.ownerId === req.member._id))) return reply.code(403).send({ error: denied(req, "sales") });
+    for (const m of (deal.schedule as { id: string; amountPaise: number; invoiceId?: string }[] | undefined) ?? [])
+      if (m.invoiceId && !schedule.some((x) => x.id === m.id && x.invoiceId === m.invoiceId && x.amountPaise === m.amountPaise))
+        return reply.code(409).send({ error: "A stage that has been invoiced can't be changed or removed" });
+    return out((await db.collection<Doc>("deals").findOneAndUpdate({ _id: deal._id }, { $set: { schedule } }, { returnDocument: "after" }))!);
+  });
+
+  /** Raises the invoice for one stage of a deal's payment schedule (Finance and admins). */
+  app.post<{ Params: { id: string; item: string } }>("/deals/:id/schedule/:item/invoice", { preHandler: mayChange("finance", false) }, async (req, reply) => {
+    const { legalName, gstin } = await getWorkspace();
+    if (!legalName || !gstin) return reply.code(422).send({ error: "Add the studio's legal name and GSTIN in Settings → Workspace first" });
+    const deals = db.collection<Doc>("deals");
+    const deal = await deals.findOne({ _id: req.params.id });
+    const schedule = (deal?.schedule as { id: string; label: string; amountPaise: number; dueDate?: string; invoiceId?: string }[] | undefined) ?? [];
+    const item = schedule.find((m) => m.id === req.params.item);
+    if (!deal || !item) return reply.code(404).send({ error: "Not found" });
+    if (item.invoiceId) return reply.code(409).send({ error: "This stage already has an invoice" });
+    if (!item.amountPaise) return reply.code(422).send({ error: "This stage has no amount" });
+    const business = (deal.business ?? "photography") as Business;
+    const p = await parties(String(deal.companyId));
+    // Inter-state only when the client's GSTIN is from another state; unregistered clients are billed as local.
+    const supply = p.buyer.gstin && gstState(p.buyer.gstin) && p.buyer.gstin.slice(0, 2) !== gstin.slice(0, 2) ? "inter" : "intra";
+    const today = istDay(new Date());
+    const dueDay = item.dueDate && item.dueDate > today ? item.dueDate : today;
+    const invoice = await createInvoice(db, client, {
+      companyId: String(deal.companyId),
+      dealId: deal._id,
+      business,
+      dueAt: `${dueDay}T18:00:00+05:30`,
+      supply,
+      lines: [{ desc: `${item.label} — ${String(deal.service || deal.title)}`, sac: DEFAULT_SAC[business], qty: 1, ratePaise: item.amountPaise }],
+      ...p,
+    });
+    const next = schedule.map((m) => (m.id === item.id ? { ...m, invoiceId: invoice._id } : m));
+    const saved = (await deals.findOneAndUpdate({ _id: deal._id }, { $set: { schedule: next } }, { returnDocument: "after" }))!;
+    return reply.code(201).send({ invoice: out(invoice), deal: out(saved) });
+  });
+
+  // Expenses and profit are for Owners and Finance only.
+  records("expenses", CreateExpenseSchema, UpdateExpenseSchema, () => ({ createdAt: now() }), {
+    area: "finance",
+    scope: async (req) => (access(req, "finance") === "edit" ? undefined : NOTHING),
   });
 
   /* ---------- Import (admins): CSV rows already mapped to field names ---------- */

@@ -3,6 +3,7 @@ import { Avatar, Ledger, Table, TBody, TD, TH, THead, TR } from "@pinnacle/ui";
 import type { ReactNode } from "react";
 import { Link, Navigate } from "react-router";
 import { PageHeader } from "../../components/page-header";
+import { PaymentsDue } from "../../components/payments-due";
 import { ME_ID } from "../../data/seed";
 import { useCrm, useMe } from "../../data/store";
 
@@ -64,6 +65,8 @@ export function DashboardRoute() {
           ]}
         />
       </Section>
+
+      <PaymentsDue />
 
       {s.businessView === "all" && <ByBusiness input={input} />}
 

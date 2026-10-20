@@ -9,6 +9,7 @@ export const SECTIONS = [
   { to: "team", label: "Team & access", admin: true },
   { to: "pipeline", label: "Pipelines & stages" },
   { to: "templates", label: "Project templates" },
+  { to: "packages", label: "Packages & payments" },
   { to: "integrations", label: "Integrations", admin: true },
   { to: "routing", label: "Lead routing" },
   { to: "notifications", label: "Notifications" },

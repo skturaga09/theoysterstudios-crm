@@ -3,7 +3,7 @@
  * web bundle doesn't ship zod until forms need it (M1+).
  */
 import { z } from "zod";
-import { APPROVALS, BUSINESSES, CHANNELS, DELIVERABLE_STATUSES, HEALTHS, PRIORITIES, PROJECT_STATUSES, ROLES, TASK_STATUSES } from "./domain";
+import { APPROVALS, EXPENSE_CATEGORIES, BUSINESSES, CHANNELS, DELIVERABLE_STATUSES, HEALTHS, PRIORITIES, PROJECT_STATUSES, ROLES, TASK_STATUSES } from "./domain";
 import { gstState, GSTIN_RE } from "./gst";
 
 /** A stage id from the deal's business pipeline (checked against it by the API). */
@@ -289,3 +289,50 @@ export const TemplatesSchema = z.object({
     deliverables: z.array(z.object({ name: z.string().trim().min(1).max(120), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365) })).max(30),
   }),
 });
+
+/* ---------- Finance ---------- */
+const money = z.number().int().nonnegative();
+const plan = z
+  .array(z.object({ label: z.string().trim().min(1).max(80), percent: z.number().min(0).max(100), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(730) }))
+  .min(1)
+  .max(12)
+  .refine((steps) => Math.abs(steps.reduce((a, x) => a + x.percent, 0) - 100) < 0.01, "The stages must add up to 100%");
+export const FinanceSettingsSchema = z.object({
+  packages: z
+    .array(z.object({ id: smallId, business: BusinessSchema, name: z.string().trim().min(1).max(120), description: optionalText(400), pricePaise: money, monthly: z.boolean().optional(), addOn: z.boolean().optional() }))
+    .max(200),
+  plans: z.object({ photography: plan, marketing: plan }),
+  terms: z.object({ photography: z.string().trim().max(6000), marketing: z.string().trim().max(6000) }),
+});
+
+export const ScheduleItemSchema = z.object({ id: smallId, label: z.string().trim().min(1).max(120), amountPaise: money, dueDate: day.optional(), invoiceId: id.optional() });
+export const ScheduleSchema = z.object({ schedule: z.array(ScheduleItemSchema).max(36) });
+
+const quoteLine = z.object({ desc: z.string().trim().min(1).max(400), sac: z.string().trim().regex(/^\d{4,8}$/), qty: z.number().positive(), ratePaise: money });
+export const CreateQuoteSchema = z.object({
+  companyId: id,
+  dealId: id.optional(),
+  ownerId: id,
+  business: BusinessSchema,
+  validUntil: day,
+  supply: z.enum(["intra", "inter"]).default("intra"),
+  lines: z.array(quoteLine).max(60).default([]),
+  terms: z.string().trim().max(6000).default(""),
+  schedule: z.array(ScheduleItemSchema).max(36).default([]),
+  status: z.enum(["draft", "sent", "accepted", "declined"]).default("draft"),
+});
+export const UpdateQuoteSchema = patchOf(CreateQuoteSchema);
+
+export const CreateExpenseSchema = z.object({
+  date: day,
+  business: BusinessSchema.optional(),
+  category: z.enum(EXPENSE_CATEGORIES),
+  description: z.string().trim().min(1, "Say what it was for").max(240),
+  vendor: optionalText(120),
+  /** Before GST; the GST paid (input credit) is kept separately. */
+  amountPaise: z.number().int().positive("Enter an amount above ₹0"),
+  gstPaise: money.default(0),
+  projectId: id.optional(),
+  receiptUrl: z.string().trim().url("Enter a full web address, starting https://").max(2000).optional(),
+});
+export const UpdateExpenseSchema = patchOf(CreateExpenseSchema);

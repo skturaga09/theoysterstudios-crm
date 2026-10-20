@@ -17,7 +17,7 @@ export function AppShell() {
   const [drawer, setDrawer] = useState(false);
 
   return (
-    <div className="grid h-dvh grid-cols-1 overflow-hidden bg-bg lg:grid-cols-[232px_minmax(0,1fr)]">
+    <div className="grid h-dvh grid-cols-1 overflow-hidden bg-bg lg:grid-cols-[232px_minmax(0,1fr)] print:block print:h-auto print:overflow-visible">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[70] focus:rounded-control focus:bg-surface focus:px-3 focus:py-2"
@@ -25,7 +25,7 @@ export function AppShell() {
         Skip to content
       </a>
 
-      <aside className="hidden border-r border-line lg:block">
+      <aside className="hidden border-r border-line lg:block print:hidden">
         <Sidebar />
       </aside>
 
@@ -55,9 +55,9 @@ export function AppShell() {
         )}
       </AnimatePresence>
 
-      <div className="flex min-w-0 flex-col overflow-hidden">
-        <TopBar onMenu={() => setDrawer(true)} />
-        <main id="main" className="min-h-0 flex-1 overflow-y-auto" style={{ viewTransitionName: "main" }}>
+      <div className="flex min-w-0 flex-col overflow-hidden print:overflow-visible">
+        <div className="contents print:hidden"><TopBar onMenu={() => setDrawer(true)} /></div>
+        <main id="main" className="min-h-0 flex-1 overflow-y-auto print:overflow-visible" style={{ viewTransitionName: "main" }}>
           <div className="mx-auto w-full max-w-[1320px] px-4 pt-7 pb-16 md:px-8">
             <Outlet />
           </div>

@@ -3,7 +3,7 @@
  * deals, invoices, tasks and activity (see sync.ts); mutations update the screen first, then save to the API
  * and roll back if that fails. The inbox is still local-only until the channels are connected.
  */
-import { accessOf, type Area, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatCompact, type Business, type BusinessView, type RoutingRule, type Stage, DEFAULT_PIPELINES, stageIn, type Pipelines } from "@pinnacle/shared";
+import { DEFAULT_FINANCE, type FinanceSettings, accessOf, type Area, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatCompact, type Business, type BusinessView, type RoutingRule, type Stage, DEFAULT_PIPELINES, stageIn, type Pipelines } from "@pinnacle/shared";
 import { create } from "zustand";
 import {
   ACTIVITIES,
@@ -18,6 +18,7 @@ import {
   MEMBERS,
   SAMPLE_ROUTING,
   SAMPLE_WORKSPACE,
+  EXPENSES,
   PROJECTS,
   TASKS,
   type ChannelStatus,
@@ -26,7 +27,7 @@ import { toast } from "@pinnacle/ui";
 import { api, save } from "../lib/api";
 import { IS_DEMO } from "../lib/demo";
 import { useSession } from "../lib/session";
-import type { Activity, Company, Contact, Conversation, CreditNote, Deal, Invoice, Lead, Member, Project, Task } from "./types";
+import type { Activity, Company, Contact, Conversation, CreditNote, Deal, Expense, Invoice, Lead, Member, Project, Quote, Task } from "./types";
 import type { Workspace } from "@pinnacle/shared/schemas";
 
 const uid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 8)}`;
@@ -60,6 +61,10 @@ interface CrmState {
   activities: Activity[];
   tasks: Task[];
   projects: Project[];
+  quotes: Quote[];
+  expenses: Expense[];
+  /** Packages, payment plans and standard terms (Settings → Packages & payments). */
+  finance: FinanceSettings;
   /** The checklists new projects start with (Settings → Project templates). */
   templates: Templates;
   invoices: Invoice[];
@@ -186,6 +191,9 @@ const raw = create<CrmState>((set, get) => ({
   activities: ACTIVITIES,
   tasks: TASKS,
   projects: PROJECTS,
+  quotes: [],
+  expenses: EXPENSES,
+  finance: DEFAULT_FINANCE,
   templates: DEFAULT_TEMPLATES,
   invoices: INVOICES,
   creditNotes: [],
@@ -446,6 +454,8 @@ function scoped(st: CrmState): CrmState {
       creditNotes: st.creditNotes.filter((c) => invoiceIds.has(c.invoiceId)),
       tasks: st.tasks.filter((t) => fits(t.business ?? dealOf(t.dealId)?.business)),
       projects: st.projects.filter((p) => fits(p.business)),
+      quotes: st.quotes.filter((q) => fits(q.business)),
+      expenses: st.expenses.filter((e) => fits(e.business)),
       conversations: st.conversations.filter((c) => fits(c.business)),
       activities: st.activities.filter((a) => (a.dealId ? dealIds.has(a.dealId) : a.companyId ? companyIds.has(a.companyId) : true)),
     };

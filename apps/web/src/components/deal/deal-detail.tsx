@@ -22,6 +22,7 @@ import { Link, useNavigate } from "react-router";
 import { invoiceStatus, invoiceTotals } from "../../data/derive";
 import { probabilityOf } from "../../data/pipeline";
 import { useCanEdit, useCrm, useAccess } from "../../data/store";
+import { DealPayments, DealQuotes } from "./deal-money";
 import type { Deal } from "../../data/types";
 import { changeStage } from "../../lib/actions";
 import { useUi } from "../../lib/ui-store";
@@ -300,6 +301,8 @@ export function DealSide({ deal }: { deal: Deal }) {
           ))}
         </ul>
       </section>
+      <DealQuotes deal={deal} />
+      <DealPayments deal={deal} />
       <section>
         <h3 className="t-eyebrow m-0 mb-2 text-ink-3">Invoices · {invoices.length}</h3>
         {invoices.length ? (

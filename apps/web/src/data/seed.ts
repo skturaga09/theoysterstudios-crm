@@ -3,7 +3,7 @@
  * screen opens in a realistic working state. Dates are relative to today so the data
  * never goes stale. Mockup "Delivery" stage → Won (see DECISIONS.md).
  */
-import { CHANNELS, DEFAULT_TEMPLATES, lakh, projectFromDeal, type Channel, type RoutingRule, type Stage } from "@pinnacle/shared";
+import { CHANNELS, DEFAULT_FINANCE, scheduleFrom, DEFAULT_TEMPLATES, lakh, projectFromDeal, type Channel, type RoutingRule, type Stage } from "@pinnacle/shared";
 import type { Workspace } from "@pinnacle/shared/schemas";
 import type {
   Activity,
@@ -13,6 +13,7 @@ import type {
   Deal,
   Invoice,
   Lead,
+  Expense,
   Member,
   Project,
   Task,
@@ -368,3 +369,20 @@ for (const d of DEALS.filter((x) => x.stage === "won")) {
     TASKS.push({ ...t, id: `pt-${d.id}-${i}`, projectId: id, done, status: done ? "done" : t.status, ...(done && t.approval === "pending" && { approval: "approved" as const }) });
   });
 }
+
+/* Demo: confirmed deals have the standard payment plan; the first stage is invoiced where an invoice exists. */
+for (const d of DEALS.filter((x) => x.stage === "won")) {
+  d.schedule = scheduleFrom(DEFAULT_FINANCE.plans[d.business ?? "photography"], d.valuePaise, { confirmedAt: d.wonAt ?? new Date().toISOString(), eventDate: d.eventDate });
+  const inv = INVOICES.find((i) => i.dealId === d.id);
+  if (inv && d.schedule[0]) d.schedule[0].invoiceId = inv.id;
+}
+
+/* Demo: a month of expenses, some against projects. */
+const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+export const EXPENSES: Expense[] = [
+  { id: "e1", date: day(-2), business: "photography", category: "Freelancers & crew", description: "Second shooter, 1 day", vendor: "Arjun M", amountPaise: 8_000_00, gstPaise: 0, projectId: PROJECTS[0]?.id, createdAt: at(-2) },
+  { id: "e2", date: day(-5), business: "photography", category: "Travel & stay", description: "Cab and hotel for the shoot", amountPaise: 6_500_00, gstPaise: 780_00, projectId: PROJECTS[0]?.id, createdAt: at(-5) },
+  { id: "e3", date: day(-9), business: "marketing", category: "Ad spend", description: "Meta ads top-up", vendor: "Meta", amountPaise: 15_000_00, gstPaise: 2_700_00, createdAt: at(-9) },
+  { id: "e4", date: day(-12), category: "Software & subscriptions", description: "Adobe Creative Cloud", vendor: "Adobe", amountPaise: 4_230_00, gstPaise: 761_00, createdAt: at(-12) },
+  { id: "e5", date: day(-15), category: "Studio rent & utilities", description: "Studio rent", amountPaise: 35_000_00, gstPaise: 0, createdAt: at(-15) },
+];

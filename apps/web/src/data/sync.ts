@@ -1,9 +1,9 @@
 import { api } from "../lib/api";
 import { useCrm } from "./store";
-import type { Pipelines, RoutingRule, Templates } from "@pinnacle/shared";
+import type { FinanceSettings, Pipelines, RoutingRule, Templates } from "@pinnacle/shared";
 import type { ChannelStatus } from "./seed";
 import type { Workspace } from "@pinnacle/shared/schemas";
-import type { Activity, Company, Contact, Conversation, CreditNote, Deal, Invoice, Member, Project, Task } from "./types";
+import type { Activity, Company, Contact, Conversation, CreditNote, Deal, Expense, Invoice, Member, Project, Quote, Task } from "./types";
 
 export type GoogleAccountStatus = { email: string; connectedBy: string; connectedAt: string; lastSyncAt?: string; error?: string };
 export type IntegrationStatus = {
@@ -45,7 +45,7 @@ export function channelsFrom(s: IntegrationStatus): ChannelStatus[] {
  * activity, Inbox conversations (from the connected channels) and channel status. Lead history starts empty.
  */
 export async function loadCrm() {
-  const [workspace, members, companies, contacts, deals, invoices, tasks, activities, routing, creditNotes, conversations, integrations, pipelines, projects, templates] = await Promise.all([
+  const [workspace, members, companies, contacts, deals, invoices, tasks, activities, routing, creditNotes, conversations, integrations, pipelines, projects, templates, quotes, expenses, finance] = await Promise.all([
     api<Workspace>("/workspace"),
     api<Member[]>("/members"),
     api<Company[]>("/companies"),
@@ -61,6 +61,9 @@ export async function loadCrm() {
     api<Pipelines>("/pipelines"),
     api<Project[]>("/projects"),
     api<Templates>("/project-templates"),
+    api<Quote[]>("/quotes"),
+    api<Expense[]>("/expenses"),
+    api<FinanceSettings>("/finance-settings"),
   ]);
   useCrm.setState(() => ({
     workspace,
@@ -75,6 +78,9 @@ export async function loadCrm() {
     pipelines,
     projects,
     templates,
+    quotes,
+    expenses,
+    finance,
     creditNotes,
     conversations,
     leads: [],

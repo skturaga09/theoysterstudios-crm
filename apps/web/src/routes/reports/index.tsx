@@ -3,6 +3,7 @@ import { Avatar, Button, Ledger, Segmented, Table, TBody, TD, TH, THead, TR, Too
 import { Download } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { downloadCsv } from "../../lib/download";
 import { PageHeader } from "../../components/page-header";
 import { isOpen, sum } from "../../data/derive";
 import { probabilityOf, runFor } from "../../data/pipeline";
@@ -15,14 +16,6 @@ type Range = "month" | "quarter" | "year";
 const DAYS: Record<Range, number> = { month: 30, quarter: 90, year: 365 };
 const MONTHS: Record<Range, number> = { month: 2, quarter: 3, year: 12 };
 
-function downloadCsv(name: string, rows: (string | number)[][]) {
-  const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-  a.download = `${name}.csv`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
 
 function ChartHead({ title, meta, onExport }: { title: string; meta?: string; onExport?: () => void }) {
   return (

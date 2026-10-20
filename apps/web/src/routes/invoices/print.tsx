@@ -6,7 +6,7 @@ import { useNavigate, useParams } from "react-router";
 import { EmptyState } from "../../components/empty-state";
 import { invoiceStatus } from "../../data/derive";
 import { useCrm, useWorkspace } from "../../data/store";
-import type { Invoice } from "../../data/types";
+import type { Invoice, Quote } from "../../data/types";
 
 /** ₹ amounts on a tax invoice keep their paise: 1,18,000.00 */
 const inr = (paise: number) => (paise / 100).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -35,9 +35,16 @@ export function CreditNotePrintRoute() {
   return <TaxDocument doc={note && { ...note, payments: [], sent: true }} credit={note && { invoiceNumber: note.invoiceNumber, invoiceIssuedAt: note.invoiceIssuedAt, reason: note.reason }} />;
 }
 
+/** Printable quotation / proposal: the same layout, plus the payment plan and terms. Not a tax invoice. */
+export function QuotePrintRoute() {
+  const { id } = useParams();
+  const q = useCrm((s) => s.quotes.find((x) => x.id === id));
+  return <TaxDocument doc={q && { ...q, issuedAt: q.createdAt, payments: [], sent: true }} quote={q} />;
+}
+
 type PrintableDoc = Pick<Invoice, "id" | "number" | "issuedAt" | "companyId" | "supply" | "lines" | "payments" | "sent" | "seller" | "buyer" | "cancelled" | "credits"> & { dueAt?: string };
 
-function TaxDocument({ doc: inv, credit }: { doc?: PrintableDoc; credit?: { invoiceNumber: string; invoiceIssuedAt: string; reason: string } }) {
+function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; credit?: { invoiceNumber: string; invoiceIssuedAt: string; reason: string }; quote?: Quote }) {
   const navigate = useNavigate();
   const co = useCrm((s) => s.companies.find((c) => c.id === inv?.companyId));
   const workspace = useWorkspace();
@@ -54,7 +61,7 @@ function TaxDocument({ doc: inv, credit }: { doc?: PrintableDoc; credit?: { invo
   const seller = inv.seller ?? workspace;
   const buyer = inv.buyer ?? { name: co?.name ?? "—", gstin: co?.gstin ?? "", address: co?.address ?? "", city: co?.city ?? "" };
   const t = invoiceTotals(inv);
-  const st = credit ? "sent" : invoiceStatus(inv as Invoice);
+  const st = credit || quote ? "sent" : invoiceStatus(inv as Invoice);
   const stamp = st === "draft" ? "DRAFT — NOT ISSUED" : st === "cancelled" ? "CANCELLED" : undefined;
   // Place of supply is where the client is: their GSTIN's state, or ours for an intra-state supply.
   const placeOfSupply = stateWithCode(buyer.gstin) ?? (inv.supply === "intra" ? stateWithCode(seller.gstin) : undefined) ?? (buyer.city || "—");
@@ -68,18 +75,20 @@ function TaxDocument({ doc: inv, credit }: { doc?: PrintableDoc; credit?: { invo
         <Button variant="ink" size="sm" className="ml-auto" onClick={() => window.print()}><Printer strokeWidth={1.5} /> Print / Save as PDF</Button>
       </div>
 
-      <article className="inv relative mx-auto w-[210mm] max-w-full p-[14mm] text-[11.5px] leading-relaxed shadow-pop" aria-label={`${credit ? "Credit note" : "Tax invoice"} ${inv.number}`}>
+      <article className="inv relative mx-auto w-[210mm] max-w-full p-[14mm] text-[11.5px] leading-relaxed shadow-pop" aria-label={`${quote ? "Quotation" : credit ? "Credit note" : "Tax invoice"} ${inv.number}`}>
         {stamp && <div className="absolute top-[14mm] left-1/2 -translate-x-1/2 rounded border-2 border-current px-3 py-1 text-[13px] font-semibold tracking-wider text-[#b42318]">{stamp}</div>}
 
         <header className="bl flex items-start gap-6 border-b pb-5">
           <img src="/logo.png" alt="" className="h-20 w-auto object-contain" />
           <div className="ml-auto text-right">
-            <h1 className="m-0 text-[20px] font-semibold tracking-wide">{credit ? "CREDIT NOTE" : "TAX INVOICE"}</h1>
-            <p className="i3 m-0 text-[10px]">Original for recipient</p>
+            <h1 className="m-0 text-[20px] font-semibold tracking-wide">{quote ? "QUOTATION" : credit ? "CREDIT NOTE" : "TAX INVOICE"}</h1>
+            {!quote && <p className="i3 m-0 text-[10px]">Original for recipient</p>}
             <dl className="m-0 mt-2 grid grid-cols-[auto_auto] justify-end gap-x-3 font-mono text-[11px]">
-              <dt className="i3">{credit ? "Credit note no." : "Invoice no."}</dt><dd className="m-0 font-semibold">{inv.number}</dd>
+              <dt className="i3">{quote ? "Quotation no." : credit ? "Credit note no." : "Invoice no."}</dt><dd className="m-0 font-semibold">{inv.number}</dd>
               <dt className="i3">Date</dt><dd className="m-0">{fmtDate(inv.issuedAt)}</dd>
-              {credit ? (
+              {quote ? (
+                <><dt className="i3">Valid until</dt><dd className="m-0">{fmtDate(quote.validUntil)}</dd></>
+              ) : credit ? (
                 <><dt className="i3">Against invoice</dt><dd className="m-0">{credit.invoiceNumber} · {fmtDate(credit.invoiceIssuedAt)}</dd></>
               ) : (
                 inv.dueAt && <><dt className="i3">Due</dt><dd className="m-0">{fmtDate(inv.dueAt)}</dd></>
@@ -97,7 +106,7 @@ function TaxDocument({ doc: inv, credit }: { doc?: PrintableDoc; credit?: { invo
             {stateWithCode(seller.gstin) && <p className="i2 m-0">State: {stateWithCode(seller.gstin)}</p>}
           </div>
           <div>
-            <h2 className="i3 m-0 mb-1 text-[10px] font-medium tracking-wider uppercase">Bill to</h2>
+            <h2 className="i3 m-0 mb-1 text-[10px] font-medium tracking-wider uppercase">{quote ? "Prepared for" : "Bill to"}</h2>
             <p className="m-0 font-semibold">{buyer.name}</p>
             {buyer.address ? <p className="i2 m-0 whitespace-pre-line">{buyer.address}</p> : buyer.city && <p className="i2 m-0">{buyer.city}</p>}
             <p className="m-0 mt-1 font-mono">GSTIN {buyer.gstin || "Unregistered"}</p>
@@ -159,8 +168,31 @@ function TaxDocument({ doc: inv, credit }: { doc?: PrintableDoc; credit?: { invo
           </dl>
         </section>
 
+        {quote && quote.schedule.length > 0 && (
+          <section className="mt-6">
+            <h2 className="i3 m-0 mb-1 text-[10px] font-medium tracking-wider uppercase">Payment plan (before GST)</h2>
+            <table className="w-full border-collapse">
+              <tbody>
+                {quote.schedule.map((m) => (
+                  <tr key={m.id} className="bl border-b">
+                    <td className="py-1.5 pr-2">{m.label}</td>
+                    <td className="i2 py-1.5 pr-2">{m.dueDate ? `by ${fmtDate(m.dueDate)}` : ""}</td>
+                    <td className="py-1.5 text-right font-mono">{inr(m.amountPaise)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
+        {quote?.terms && (
+          <section className="mt-6">
+            <h2 className="i3 m-0 mb-1 text-[10px] font-medium tracking-wider uppercase">Terms</h2>
+            <p className="i2 m-0 whitespace-pre-line">{quote.terms}</p>
+          </section>
+        )}
+
         <footer className="bl mt-10 flex items-end justify-between border-t pt-4">
-          <p className="i3 m-0 max-w-[90mm] text-[10px]">This is a computer-generated invoice. Tax is not payable on reverse charge basis.</p>
+          <p className="i3 m-0 max-w-[90mm] text-[10px]">{quote ? "This is a quotation, not a tax invoice. A GST invoice is issued for each payment." : "This is a computer-generated invoice. Tax is not payable on reverse charge basis."}</p>
           <div className="text-right">
             <p className="m-0">For {seller.legalName || "—"}</p>
             <p className="i3 m-0 mt-10 text-[10px]">Authorised signatory</p>

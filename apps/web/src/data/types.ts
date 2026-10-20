@@ -1,4 +1,4 @@
-import type { Approval, Business, Channel, DeliverableStatus, Health, Paise, Priority, ProjectStatus, Role, Stage, TaskStatus } from "@pinnacle/shared";
+import type { ExpenseCategory, ScheduleItem, Approval, Business, Channel, DeliverableStatus, Health, Paise, Priority, ProjectStatus, Role, Stage, TaskStatus } from "@pinnacle/shared";
 
 export type ID = string;
 export type ISO = string;
@@ -77,6 +77,39 @@ export type Deal = {
   requirements?: string;
   /** When to follow up next; null/absent = none scheduled. */
   nextFollowUpAt?: ISO | null;
+  /** Payment stages (before GST); each becomes an invoice when it's due. */
+  schedule?: ScheduleItem[];
+};
+
+/** A quotation / proposal: priced lines, terms and the payment plan the client agrees to. */
+export type Quote = {
+  id: ID;
+  number: string;
+  business: Business;
+  companyId: ID;
+  dealId?: ID;
+  ownerId: ID;
+  validUntil: string;
+  supply: "intra" | "inter";
+  lines: { desc: string; sac: string; qty: number; ratePaise: Paise }[];
+  terms: string;
+  schedule: ScheduleItem[];
+  status: "draft" | "sent" | "accepted" | "declined";
+  createdAt: ISO;
+};
+
+export type Expense = {
+  id: ID;
+  date: string;
+  business?: Business;
+  category: ExpenseCategory;
+  description: string;
+  vendor?: string;
+  amountPaise: Paise;
+  gstPaise: Paise;
+  projectId?: ID;
+  receiptUrl?: string;
+  createdAt: ISO;
 };
 
 export type Intent = "quote" | "meeting" | "question" | "other";
