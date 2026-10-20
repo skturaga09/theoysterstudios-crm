@@ -1,6 +1,6 @@
 import { CHANNEL_MONOGRAM, stageIn } from "@pinnacle/shared";
 import { useTheme, type CommandGroup } from "@pinnacle/ui";
-import { Building2, CheckSquare, Contrast, FileText, KanbanSquare, MessageSquare, Palette, Phone, Plus, User } from "lucide-react";
+import { BookOpen, Building2, CheckSquare, Contrast, FileText, KanbanSquare, MessageSquare, Palette, Phone, Plus, User } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useCrm } from "../data/store";
 import { useUi } from "../lib/ui-store";
@@ -24,6 +24,7 @@ export function useCommandGroups(): CommandGroup[] {
           hint: n.shortcut,
           onSelect: () => go(n.to),
         })),
+        { id: "nav-playbook", label: "Playbook", icon: <BookOpen strokeWidth={1.5} />, onSelect: () => go("/settings/playbook") },
         { id: "nav-team", label: "Team & access", icon: <User strokeWidth={1.5} />, onSelect: () => go("/settings/team") },
         { id: "nav-styleguide", label: "Styleguide", icon: <Palette strokeWidth={1.5} />, onSelect: () => go("/styleguide") },
       ],

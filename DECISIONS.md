@@ -389,3 +389,9 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   device's reduced-motion setting); clients without a photo get a rich business-colour panel with large initials.
   The public enquiry form was redesigned: brand panel, business tiles, service chips, +91 phone, budget ranges,
   per-field errors and a proper thank-you screen.
+- **Playbook in the app (21 Oct 2026).** Settings → Playbook, also the ? in the top bar and ⌘K: five rules, each
+  role's daily routine (opens on the reader's own role), a wedding and a retainer from enquiry to final payment,
+  the owner's first-week setup, and fixes for common slips. Written from what the CRM does today and printable.
+  While writing it we found the lost reason could not be entered anywhere, so Reports always said "No reason
+  given"; a lead marked Lost now has a Lost reason field on its page. Projects rows lead with a camera
+  (photography) or megaphone (marketing) and the client's name in the business colour.

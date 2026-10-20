@@ -43,6 +43,7 @@ const routes: RouteObject[] = [
         lazy: async () => ({ Component: (await import("./routes/settings/layout")).SettingsLayout }),
         children: [
           { index: true, element: <Navigate to="team" replace /> },
+          { path: "playbook", lazy: async () => ({ Component: (await import("./routes/settings/playbook")).PlaybookRoute }) },
           { path: "workspace", lazy: async () => ({ Component: (await import("./routes/settings/sections")).WorkspaceRoute }) },
           { path: "team", lazy: async () => ({ Component: (await import("./routes/settings/team")).TeamRoute }) },
           { path: "pipeline", lazy: async () => ({ Component: (await import("./routes/settings/sections")).PipelineSettingsRoute }) },

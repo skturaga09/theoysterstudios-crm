@@ -5,6 +5,7 @@ import { PageHeader } from "../../components/page-header";
 import { useWorkspace } from "../../data/store";
 
 export const SECTIONS = [
+  { to: "playbook", label: "Playbook" },
   { to: "workspace", label: "Workspace" },
   { to: "team", label: "Team & access", admin: true },
   { to: "pipeline", label: "Pipelines & stages" },

@@ -3,7 +3,8 @@ import { Button, Kbd, Segmented, Select, useCommandMenu } from "@pinnacle/ui";
 import { useAccess, useCrm } from "../data/store";
 import { useUi } from "../lib/ui-store";
 import { NotificationsBell } from "./notifications";
-import { Menu, Plus, Search } from "lucide-react";
+import { CircleHelp, Menu, Plus, Search } from "lucide-react";
+import { Link } from "react-router";
 
 export function TopBar({ onMenu }: { onMenu: () => void }) {
   const openCmd = () => useCommandMenu.getState().setOpen(true);
@@ -25,6 +26,9 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
       </button>
       <div className="ml-auto flex items-center gap-2">
         <BusinessSwitch />
+        <Button asChild variant="ghost" size="icon-sm" aria-label="Playbook: how to use the CRM" title="Playbook">
+          <Link to="/settings/playbook"><CircleHelp strokeWidth={1.5} /></Link>
+        </Button>
         <NotificationsBell />
         <Button
           variant="ink"

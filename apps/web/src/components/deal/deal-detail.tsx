@@ -234,7 +234,12 @@ export function DealProperties({ deal }: { deal: Deal }) {
       </Prop>
       <Prop label="City">{company?.city}</Prop>
       <Prop label="Created"><span className="font-mono text-[12.5px]">{fmtDate(deal.createdAt)}</span></Prop>
-      {deal.lostReason && <Prop label="Lost reason">{deal.lostReason}</Prop>}
+      {(deal.stage === "lost" || deal.lostReason) && (
+        <Prop label="Lost reason">
+          {/* Feeds Reports → why leads are lost. */}
+          <Input key={deal.id} aria-label="Lost reason" defaultValue={deal.lostReason ?? ""} maxLength={240} placeholder="e.g. Budget, chose another studio, date taken" onBlur={(e) => { const v = e.target.value.trim(); if (v !== (deal.lostReason ?? "")) s.updateDeal(deal.id, { lostReason: v }); }} className="h-8" />
+        </Prop>
+      )}
     </dl>
     </fieldset>
   );
