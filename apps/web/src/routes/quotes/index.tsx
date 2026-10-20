@@ -84,6 +84,7 @@ export function QuoteRoute() {
           <>
             <Pill tone={STATUS_TONE[q.status]}>{STATUS_LABEL[q.status]}</Pill>
             <Button asChild><Link to={`/quotes/${q.id}/print`}><Printer strokeWidth={1.5} /> Print / PDF</Link></Button>
+            {q.status === "accepted" && <Button asChild><Link to={`/quotes/${q.id}/agreement`}><FileSignature strokeWidth={1.5} /> Agreement</Link></Button>}
             {!locked && q.status === "draft" && <Button onClick={() => { set({ status: "sent" }); toast("Marked as sent"); }} disabled={!q.lines.length}>Mark as sent</Button>}
             {!locked && q.status !== "declined" && (
               <Button variant="ink" disabled={!q.lines.length} onClick={() => { void acceptQuote(q); toast(deal ? `Accepted — ${deal.title} is confirmed` : "Accepted"); }}>
@@ -164,7 +165,7 @@ export function QuoteRoute() {
           </aside>
         </div>
       </fieldset>
-      {q.status === "accepted" && <p className="t-meta mt-6 text-ink-3">Accepted quotations can't change. To revise, make a new quotation from the lead.</p>}
+      {q.status === "accepted" && <p className="t-meta mt-6 text-ink-3">Accepted quotations can't change. Use Agreement to print or save the agreed scope, payment plan and terms as a PDF. To revise, make a new quotation from the lead.</p>}
     </>
   );
 }

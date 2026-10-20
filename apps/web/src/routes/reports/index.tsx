@@ -47,7 +47,16 @@ export function ReportsRoute() {
   const [range, setRange] = useState<Range>("quarter");
   const since = Date.now() - DAYS[range] * 86_400_000;
 
-  const leads = useMemo(() => s.leads.filter((l) => +new Date(l.at) >= since), [s.leads, since]);
+  // The demo has a longer synthetic lead-flow history. In the live CRM, deals are the durable lead records;
+  // the transient arrival feed is deliberately empty after sign-in.
+  const leadHistory = useMemo(
+    () =>
+      IS_DEMO
+        ? s.leads
+        : s.deals.map((d) => ({ id: d.id, channel: d.channel, stage: d.stage, at: d.createdAt })),
+    [s.deals, s.leads],
+  );
+  const leads = useMemo(() => leadHistory.filter((l) => +new Date(l.at) >= since), [leadHistory, since]);
   const won = s.deals.filter((d) => d.stage === "won");
   const wonInRange = won.filter((d) => d.wonAt && +new Date(d.wonAt) >= since);
   const closedLeads = leads.filter((l) => l.stage === "won" || l.stage === "lost");

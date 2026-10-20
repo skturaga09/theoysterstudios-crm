@@ -3,6 +3,8 @@
 Running list of choices that interpret or deviate from `PINNACLE_CRM_BUILD_PROMPT.md`.
 Open items are marked **(open)**.
 
+The full client requirements were re-audited on 20 October 2026. The coverage matrix and intentional Phase 4 deferrals live in `docs/REQUIREMENTS_AUDIT.md`.
+
 ## Milestone 0
 
 1. **Prototype not yet received (open).** Tokens, type and motion are built from §3–§4 of the brief.
@@ -129,14 +131,14 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   Sent invoices are corrected by credit notes: own series `TOS/CN/<FY>/<NNN>`, taxable amount + GST at the
   invoice's rate, capped at what's left to credit, recorded on the invoice (`credits`) so its balance drops;
   printable at `/credit-notes/:id/print`. Fully credited, unpaid invoices show "Credited".
-- **In-app integration setup** (Settings → Integrations → Set up on each channel, admins; `/settings/setup`
-  redirects there): the Google Workspace and Meta steps as a
+- **In-app integration setup** (Settings → Integrations → Set up on each service, admins; `/settings/setup`
+  redirects there): Google Workspace, Instagram, WhatsApp Cloud API and Razorpay steps as a
   shared checklist (`setup/progress`), copy boxes for scopes and the redirect URI (built from the site's own
   origin), and fields to paste the Google client and Meta app keys (`setup/keys`). Secrets are write-only: the API
   returns only whether one is saved. The app never shows hosting, billing or cost details — those stay in the
   Google console and docs/OPERATIONS.md.
 
-## Instagram DMs (client's own Meta app, read-only)
+## Instagram DMs (client's own Meta app)
 
 - **Instagram API with Instagram Login**, Standard Access (own account only → no App Review). The client pastes the
   Instagram App ID/secret (sign-in) and the Meta App secret (Integrations → Instagram → Set up); the CRM shows the
@@ -148,13 +150,16 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   are ambiguous about which signs). Each message stored once (`seenMessages/instagram:<mid>`). A first message
   opens a conversation (sender's name/username fetched best-effort) owned via `routeLead`; echoes (sent from
   Instagram itself) are kept as outgoing. Public routes: webhook, callback, `/public/privacy-info`.
-- **Inbox (live):** real conversations, polled every 30 s; replies happen in Instagram ("Reply in Instagram").
+- **Inbox (live):** real conversations, polled every 30 s; `POST /conversations/:id/reply` sends replies through
+  Instagram's messaging API and stores the returned message in the thread. Meta enforces its messaging window.
   `/privacy` (with `#delete`) is public, filled from Workspace details.
 
-## Gmail and Calendar (client's own Google project, read-only)
+## Gmail, Calendar and Drive (client's own Google project)
 
-- **Scopes:** `gmail.readonly` + `calendar.readonly` only; the account's address comes from Gmail's profile, so no
-  `openid/email` scope. `access_type=offline` + `prompt=consent` for a refresh token (server-only, never returned).
+- **Scopes:** `gmail.readonly` + `calendar.readonly` for lead intake, plus `drive.file` for project folders. `drive.file`
+  can manage only files the CRM creates; it cannot browse the rest of the account's Drive. The account's address
+  comes from Gmail's profile, so no `openid/email` scope. `access_type=offline` + `prompt=consent` for a refresh
+  token (server-only, never returned). Existing connections must reconnect once when the Drive scope is added.
 - **Who connects:** any teammate connects their own account (Integrations → Gmail → Connect); whoever has the
   enquiry@ login connects that one. Admins can disconnect any account; others only theirs. Disconnect revokes at Google.
 - **Sync:** the `everyMinute` scheduled function (lock in `setup/lock:google`) — polling, not Pub/Sub push, so the
@@ -165,6 +170,25 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   (first run only starts tracking; 410 → restart); a new meeting with an outside guest who isn't a contact opens a
   `calendar` conversation, with a known contact it becomes a "meeting" activity on their open deal. Appointment-
   schedule bookings can't be told apart reliably, so every new meeting with an outside guest counts.
+- **Project folders:** confirming a deal creates its project and then a same-named Google Drive folder, preferring
+  the project manager's connected account. Folder failure never blocks project creation; the project page shows a
+  retry button for missing folders and for projects created before Drive was connected.
+  The new folder is shared (writer, no email) with the studio's Workspace domain — Settings → Workspace → Google
+  Workspace domain, else the connecting account's domain — so the whole team can open it; personal Gmail accounts
+  are left private. A sharing failure keeps the folder and shows the reason on the project.
+
+## Razorpay and WhatsApp Cloud API
+
+- **Razorpay:** admins save the Key ID, write-only Key secret and write-only webhook secret in Integrations.
+  Finance users can create one payment link for the current balance of a sent invoice. The signed
+  `payment_link.paid` webhook appends the payment only when its Razorpay payment ID is not already on the invoice,
+  so webhook retries are idempotent.
+- **WhatsApp:** admins save the Phone number ID, permanent token, Meta app secret, approved reminder template name
+  and language. Signed `messages` webhooks create or update routed Inbox conversations and are deduplicated by
+  Meta message ID. Free-form Inbox replies go through the Cloud API during Meta's 24-hour window.
+- **Payment reminders:** when WhatsApp is connected, Remind sends the approved Utility template with the client,
+  studio, payment stage, balance and due date. Without a Cloud API connection, the UI keeps the `wa.me` fallback
+  with the same message typed for a person to send manually.
 
 ## Two businesses (client requirements, Oct 2026)
 
@@ -254,8 +278,8 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   stage date or today) and links it; invoiced stages can't be changed or removed. A stage reads planned / due
   (within 7 days) / overdue / invoiced / part paid / paid.
 - **Reminders:** "Payments due" (owner dashboard, Invoices) lists stages overdue or due within a week, with
-  Invoice and a WhatsApp "Remind" link (`wa.me`, message typed, the person presses send). No messages are sent
-  automatically — that needs the WhatsApp Cloud API (Phase 3).
+  Invoice and WhatsApp Remind actions. Connected accounts send the approved Cloud API template; unconnected
+  accounts use `wa.me` with the message typed for the person to send.
 - **Expenses** (`expenses`, `/expenses`; owners and Finance only — others get an empty list): date, business,
   category, what, vendor, amount before GST, GST paid, optional project and receipt link.
 - **Profit & loss** (`/profit`; owners and Finance): accrual basis, before GST — sent invoices' taxable value

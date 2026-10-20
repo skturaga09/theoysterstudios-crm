@@ -8,6 +8,8 @@ import type { Activity, Company, Contact, Conversation, CreditNote, Deal, Expens
 export type GoogleAccountStatus = { email: string; connectedBy: string; connectedAt: string; lastSyncAt?: string; error?: string };
 export type IntegrationStatus = {
   instagram: { connected: boolean; username?: string; lastEventAt?: string; tokenExpiresAt?: string; connectedAt?: string };
+  razorpay: { ready: boolean; webhook: boolean };
+  whatsapp: { connected: boolean; lastEventAt?: string };
   /** `ready` = an admin has saved the Google keys, so people can connect their accounts. */
   google: { ready: boolean; accounts: GoogleAccountStatus[] };
 };
@@ -25,19 +27,21 @@ export function channelsFrom(s: IntegrationStatus): ChannelStatus[] {
     out.push({ channel: "gmail", label: "Gmail", ...base }, { channel: "calendar", label: "Calendar", ...base });
   }
   const ig = s.instagram;
-  if (!ig.connected) return out;
-  const expiring = ig.tokenExpiresAt && +new Date(ig.tokenExpiresAt) - Date.now() < 7 * 86_400_000;
-  return [
-    ...out,
-    {
+  if (ig.connected) {
+    const expiring = ig.tokenExpiresAt && +new Date(ig.tokenExpiresAt) - Date.now() < 7 * 86_400_000;
+    out.push({
       channel: "instagram",
       label: "Instagram",
       status: expiring ? "warn" : "ok",
       lastEventMin: minsAgo(ig.lastEventAt ?? ig.connectedAt),
       account: `@${ig.username}`,
       note: expiring ? "Instagram's access is about to lapse. Click Reconnect to renew it." : undefined,
-    },
-  ];
+    });
+  }
+  if (s.whatsapp.connected) {
+    out.push({ channel: "whatsapp", label: "WhatsApp", status: "ok", lastEventMin: minsAgo(s.whatsapp.lastEventAt), account: "WhatsApp Cloud API" });
+  }
+  return out;
 }
 
 /**

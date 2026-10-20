@@ -199,6 +199,8 @@ export type Project = {
   calendarUrl?: string;
   notes?: string;
   links: { label: string; url: string }[];
+  driveFolderId?: string;
+  driveFolderError?: string;
   createdAt: ISO;
 };
 
@@ -233,7 +235,7 @@ export type Invoice = {
   /** intra-state → CGST + SGST; inter-state → IGST */
   supply: "intra" | "inter";
   lines: InvoiceLine[];
-  payments: { at: ISO; amountPaise: Paise }[];
+  payments: { at: ISO; amountPaise: Paise; ref?: string; method?: string }[];
   sent: boolean;
   /** Our details as they were when the invoice was created (absent on sample invoices). */
   seller?: { legalName: string; gstin: string; address: string };
@@ -245,6 +247,7 @@ export type Invoice = {
   cancelled?: boolean;
   cancelledAt?: ISO;
   cancelReason?: string;
+  paymentLink?: { id: string; url: string; amountPaise: Paise; status: "created" | "paid"; createdAt: ISO };
 };
 
 export type Lead = { id: ID; channel: Channel; stage: Stage; at: ISO };

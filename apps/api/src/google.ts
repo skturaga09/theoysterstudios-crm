@@ -1,5 +1,5 @@
 /**
- * Gmail and Calendar through the client's own Google Cloud project (Internal OAuth client, read-only scopes).
+ * Gmail, Calendar and project folders through the client's own Google Cloud project.
  * Each person connects their own account; a shared inbox (enquiry@) is connected by whoever signs in to it.
  * A scheduled job checks every connected account each minute: new outside emails and new meetings with unknown
  * people become Inbox leads, routed by the lead rules. Nothing is ever sent, deleted or changed in Google.
@@ -9,7 +9,12 @@ import { MongoServerError, ObjectId, type Db } from "mongodb";
 import type { Doc } from "./db";
 import type { Fetch } from "./instagram";
 
-export const GOOGLE_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/calendar.readonly"];
+export const GOOGLE_SCOPES = [
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/calendar.readonly",
+  // Only files and folders this CRM creates; it cannot browse the rest of the account's Drive.
+  "https://www.googleapis.com/auth/drive.file",
+];
 const GMAIL = "https://gmail.googleapis.com/gmail/v1/users/me";
 const CALENDAR = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
 
@@ -63,7 +68,7 @@ export async function exchangeGoogleCode(f: Fetch, keys: Required<GoogleKeys>, r
   );
   if (!t.refresh_token) throw new Error("Google didn't grant ongoing access — try connecting again");
   const scopes = String(t.scope ?? "");
-  if (!GOOGLE_SCOPES.every((s) => scopes.includes(s))) throw new Error("Both Gmail and Calendar access are needed — tick both boxes on Google's screen");
+  if (!GOOGLE_SCOPES.every((s) => scopes.includes(s))) throw new Error("Gmail, Calendar and Drive access are needed — tick all three boxes on Google's screen");
   const profile = await json(await f(`${GMAIL}/profile`, { headers: { authorization: `Bearer ${t.access_token}` } }));
   return {
     email: String(profile.emailAddress).toLowerCase(),
@@ -75,7 +80,7 @@ export async function exchangeGoogleCode(f: Fetch, keys: Required<GoogleKeys>, r
 }
 
 /** A valid access token for the account, refreshed (and saved) when it's within 2 minutes of expiring. */
-async function accessToken(db: Db, f: Fetch, keys: Required<GoogleKeys>, acct: GoogleAccount) {
+export async function googleAccessToken(db: Db, f: Fetch, keys: Required<GoogleKeys>, acct: GoogleAccount) {
   if (acct.accessToken && acct.accessTokenExpiresAt && +new Date(acct.accessTokenExpiresAt) - Date.now() > 120_000) return acct.accessToken;
   const t = await json(
     await f("https://oauth2.googleapis.com/token", {
@@ -86,6 +91,30 @@ async function accessToken(db: Db, f: Fetch, keys: Required<GoogleKeys>, acct: G
   const accessTokenExpiresAt = new Date(Date.now() + Number(t.expires_in ?? 3600) * 1000).toISOString();
   await db.collection<GoogleAccount>("googleAccounts").updateOne({ _id: acct._id }, { $set: { accessToken: String(t.access_token), accessTokenExpiresAt } });
   return String(t.access_token);
+}
+
+/** Creates a folder the CRM can keep linking to without gaining access to the rest of Drive. */
+export async function createDriveFolder(f: Fetch, token: string, name: string) {
+  const folder = await json(
+    await f("https://www.googleapis.com/drive/v3/files?fields=id,webViewLink", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder" }),
+    }),
+  );
+  if (!folder.id) throw new Error("Google Drive did not return a folder ID");
+  return { id: String(folder.id), url: String(folder.webViewLink || `https://drive.google.com/drive/folders/${folder.id}`) };
+}
+
+/** Lets everyone on the studio's Workspace domain edit the folder (Drive's "anyone at theoysterstudios.com"). */
+export async function shareWithDomain(f: Fetch, token: string, fileId: string, domain: string) {
+  await json(
+    await f(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions?sendNotificationEmail=false`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ type: "domain", role: "writer", domain }),
+    }),
+  );
 }
 
 export async function revokeGoogle(f: Fetch, token: string) {
@@ -312,7 +341,7 @@ export async function syncGoogle(db: Db, f: Fetch) {
   let stored = 0;
   for (const acct of accounts) {
     try {
-      const token = await accessToken(db, f, keys, acct);
+      const token = await googleAccessToken(db, f, keys, acct);
       stored += await syncGmail(ctx, acct, token);
       stored += await syncCalendar(ctx, acct, token);
       await db.collection<GoogleAccount>("googleAccounts").updateOne({ _id: acct._id }, { $set: { lastSyncAt: new Date().toISOString() }, $unset: { error: "" } });

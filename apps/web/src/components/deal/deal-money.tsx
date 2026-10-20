@@ -2,10 +2,13 @@ import { fmtDate, formatFull, invoiceTotals } from "@pinnacle/shared";
 import { Button, Input, MoneyText, Pill, toast } from "@pinnacle/ui";
 import { FileSignature, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { Link, useNavigate } from "react-router";
+import { useState } from "react";
 import { createQuote, invoiceStage, planFor, setSchedule, stageState, whatsappReminder, type StageState } from "../../data/finance";
 import { useAccess, useCanEdit, useCrm, useWorkspace } from "../../data/store";
 import type { Deal } from "../../data/types";
 import { useUi } from "../../lib/ui-store";
+import { api } from "../../lib/api";
+import { IS_DEMO } from "../../lib/demo";
 
 export const STAGE_TONE: Record<StageState, "mute" | "warn" | "risk" | "ok"> = { planned: "mute", due: "warn", overdue: "risk", invoiced: "warn", "part paid": "warn", paid: "ok" };
 const label = (st: StageState) => st[0]!.toUpperCase() + st.slice(1);
@@ -57,6 +60,8 @@ export function DealPayments({ deal }: { deal: Deal }) {
   const studio = useWorkspace();
   const canInvoice = useAccess("finance") === "edit";
   const canPlan = useCanEdit(deal.ownerId) || canInvoice;
+  const whatsappConnected = !IS_DEMO && s.channels.some((c) => c.channel === "whatsapp");
+  const [reminding, setReminding] = useState<string>();
   const schedule = deal.schedule ?? [];
   const contact = s.contacts.find((c) => c.id === deal.contactId) ?? s.contacts.find((c) => c.companyId === deal.companyId);
   const total = schedule.reduce((a, m) => a + m.amountPaise, 0);
@@ -94,11 +99,30 @@ export function DealPayments({ deal }: { deal: Deal }) {
                   )}
                   <span className="ml-auto flex items-center gap-1">
                     {!inv && canInvoice && <Button size="sm" onClick={() => void invoiceStage(deal.id, m.id)}>Invoice</Button>}
-                    {st !== "paid" && st !== "planned" && contact?.phone && (
+                    {st !== "paid" && st !== "planned" && contact?.phone && (whatsappConnected ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={reminding === m.id}
+                        onClick={async () => {
+                          setReminding(m.id);
+                          try {
+                            await api(`/deals/${deal.id}/schedule/${m.id}/remind`, { method: "POST" });
+                            toast("WhatsApp reminder sent");
+                          } catch (e) {
+                            toast(`Couldn't send reminder — ${(e as Error).message}`);
+                          } finally {
+                            setReminding(undefined);
+                          }
+                        }}
+                      >
+                        <MessageCircle strokeWidth={1.5} /> {reminding === m.id ? "Sending…" : "Remind"}
+                      </Button>
+                    ) : (
                       <Button size="sm" variant="ghost" asChild>
                         <a href={whatsappReminder(contact.phone, text)} target="_blank" rel="noreferrer"><MessageCircle strokeWidth={1.5} /> Remind</a>
                       </Button>
-                    )}
+                    ))}
                     {!inv && canPlan && (
                       <Button size="icon-sm" variant="ghost" aria-label={`Remove ${m.label}`} onClick={() => setSchedule(deal.id, schedule.filter((x) => x.id !== m.id))}><Trash2 strokeWidth={1.5} /></Button>
                     )}

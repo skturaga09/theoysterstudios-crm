@@ -1,4 +1,4 @@
-import { CHANNEL_LABEL, CHANNELS, formatCompact, gstState, lakh, parseCsv, toCsv, type Channel, type RoutingRule, BUSINESS_LABEL, BUSINESSES, type Business, type PipelineStage, type Pipelines } from "@pinnacle/shared";
+import { CHANNEL_LABEL, CHANNELS, DEFAULT_NOTIFICATION_PREFERENCES, formatCompact, gstState, lakh, parseCsv, toCsv, type Channel, type NotificationKind, type NotificationPreferences, type RoutingRule, BUSINESS_LABEL, BUSINESSES, type Business, type PipelineStage, type Pipelines } from "@pinnacle/shared";
 import type { Workspace } from "@pinnacle/shared/schemas";
 import { Button, ChannelChip, cn, Input, Pill, Segmented, Select, toast } from "@pinnacle/ui";
 import { ArrowDown, ArrowRight, ArrowUp, Download, Plus, RefreshCw, Trash2, Unplug, Upload } from "lucide-react";
@@ -8,12 +8,19 @@ import { useEffect, useState, type ReactNode } from "react";
 import { CHANNEL_STATUS, type ChannelStatus } from "../../data/seed";
 import { IS_DEMO } from "../../lib/demo";
 import { channelsFrom, type IntegrationStatus } from "../../data/sync";
-import { GoogleAccounts, GoogleSetup, MetaSetup, setupProgress, useSetupState } from "./setup";
+import { GoogleAccounts, GoogleSetup, MetaSetup, RazorpaySetup, setupProgress, useSetupState, WhatsAppSetup } from "./setup";
 import { defaultOwnerId, useCrm, useMe, useWorkspace } from "../../data/store";
 import type { Company, Contact } from "../../data/types";
 import { api, ApiError } from "../../lib/api";
 import { fmtMin } from "../../shell/sidebar";
 import { SettingsHeader } from "./layout";
+import gmailIcon from "../../assets/integrations/Gmail_Logo.png";
+import calendarIcon from "../../assets/integrations/google_calendar_new_logo_icon.webp";
+import instagramIcon from "../../assets/integrations/Instagram_icon.png";
+import facebookIcon from "../../assets/integrations/free-facebook-logo.png";
+import whatsappIcon from "../../assets/integrations/whatsapp-logo.webp";
+import websiteIcon from "../../assets/integrations/3d-website-access-icon-png.webp";
+import razorpayIcon from "../../assets/integrations/razorpay-paymentspng.webp";
 
 function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
@@ -241,6 +248,29 @@ export function PipelineSettingsRoute() {
 }
 
 /* ---------- Integrations ---------- */
+const INTEGRATION_ICON: Partial<Record<Channel, { src: string; className: string }>> = {
+  gmail: { src: gmailIcon, className: "h-5 w-7" },
+  calendar: { src: calendarIcon, className: "size-8" },
+  instagram: { src: instagramIcon, className: "size-7" },
+  facebook: { src: facebookIcon, className: "size-7" },
+  whatsapp: { src: whatsappIcon, className: "size-9" },
+  web: { src: websiteIcon, className: "size-7" },
+};
+
+function IntegrationIcon({ channel }: { channel: Channel }) {
+  const icon = INTEGRATION_ICON[channel];
+  if (!icon) return <ChannelChip channel={channel} className="h-9 min-w-9 text-[11px]" />;
+
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-control border border-line-2 bg-surface"
+    >
+      <img src={icon.src} alt="" className={cn("object-contain", icon.className)} />
+    </span>
+  );
+}
+
 const ABOUT: Record<Channel, string> = {
   gmail: "New emails to enquiry@ and each connected inbox; first-time senders become leads. Read-only: the CRM never sends, deletes or changes mail.",
   calendar: "Meetings with known contacts appear on their deals. Bookings from new people through your appointment schedules become leads.",
@@ -255,14 +285,17 @@ const ABOUT: Record<Channel, string> = {
   other: "",
 };
 /** Which one-time setup a channel needs. Gmail and Calendar share the Google Workspace setup. */
-const SETUP_FOR: Partial<Record<Channel, "google" | "meta">> = { gmail: "google", calendar: "google", instagram: "meta" };
+const SETUP_FOR: Partial<Record<Channel, "google" | "meta" | "whatsapp">> = { gmail: "google", calendar: "google", instagram: "meta", whatsapp: "whatsapp" };
 
 export function IntegrationsRoute() {
   const isAdmin = useMe().role === "admin";
   const setup = useSetupState();
   const [params] = useSearchParams();
   // Which channel's setup steps are open; ?setup=google|meta opens the first channel that uses it.
-  const [open, setOpen] = useState<Channel | undefined>(() => (Object.keys(SETUP_FOR) as Channel[]).find((c) => SETUP_FOR[c] === params.get("setup")));
+  const [open, setOpen] = useState<Channel | "razorpay" | undefined>(() => {
+    if (params.get("setup") === "razorpay") return "razorpay";
+    return (Object.keys(SETUP_FOR) as Channel[]).find((c) => SETUP_FOR[c] === params.get("setup"));
+  });
   // Demo: sample connections you can click around. Live: the real status of each channel.
   const [demoItems, setDemoItems] = useState<(ChannelStatus & { connected: boolean })[]>(CHANNEL_STATUS.map((c) => ({ ...c, connected: true })));
   const update = (ch: Channel, patch: Partial<ChannelStatus & { connected: boolean }>) => setDemoItems((xs) => xs.map((x) => (x.channel === ch ? { ...x, ...patch } : x)));
@@ -297,7 +330,7 @@ export function IntegrationsRoute() {
   }, [params]);
   return (
     <>
-      <SettingsHeader title="Integrations" body="Where leads come from. Each connected channel feeds the Inbox. Gmail, Calendar and Instagram need a one-time setup in your own Google Workspace and Meta accounts — open Set up on each." />
+      <SettingsHeader title="Integrations" body="Connect lead channels, online payments and project storage. Each service uses the studio's own Google, Meta or Razorpay account — open Set up on each." />
       <ul className="m-0 list-none p-0">
         {items.map((c) => {
           const kind = SETUP_FOR[c.channel];
@@ -306,7 +339,7 @@ export function IntegrationsRoute() {
           return (
             <li key={c.channel} className="border-b border-line py-5">
               <div className="flex flex-wrap items-start gap-4">
-                <ChannelChip channel={c.channel} className="h-9 min-w-9 text-[11px]" />
+                <IntegrationIcon channel={c.channel} />
                 <div className="min-w-0 flex-1 basis-[260px]">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="t-dense m-0 font-medium">{CHANNEL_LABEL[c.channel]}</h3>
@@ -331,6 +364,8 @@ export function IntegrationsRoute() {
                     <Button size="sm" variant={c.status === "warn" ? "ink" : "outline"} aria-expanded={expanded} onClick={() => setOpen(expanded ? undefined : c.channel)}>
                       {expanded ? "Hide" : "Manage accounts"}
                     </Button>
+                    ) : c.connected && kind === "whatsapp" ? (
+                    isAdmin && <Button size="sm" variant="outline" aria-expanded={expanded} onClick={() => setOpen(expanded ? undefined : c.channel)}>{expanded ? "Hide" : "Manage"}</Button>
                   ) : c.connected && !IS_DEMO ? (
                     isAdmin && (
                       <>
@@ -364,7 +399,8 @@ export function IntegrationsRoute() {
               </div>
               {expanded && kind === "google" && (isAdmin ? <GoogleSetup state={setup} status={status} onChanged={() => void refresh()} /> : <GoogleAccounts status={status} onChanged={() => void refresh()} />)}
               {expanded && kind === "meta" && <MetaSetup state={setup} connected={c.connected} />}
-              {confirmDisconnect === c.channel && (
+              {expanded && kind === "whatsapp" && <WhatsAppSetup state={setup} connected={c.connected} />}
+              {confirmDisconnect === c.channel && c.channel === "instagram" && (
                 <div className="mt-3 flex flex-wrap items-center gap-3 rounded-card bg-risk-wash px-4 py-3">
                   <p className="t-dense m-0 flex-1">Disconnect {CHANNEL_LABEL[c.channel]}? New messages stop arriving. Conversations already in Inbox stay.</p>
                   <Button size="sm" variant="ghost" onClick={() => setConfirmDisconnect(undefined)}>Keep</Button>
@@ -393,6 +429,28 @@ export function IntegrationsRoute() {
             </li>
           );
         })}
+        <li className="border-b border-line py-5">
+          <div className="flex flex-wrap items-start gap-4">
+            <span aria-hidden="true" className="inline-flex size-9 shrink-0 items-center justify-center rounded-control border border-line-2 bg-surface">
+              <img src={razorpayIcon} alt="" className="size-8 object-contain" />
+            </span>
+            <div className="min-w-0 flex-1 basis-[260px]">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="t-dense m-0 font-medium">Razorpay</h3>
+                <Pill tone={status?.razorpay.ready && status.razorpay.webhook ? "ok" : "mute"} dot={!!(status?.razorpay.ready && status.razorpay.webhook)}>
+                  {status?.razorpay.ready && status.razorpay.webhook ? "Connected" : "Not connected"}
+                </Pill>
+              </div>
+              <p className="t-meta m-0 mt-1 max-w-[60ch] text-ink-2">Create payment links for sent invoices and record successful payments automatically.</p>
+            </div>
+            {isAdmin && (
+              <Button size="sm" variant={open === "razorpay" ? "ghost" : "ink"} aria-expanded={open === "razorpay"} onClick={() => setOpen(open === "razorpay" ? undefined : "razorpay")}>
+                {open === "razorpay" ? "Hide" : status?.razorpay.ready ? "Manage" : "Set up"}
+              </Button>
+            )}
+          </div>
+          {open === "razorpay" && <RazorpaySetup state={setup} ready={!!status?.razorpay.ready} webhook={!!status?.razorpay.webhook} />}
+        </li>
       </ul>
       {IS_DEMO && <p className="t-meta mt-4 text-ink-3">Demo: connection status here is sample data.</p>}
     </>
@@ -496,34 +554,52 @@ export function RoutingRoute() {
 
 /* ---------- Notifications ---------- */
 const EVENTS = [
-  ["lead", "New lead arrives", "Any channel, unassigned or assigned to you"],
-  ["assigned", "Something is assigned to you", "Conversations, deals, tasks"],
-  ["won", "A deal is won", "Across the studio"],
-  ["overdue", "An invoice goes overdue", "Admins and the deal owner"],
-  ["task", "A task is due", "At the due time, IST"],
-] as const;
+  ["lead", "New lead arrives", "A connected channel routes a new enquiry to you"],
+  ["assigned", "Lead assigned", "A conversation or sales lead is assigned to you"],
+  ["project", "Project assigned", "You are added as manager or crew"],
+  ["task", "Task assigned", "A new task is given to you"],
+  ["comment", "Task comment", "Someone comments on your task"],
+  ["won", "Booking confirmed", "A lead is moved to the confirmed stage"],
+  ["accepted", "Quotation accepted", "The accepted quote confirms the booking"],
+  ["late", "Reply overdue", "A new lead has waited beyond the reply target"],
+  ["summary", "Daily work summary", "Tasks, follow-ups, payments, approvals, deadlines and upcoming weddings"],
+] as const satisfies readonly (readonly [NotificationKind, string, string])[];
 export function NotificationsRoute() {
-  const [prefs, setPrefs] = useState<Record<string, { app: boolean; email: boolean }>>({
-    lead: { app: true, email: false },
-    assigned: { app: true, email: true },
-    won: { app: true, email: false },
-    overdue: { app: true, email: true },
-    task: { app: true, email: false },
-  });
-  const set = (k: string, ch: "app" | "email", v: boolean) => setPrefs((p) => ({ ...p, [k]: { ...p[k]!, [ch]: v } }));
+  const [prefs, setPrefs] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
+  const [loaded, setLoaded] = useState(IS_DEMO);
+  const [saving, setSaving] = useState<NotificationKind>();
+  useEffect(() => {
+    if (IS_DEMO) return;
+    api<NotificationPreferences>("/notification-preferences").then(setPrefs, (e) => toast(`Couldn't load notification settings — ${(e as Error).message}`)).finally(() => setLoaded(true));
+  }, []);
+  const set = async (kind: NotificationKind, value: boolean) => {
+    const before = prefs;
+    const next = { app: { ...prefs.app, [kind]: value } };
+    setPrefs(next);
+    if (IS_DEMO) return;
+    setSaving(kind);
+    try {
+      setPrefs(await api<NotificationPreferences>("/notification-preferences", { method: "PUT", body: next }));
+    } catch (e) {
+      setPrefs(before);
+      toast(`Couldn't save — ${(e as Error).message}`);
+    } finally {
+      setSaving(undefined);
+    }
+  };
   return (
     <>
-      <SettingsHeader title="Notifications" body="What you hear about, and where. These are yours; teammates set their own." />
-      <div className="mb-1 grid grid-cols-[minmax(0,1fr)_64px_64px] gap-4 pb-2 font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
-        <span>Event</span><span className="text-center">In app</span><span className="text-center">Email</span>
+      <SettingsHeader title="Notifications" body="Choose the in-app alerts you receive. These settings are yours; teammates set their own." />
+      <div className="mb-1 grid grid-cols-[minmax(0,1fr)_64px] gap-4 pb-2 font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
+        <span>Event</span><span className="text-center">In app</span>
       </div>
       {EVENTS.map(([k, label, hint]) => (
-        <div key={k} className="grid grid-cols-[minmax(0,1fr)_64px_64px] items-center gap-4 border-t border-line py-3">
+        <div key={k} className="grid grid-cols-[minmax(0,1fr)_64px] items-center gap-4 border-t border-line py-3">
           <div><div className="t-dense font-medium">{label}</div><div className="text-[12px] text-ink-3">{hint}</div></div>
-          <span className="flex justify-center"><Switch label={`${label} in app`} checked={prefs[k]!.app} onChange={(v) => set(k, "app", v)} /></span>
-          <span className="flex justify-center"><Switch label={`${label} by email`} checked={prefs[k]!.email} onChange={(v) => set(k, "email", v)} /></span>
+          <span className="flex justify-center opacity-100 disabled:opacity-50"><Switch label={`${label} in app`} checked={prefs.app[k]} onChange={(v) => loaded && saving === undefined && void set(k, v)} /></span>
         </div>
       ))}
+      <p className="t-meta mt-4 text-ink-3">Email alerts are intentionally off while the Google connection remains read-only. The daily in-app summary runs at 8:30 am IST.</p>
     </>
   );
 }

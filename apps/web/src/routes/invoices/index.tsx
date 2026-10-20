@@ -1,6 +1,6 @@
 import { fmtDate, fmtDay, formatCompact, formatFull, lakh, rupees } from "@pinnacle/shared";
 import { Button, cn, Input, MoneyText, Pill, Segmented, Sheet, Table, TBody, TD, TH, THead, toast, TR } from "@pinnacle/ui";
-import { Ban, FileDown, FileText, Pencil, Plus, ReceiptText, Send } from "lucide-react";
+import { Ban, FileDown, FileText, Link2, Pencil, Plus, ReceiptText, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { PaymentsDue } from "../../components/payments-due";
@@ -257,6 +257,33 @@ function InvoiceActions({ inv }: { inv: Invoice }) {
       <Button variant="ghost" size="sm" onClick={() => navigate(`/invoices/${inv.id}/print`)}>
         <FileDown strokeWidth={1.5} /> PDF
       </Button>
+      {isManager && t.due > 0 && inv.sent && !inv.cancelled && st !== "credited" && (
+        inv.paymentLink?.status === "created" && inv.paymentLink.amountPaise === t.due ? (
+          <Button asChild variant="outline" size="sm">
+            <a href={inv.paymentLink.url} target="_blank" rel="noreferrer"><Link2 strokeWidth={1.5} /> Open payment link</a>
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const { paymentLink } = await api<{ paymentLink: NonNullable<Invoice["paymentLink"]> }>(`/invoices/${inv.id}/payment-link`, { method: "POST" });
+                useCrm.setState((s) => ({ invoices: s.invoices.map((i) => (i.id === inv.id ? { ...i, paymentLink } : i)) }));
+                toast("Payment link ready", { action: { label: "Open", onClick: () => window.open(paymentLink.url, "_blank", "noopener,noreferrer") } });
+              } catch (e) {
+                toast(`Couldn't create payment link — ${(e as Error).message}`);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            <Link2 strokeWidth={1.5} /> {busy ? "Creating…" : "Payment link"}
+          </Button>
+        )
+      )}
       {isManager && inv.sent && !inv.cancelled && creditable > 0 && !crediting && (
         <Button variant="ghost" size="sm" onClick={() => setCrediting(true)}>
           <ReceiptText strokeWidth={1.5} /> Credit note

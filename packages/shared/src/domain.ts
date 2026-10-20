@@ -114,6 +114,15 @@ export const SERVICES: Record<Business, string[]> = {
   marketing: ["Social media management", "Performance marketing", "Branding", "Website development", "Content creation", "Graphic design", "Video production", "SEO"],
 };
 
+/* ---------- Notifications ---------- */
+/** In-app notification groups each teammate can turn on or off for themselves. */
+export const NOTIFICATION_KINDS = ["lead", "assigned", "project", "task", "comment", "won", "accepted", "late", "summary"] as const;
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+export type NotificationPreferences = { app: Record<NotificationKind, boolean> };
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  app: Object.fromEntries(NOTIFICATION_KINDS.map((kind) => [kind, true])) as Record<NotificationKind, boolean>,
+};
+
 /* ---------- Projects ---------- */
 export const TASK_STATUSES = ["todo", "in_progress", "review", "done"] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];

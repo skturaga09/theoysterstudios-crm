@@ -23,6 +23,7 @@ import { ME_ID } from "../../data/seed";
 import { defaultBusiness, defaultOwnerId, useAccess, useCrm, useCanAssign } from "../../data/store";
 import type { Conversation } from "../../data/types";
 import { IS_DEMO } from "../../lib/demo";
+import { api } from "../../lib/api";
 import { useCreateAction, useListNav } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 
@@ -279,7 +280,7 @@ function Thread({ c }: { c: Conversation }) {
               <span className="t-eyebrow text-ink-3">Fill in to create a deal from this conversation</span>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
             <label className="flex flex-col gap-1">
               <span className="text-[11.5px] text-ink-3">Business</span>
               <Select value={draft.business} onChange={(e) => setDraft({ ...draft, business: e.target.value as Business })} className="[&_select]:h-8">
@@ -349,24 +350,27 @@ function Composer({ c }: { c: Conversation }) {
   const reply = useCrm((s) => s.reply);
   const [text, setText] = useState("");
   const [tpl, setTpl] = useState(TEMPLATES[0]!.id);
+  const [busy, setBusy] = useState(false);
   const now = Date.now();
   const wa = c.channel === "whatsapp";
-  const windowOpen = !wa || (c.windowExpiresAt && +new Date(c.windowExpiresAt) > now);
+  const windowOpen = !wa || (!!c.windowExpiresAt && +new Date(c.windowExpiresAt) > now);
   const hoursLeft = c.windowExpiresAt ? Math.round((+new Date(c.windowExpiresAt) - now) / 3600_000) : 0;
   const via = c.channel === "calendar" || c.channel === "web" ? "Gmail" : CHANNEL_LABEL[c.channel];
 
-  // Live: the CRM reads conversations; replies happen in the channel's own app.
-  if (!IS_DEMO)
+  if (c.channel === "facebook")
+    return (
+      <div className="rounded-card bg-sunken p-4 t-dense text-ink-2">
+        Lead Ads leads can't be replied to in Messenger. Call or WhatsApp <span className="font-mono text-ink">{c.handle}</span>, then log it on the deal.
+      </div>
+    );
+
+  // Gmail and Calendar stay read-only. WhatsApp and Instagram use the server reply endpoint below.
+  if (!IS_DEMO && c.channel !== "whatsapp" && c.channel !== "instagram")
     return (
       <div className="flex flex-wrap items-center gap-3 rounded-card bg-sunken p-4 t-dense text-ink-2">
         <span className="min-w-0 flex-1">
           {c.channel === "calendar" ? "Booked through your calendar. Reply by email; your replies appear here." : `Replies are sent from ${CHANNEL_LABEL[c.channel]} itself; they appear here when they're sent.`}
         </span>
-        {c.channel === "instagram" && c.handle && (
-          <Button asChild size="sm" variant="ink">
-            <a href={`https://ig.me/m/${c.handle.replace(/^@/, "")}`} target="_blank" rel="noreferrer">Reply in Instagram</a>
-          </Button>
-        )}
         {c.channel === "gmail" && c.gmailThread && (
           <Button asChild size="sm" variant="ink">
             <a href={`https://mail.google.com/mail/?authuser=${encodeURIComponent(c.gmailThread.account)}#all/${c.gmailThread.threadId}`} target="_blank" rel="noreferrer">Reply in Gmail</a>
@@ -379,17 +383,21 @@ function Composer({ c }: { c: Conversation }) {
         )}
       </div>
     );
-  if (c.channel === "facebook")
-    return (
-      <div className="rounded-card bg-sunken p-4 t-dense text-ink-2">
-        Lead Ads leads can't be replied to in Messenger. Call or WhatsApp <span className="font-mono text-ink">{c.handle}</span>, then log it on the deal.
-      </div>
-    );
-
-  const send = (body: string) => {
-    reply(c.id, body);
-    setText("");
-    toast(`Sent on ${via}`);
+  const send = async (body: string) => {
+    setBusy(true);
+    try {
+      if (IS_DEMO) reply(c.id, body);
+      else {
+        const saved = await api<Conversation>(`/conversations/${c.id}/reply`, { method: "POST", body: { body } });
+        useCrm.setState((s) => ({ conversations: s.conversations.map((x) => (x.id === saved.id ? saved : x)) }));
+      }
+      setText("");
+      toast(`Sent on ${via}`);
+    } catch (e) {
+      toast(`Couldn't send — ${(e as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -406,7 +414,7 @@ function Composer({ c }: { c: Conversation }) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (text.trim()) send(text.trim());
+            if (text.trim()) void send(text.trim());
           }}
           className="flex flex-col gap-2"
         >
@@ -414,7 +422,7 @@ function Composer({ c }: { c: Conversation }) {
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && text.trim()) send(text.trim());
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && text.trim()) void send(text.trim());
             }}
             placeholder={`Reply to ${c.name.split(" ")[0]} on ${via}…`}
             aria-label="Reply"
@@ -422,23 +430,26 @@ function Composer({ c }: { c: Conversation }) {
           />
           <div className="flex items-center gap-2">
             <span className="font-mono text-[11px] text-ink-3">⌘ Enter to send</span>
-            <Button type="submit" variant="ink" size="sm" className="ml-auto" disabled={!text.trim()}>
-              <Send strokeWidth={1.5} /> Send on {via}
+            <Button type="submit" variant="ink" size="sm" className="ml-auto" disabled={!text.trim() || busy}>
+              <Send strokeWidth={1.5} /> {busy ? "Sending…" : `Send on ${via}`}
             </Button>
           </div>
         </form>
-      ) : (
+      ) : IS_DEMO ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Select value={tpl} onChange={(e) => setTpl(e.target.value)} aria-label="Template" className="sm:max-w-[280px]">
             {TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
           </Select>
           <p className="t-meta m-0 flex-1 text-ink-3">{TEMPLATES.find((t) => t.id === tpl)!.body.replace("{{1}}", c.name.split(" ")[0]!)}</p>
-          <Button variant="ink" size="sm" onClick={() => send(TEMPLATES.find((t) => t.id === tpl)!.body.replace("{{1}}", c.name.split(" ")[0]!))}>
+          <Button variant="ink" size="sm" onClick={() => void send(TEMPLATES.find((t) => t.id === tpl)!.body.replace("{{1}}", c.name.split(" ")[0]!))}>
             <Send strokeWidth={1.5} /> Send template
           </Button>
+        </div>
+      ) : (
+        <div className="rounded-card bg-warn-wash p-4 t-dense text-warn">
+          The 24-hour reply window has closed. WhatsApp only accepts an approved template now; payment reminders can still be sent from the invoice or payment schedule.
         </div>
       )}
     </div>
   );
 }
-

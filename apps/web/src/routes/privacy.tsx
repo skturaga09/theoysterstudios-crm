@@ -33,10 +33,11 @@ export function PrivacyPage() {
         <h2>What we keep</h2>
         <ul>
           <li>When you message our Instagram account: your Instagram name and username, the messages in that conversation, and when they were sent.</li>
+          <li>When you message our WhatsApp Business number: your WhatsApp name and phone number, the messages in that conversation, and when they were sent.</li>
           <li>When you email us or book a meeting with us: your name, email address, the message or booking, and when it was sent.</li>
           <li>If we go on to work together: the contact details you give us, what we agree to do, and our invoices to you.</li>
         </ul>
-        <p>We do not collect anything else from your Instagram, email or calendar account, and we never post, send or change anything on your behalf.</p>
+        <p>We do not collect anything else from your Instagram, WhatsApp, email or calendar account. Our team can reply to your Instagram and WhatsApp messages from this system; it never posts publicly or changes your account.</p>
 
         <h2>Why we keep it</h2>
         <p>To answer your enquiry, follow up on it, and — if you become a client — deliver our work and bill for it. We do not sell your information or use it for advertising.</p>
@@ -60,12 +61,12 @@ export function PrivacyPage() {
 
         <h2 id="delete">Deleting your data</h2>
         <p>
-          To have your information removed, email {email} with your name and the Instagram username or email address you contacted us from. We will delete
+          To have your information removed, email {email} with your name and the Instagram username, WhatsApp number or email address you contacted us from. We will delete
           your messages and contact details within 30 days and confirm by email. Invoices we are legally required to keep are kept, without anything beyond
           what the law requires.
         </p>
 
-        <p className="t-meta mt-10 text-ink-3">Last updated: 14 October 2026</p>
+        <p className="t-meta mt-10 text-ink-3">Last updated: 20 October 2026</p>
       </article>
     </main>
   );

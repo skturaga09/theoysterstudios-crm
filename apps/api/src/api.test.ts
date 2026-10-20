@@ -45,7 +45,7 @@ const fakeInstagram: typeof fetch = async (input, init) => {
 /** Stand-in for Google: one mailbox's history and messages, a calendar, and the token endpoints. */
 const g = {
   calls: [] as string[],
-  scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly",
+  scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.file",
   history: [] as { id: string; labelIds: string[] }[],
   messages: {} as Record<string, object>,
   events: [] as object[],
@@ -69,6 +69,7 @@ const fakeGoogle: typeof fetch = async (input, init) => {
   const msg = url.match(/users\/me\/messages\/([^?]+)/);
   if (msg) return g.messages[msg[1]!] ? ok(g.messages[msg[1]!]!) : ok({}, 404);
   if (url.startsWith("https://www.googleapis.com/calendar/v3/calendars/primary/events")) return ok({ items: g.events, nextSyncToken: "sync-2" });
+  if (url.startsWith("https://www.googleapis.com/drive/v3/files")) return ok({ id: "drive-folder-1", webViewLink: "https://drive.google.com/drive/folders/drive-folder-1" });
   return fakeInstagram(input, init);
 };
 
@@ -87,7 +88,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "calendarFeeds"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "notificationPreferences", "calendarFeeds"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify, fetch: fakeGoogle });
@@ -335,6 +336,10 @@ describe("auth", () => {
     expect(conv).toMatchObject({ channel: "instagram", name: "Riya Mehta", handle: "@riya.m", assigneeId: meId, unread: true });
     expect(conv.messages.map((m: { direction: string }) => m.direction)).toEqual(["in", "out"]);
     expect(conv.externalId).toBeUndefined();
+    const replied = await call("POST", `/conversations/${conv.id}/reply`, { body: "Absolutely — what date do you need it?" });
+    expect(replied.statusCode).toBe(200);
+    expect(replied.json().messages.at(-1)).toMatchObject({ direction: "out", body: "Absolutely — what date do you need it?" });
+    expect(igCalls.at(-1)).toBe("POST https://graph.instagram.com/v21.0/me/messages");
     expect((await call("PATCH", `/conversations/${conv.id}`, { unread: false, dealId: "d-1" })).json()).toMatchObject({ unread: false, dealId: "d-1" });
     expect((await call("PATCH", `/conversations/${conv.id}`, { dealId: null })).json().dealId).toBeUndefined();
   });
@@ -357,7 +362,7 @@ describe("auth", () => {
     // Any teammate can start; Google returns to a one-time link.
     const { url } = (await call("POST", "/integrations/google/start", { origin: "https://crm.example.com" }, "ok:teammate@gmail.com")).json();
     const u = new URL(url);
-    expect(u.searchParams.get("scope")).toBe("https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly");
+    expect(u.searchParams.get("scope")).toBe("https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.file");
     expect(u.searchParams.get("access_type")).toBe("offline");
     const back = await app.inject({ url: `/api/integrations/google/callback?code=c1&state=${u.searchParams.get("state")}` });
     expect(back.headers.location).toBe("https://crm.example.com/settings/integrations?google=connected&detail=studio%40theoysterstudios.com");
@@ -370,7 +375,7 @@ describe("auth", () => {
     const { url: url2 } = (await call("POST", "/integrations/google/start", { origin: "https://crm.example.com" })).json();
     const back2 = await app.inject({ url: `/api/integrations/google/callback?code=c2&state=${new URL(url2).searchParams.get("state")}` });
     expect(back2.headers.location).toContain("google=error");
-    g.scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly";
+    g.scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.file";
 
     // Mail since the last check: a new lead, a newsletter, a colleague, and our reply.
     await call("POST", "/contacts", { name: "Asha Rao", email: "asha@client.in", ownerId: meId, source: "referral" });
@@ -406,6 +411,13 @@ describe("auth", () => {
     g.calls.length = 0;
     await syncGoogle(deps.db, fakeGoogle);
     expect(g.calls).toContain("POST https://oauth2.googleapis.com/token");
+
+    // Project folders use drive.file and are created only once.
+    const folderProject = (await call("POST", "/projects", { name: "Atlas campaign", business: "marketing", companyId: "c1", status: "active", events: [], crew: [], deliverables: [], links: [] })).json();
+    const withFolder = (await call("POST", `/projects/${folderProject.id}/drive-folder`)).json();
+    expect(withFolder.links).toContainEqual({ label: "Google Drive folder", url: "https://drive.google.com/drive/folders/drive-folder-1" });
+    expect((await call("POST", `/projects/${folderProject.id}/drive-folder`)).json().links).toHaveLength(1);
+    expect(g.calls).toContain("POST https://www.googleapis.com/drive/v3/files/drive-folder-1/permissions"); // shared with the studio's domain
 
     // Disconnect: not by someone else's teammate; yes by an admin, and Google access is withdrawn.
     await call("POST", "/members", { email: "other@gmail.com" });
@@ -678,6 +690,12 @@ describe("api", () => {
     await call("GET", "/me", undefined, as); // signs in: active
     const mine = async () => (await call("GET", "/notifications", undefined, as)).json() as { id: string; kind: string; text: string; read: boolean }[];
     expect(await mine()).toEqual([]);
+    const prefs = (await call("GET", "/notification-preferences", undefined, as)).json();
+    expect(prefs.app).toMatchObject({ lead: true, task: true, summary: true });
+    expect((await call("PUT", "/notification-preferences", { app: { ...prefs.app, task: false } }, as)).json().app.task).toBe(false);
+    await call("POST", "/tasks", { title: "Muted assignment", dueAt: "2027-10-01T09:00:00+05:30", assigneeId: nina });
+    expect(await mine()).toEqual([]);
+    await call("PUT", "/notification-preferences", prefs, as);
     const t = (await call("POST", "/tasks", { title: "Colour grade the teaser", dueAt: "2026-10-01T10:00:00+05:30", assigneeId: nina })).json();
     await call("POST", `/tasks/${t.id}/comments`, { body: "Use the warm LUT" });
     await call("PATCH", `/tasks/${t.id}`, { status: "in_progress" }, as); // her own change: no notice

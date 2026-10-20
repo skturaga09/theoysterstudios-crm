@@ -3,7 +3,7 @@
  * web bundle doesn't ship zod until forms need it (M1+).
  */
 import { z } from "zod";
-import { APPROVALS, EXPENSE_CATEGORIES, BUSINESSES, CHANNELS, DELIVERABLE_STATUSES, HEALTHS, PRIORITIES, PROJECT_STATUSES, ROLES, TASK_STATUSES } from "./domain";
+import { APPROVALS, EXPENSE_CATEGORIES, BUSINESSES, CHANNELS, DELIVERABLE_STATUSES, HEALTHS, NOTIFICATION_KINDS, PRIORITIES, PROJECT_STATUSES, ROLES, TASK_STATUSES } from "./domain";
 import { gstState, GSTIN_RE } from "./gst";
 
 /** A stage id from the deal's business pipeline (checked against it by the API). */
@@ -31,6 +31,10 @@ export const AddMemberSchema = z.object({
 export type AddMemberInput = z.infer<typeof AddMemberSchema>;
 
 export const UpdateMemberSchema = z.object({ role: RoleSchema });
+
+export const NotificationPreferencesSchema = z.object({
+  app: z.object(Object.fromEntries(NOTIFICATION_KINDS.map((kind) => [kind, z.boolean()])) as Record<(typeof NOTIFICATION_KINDS)[number], z.ZodBoolean>),
+});
 
 /* ---------- CRM records (API input) ---------- */
 const id = z.string().trim().min(1).max(64);

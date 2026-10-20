@@ -8,9 +8,8 @@ import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
 
 /**
- * Setup panels opened from the Integrations page (admins): the steps for connecting Gmail, Calendar and
- * Instagram. Covers only the client's own Google Workspace and Meta accounts — hosting, billing and costs
- * are managed outside the app.
+ * Setup panels opened from the Integrations page (admins): Google, Instagram, WhatsApp and Razorpay.
+ * Hosting, billing and costs are managed outside the app.
  */
 
 /** A value to type exactly, with a copy button. */
@@ -75,10 +74,29 @@ type Keys = {
   metaAppSecretSaved: boolean;
   /** Pasted into Meta so it can prove it's talking to this CRM; shown to admins. */
   webhookVerifyToken: string;
+  razorpayKeyId: string;
+  razorpayKeySecretSaved: boolean;
+  razorpayWebhookSecretSaved: boolean;
+  whatsappPhoneNumberId: string;
+  whatsappTokenSaved: boolean;
+  whatsappReminderTemplate: string;
+  whatsappTemplateLanguage: string;
 };
 
 /** Paste the keys from Google or Meta. Secrets are write-only: once saved they're never shown again. */
-type KeyField = "googleClientId" | "googleClientSecret" | "instagramAppId" | "instagramAppSecret" | "metaAppSecret";
+type KeyField =
+  | "googleClientId"
+  | "googleClientSecret"
+  | "instagramAppId"
+  | "instagramAppSecret"
+  | "metaAppSecret"
+  | "razorpayKeyId"
+  | "razorpayKeySecret"
+  | "razorpayWebhookSecret"
+  | "whatsappPhoneNumberId"
+  | "whatsappToken"
+  | "whatsappReminderTemplate"
+  | "whatsappTemplateLanguage";
 
 function KeysForm({ fields, keys, onSaved }: { fields: { key: KeyField; label: string; secret?: boolean; placeholder: string }[]; keys?: Keys; onSaved: (k: Keys) => void }) {
   const [values, setValues] = useState<Record<string, string>>({});
@@ -156,13 +174,13 @@ const googleSteps = (redirect: string): Step[] => {
   return [
     { id: "g-console", title: "Open Google Cloud as your Workspace super admin", body: <>Go to console.cloud.google.com, signed in with the theoysterstudios.com super admin account, and accept the terms if asked.</> },
     { id: "g-project", title: "Create a project inside your organisation", body: <>Name it <em>Oyster CRM Integrations</em> and choose <strong>theoysterstudios.com</strong> as the organisation — not "No organisation".</> },
-    { id: "g-apis", title: "Turn on the Gmail and Calendar APIs", body: <>APIs &amp; Services → Library → search for and <strong>Enable</strong> both <strong>Gmail API</strong> and <strong>Google Calendar API</strong>.</> },
+    { id: "g-apis", title: "Turn on the Gmail, Calendar and Drive APIs", body: <>APIs &amp; Services → Library → enable <strong>Gmail API</strong>, <strong>Google Calendar API</strong> and <strong>Google Drive API</strong>.</> },
     { id: "g-branding", title: "Name the app", body: <>Google Auth Platform → Branding: app name <em>The Oyster Studios CRM</em>; support and developer contact = your own email. Save.</> },
     { id: "g-internal", title: "Keep it inside your company", body: <>Google Auth Platform → Audience → choose <strong>Internal</strong>. Only theoysterstudios.com accounts can connect, and Google's long review is skipped.</> },
     {
       id: "g-scopes",
-      title: "Allow read-only access",
-      body: <>Google Auth Platform → Data access → Add or remove scopes → add exactly these two: <Copyable value="https://www.googleapis.com/auth/gmail.readonly" /><Copyable value="https://www.googleapis.com/auth/calendar.readonly" /></>,
+      title: "Allow mail, calendar and CRM-created Drive folders",
+      body: <>Google Auth Platform → Data access → Add or remove scopes → add exactly these three. The Drive scope can only manage files this CRM creates; it cannot browse the rest of Drive.<Copyable value="https://www.googleapis.com/auth/gmail.readonly" /><Copyable value="https://www.googleapis.com/auth/calendar.readonly" /><Copyable value="https://www.googleapis.com/auth/drive.file" /></>,
     },
     { id: "g-client", title: "Create the CRM's login client", body: <>Google Auth Platform → Clients → Create client → type <strong>Web application</strong>, name <em>CRM</em>. Under Authorised redirect URIs add exactly: <Copyable value={redirect} />Click Create. Google shows a Client ID and a Client secret — paste both below.</> },
     { id: "g-trust", title: "Let your team connect", body: <>admin.google.com → Security → Access and data control → API controls → Settings → tick <strong>Trust internal, domain-owned apps</strong>.</> },
@@ -195,10 +213,33 @@ const metaSteps = (site: string, verifyToken: string): Step[] => [
       ),
     },
     { id: "m-live", title: "Switch the app to Live", body: <>At the top of the app dashboard, switch App mode from Development to <strong>Live</strong>. Meta only sends messages to Live apps.</> },
-  ];
+];
 
-export const setupProgress = (state: SetupState, kind: "google" | "meta") => {
-  const steps = kind === "google" ? googleSteps("") : metaSteps("", "");
+const whatsappSteps = (site: string, verifyToken: string): Step[] => [
+  { id: "w-product", title: "Add WhatsApp to your Meta app", body: <>developers.facebook.com → your CRM app → Add products → <strong>WhatsApp</strong> → Set up. Choose the studio's Meta Business portfolio.</> },
+  { id: "w-number", title: "Add and verify the studio's phone number", body: <>WhatsApp → API Setup → Add phone number. Complete Meta's display-name review and copy the <strong>Phone number ID</strong> shown on that page.</> },
+  { id: "w-token", title: "Create a permanent access token", body: <>Business settings → Users → System users → create an Admin system user, add the CRM app and WhatsApp account, then generate a token with <strong>whatsapp_business_messaging</strong> and <strong>whatsapp_business_management</strong>. Paste it below.</> },
+  {
+    id: "w-webhook",
+    title: "Send incoming messages to the CRM",
+    body: verifyToken ? <>WhatsApp → Configuration → Webhook. Callback URL:<Copyable value={`${site}/api/integrations/whatsapp/webhook`} />Verify token:<Copyable value={verifyToken} />Verify and save, then subscribe to the <strong>messages</strong> field.</> : <>Open this step again after the keys below have loaded.</>,
+  },
+  {
+    id: "w-template",
+    title: "Submit the payment reminder template",
+    body: <>WhatsApp Manager → Message templates → Create template. Category: <strong>Utility</strong>; name: <strong>payment_reminder</strong>; language: English. Body:<Copyable value="Hello {{1}}, this is a reminder from {{2}}: {{3}} of {{4}} is due by {{5}}." />Submit it to Meta, then paste the approved template name and language below.</>,
+  },
+];
+
+const razorpaySteps = (site: string): Step[] => [
+  { id: "r-account", title: "Open the studio's Razorpay account", body: <>Sign in at dashboard.razorpay.com and finish account activation before using Live keys.</> },
+  { id: "r-keys", title: "Create API keys", body: <>Account &amp; Settings → API Keys → Generate Key. Copy the Key ID and Key secret and paste them below. Start with Test mode if you want to make a trial payment.</> },
+  { id: "r-webhook", title: "Create the payment webhook", body: <>Account &amp; Settings → Webhooks → Add New Webhook. URL:<Copyable value={`${site}/api/integrations/razorpay/webhook`} />Create a strong webhook secret and paste the same value below. Subscribe to <strong>payment_link.paid</strong>.</> },
+  { id: "r-test", title: "Make one test payment", body: <>From a sent test invoice, create a Payment link and complete it with Razorpay's test payment details. Confirm the invoice changes to Paid only once.</> },
+];
+
+export const setupProgress = (state: SetupState, kind: "google" | "meta" | "whatsapp" | "razorpay") => {
+  const steps = kind === "google" ? googleSteps("") : kind === "meta" ? metaSteps("", "") : kind === "whatsapp" ? whatsappSteps("", "") : razorpaySteps("");
   return { done: steps.filter((s) => state.done.has(s.id)).length, total: steps.length };
 };
 
@@ -282,7 +323,7 @@ export function GoogleAccounts({ status, onChanged }: { status?: IntegrationStat
         )}
         {!ready && <span className="t-meta text-ink-3">Available once the setup steps above are done and the keys saved.</span>}
       </div>
-      <p className="t-meta m-0 mt-3 text-ink-3">Checked every minute. New emails from outside the company and new meetings with people you don't know yet become leads in Inbox; newsletters and automated mail are skipped.</p>
+      <p className="t-meta m-0 mt-3 text-ink-3">Checked every minute. New emails from outside the company and new meetings with people you don't know yet become leads in Inbox; newsletters and automated mail are skipped. After enabling Drive, reconnect existing accounts once to grant the new folder permission.</p>
     </div>
   );
 }
@@ -349,6 +390,54 @@ export function MetaSetup({ state, connected }: { state: SetupState; connected: 
           {busy ? "Opening Instagram…" : connected ? "Reconnect Instagram" : "Connect Instagram"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/** WhatsApp Cloud API keys, webhook and approved reminder template. */
+export function WhatsAppSetup({ state, connected }: { state: SetupState; connected: boolean }) {
+  const site = window.location.origin;
+  return (
+    <div className="mt-4">
+      <p className="t-meta m-0 mb-3 text-ink-3">For your Meta Business admin · about 25 minutes. Incoming messages and Inbox replies use the Cloud API; payment reminders use the approved template below.</p>
+      <Steps steps={whatsappSteps(site, state.keys?.webhookVerifyToken ?? "")} done={state.done} toggle={state.toggle} />
+      <KeysForm
+        keys={state.keys}
+        onSaved={state.setKeys}
+        fields={[
+          { key: "whatsappPhoneNumberId", label: "Phone number ID", placeholder: "From WhatsApp → API Setup" },
+          { key: "whatsappToken", label: "Permanent access token", secret: true, placeholder: "Starts with EA…" },
+          { key: "metaAppSecret", label: "Meta App secret (webhook signatures)", secret: true, placeholder: "From App settings → Basic" },
+          { key: "whatsappReminderTemplate", label: "Approved reminder template", placeholder: "payment_reminder" },
+          { key: "whatsappTemplateLanguage", label: "Template language", placeholder: "en or en_US" },
+        ]}
+      />
+      <p className={cn("t-dense m-0 mt-4 rounded-panel border px-4 py-3", connected ? "border-ok/30 bg-ok-wash text-ok" : "border-line bg-surface text-ink-2")}>
+        {connected ? "WhatsApp Cloud API is connected. New messages will arrive in Inbox and replies can be sent during the 24-hour window." : "Save the Phone number ID, permanent token and Meta App secret to connect WhatsApp."}
+      </p>
+    </div>
+  );
+}
+
+/** Razorpay keys and paid-link webhook setup. */
+export function RazorpaySetup({ state, ready, webhook }: { state: SetupState; ready: boolean; webhook: boolean }) {
+  const site = window.location.origin;
+  return (
+    <div className="mt-4">
+      <p className="t-meta m-0 mb-3 text-ink-3">For the studio's Razorpay owner · about 10 minutes. The CRM creates links only for sent invoices and records signed webhook payments once.</p>
+      <Steps steps={razorpaySteps(site)} done={state.done} toggle={state.toggle} />
+      <KeysForm
+        keys={state.keys}
+        onSaved={state.setKeys}
+        fields={[
+          { key: "razorpayKeyId", label: "Key ID", placeholder: "rzp_live_… or rzp_test_…" },
+          { key: "razorpayKeySecret", label: "Key secret", secret: true, placeholder: "Paste the key secret" },
+          { key: "razorpayWebhookSecret", label: "Webhook secret", secret: true, placeholder: "The secret entered in Razorpay" },
+        ]}
+      />
+      <p className={cn("t-dense m-0 mt-4 rounded-panel border px-4 py-3", ready && webhook ? "border-ok/30 bg-ok-wash text-ok" : "border-line bg-surface text-ink-2")}>
+        {ready && webhook ? "Razorpay is ready for payment links and signed payment webhooks." : ready ? "API keys are saved. Add the webhook secret to finish setup." : "Save the Key ID, Key secret and webhook secret to connect Razorpay."}
+      </p>
     </div>
   );
 }

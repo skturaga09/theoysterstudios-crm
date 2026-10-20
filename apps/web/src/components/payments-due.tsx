@@ -1,16 +1,21 @@
 import { fmtDate, formatFull } from "@pinnacle/shared";
-import { Button, MoneyText, Pill } from "@pinnacle/ui";
+import { Button, MoneyText, Pill, toast } from "@pinnacle/ui";
 import { MessageCircle } from "lucide-react";
 import { Link } from "react-router";
 import { invoiceStage, paymentsDue, whatsappReminder } from "../data/finance";
 import { useAccess, useCrm, useWorkspace } from "../data/store";
 import { STAGE_TONE } from "./deal/deal-money";
+import { useState } from "react";
+import { api } from "../lib/api";
+import { IS_DEMO } from "../lib/demo";
 
 /** Payment stages to chase this week: overdue first. Invoice them, or send the client a WhatsApp reminder. */
 export function PaymentsDue({ limit = 8 }: { limit?: number }) {
   const s = useCrm();
   const studio = useWorkspace();
   const canInvoice = useAccess("finance") === "edit";
+  const whatsappConnected = !IS_DEMO && s.channels.some((c) => c.channel === "whatsapp");
+  const [reminding, setReminding] = useState<string>();
   const due = paymentsDue(s.deals, s.invoices);
   return (
     <section>
@@ -33,11 +38,31 @@ export function PaymentsDue({ limit = 8 }: { limit?: number }) {
                 <MoneyText paise={amountPaise} />
                 <Pill tone={STAGE_TONE[state]}>{state[0]!.toUpperCase() + state.slice(1)}</Pill>
                 {!inv && canInvoice && <Button size="sm" onClick={() => void invoiceStage(deal.id, item.id)}>Invoice</Button>}
-                {contact?.phone && (
+                {contact?.phone && (whatsappConnected ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={reminding === `${deal.id}-${item.id}`}
+                    onClick={async () => {
+                      const key = `${deal.id}-${item.id}`;
+                      setReminding(key);
+                      try {
+                        await api(`/deals/${deal.id}/schedule/${item.id}/remind`, { method: "POST" });
+                        toast("WhatsApp reminder sent");
+                      } catch (e) {
+                        toast(`Couldn't send reminder — ${(e as Error).message}`);
+                      } finally {
+                        setReminding(undefined);
+                      }
+                    }}
+                  >
+                    <MessageCircle strokeWidth={1.5} /> {reminding === `${deal.id}-${item.id}` ? "Sending…" : "Remind"}
+                  </Button>
+                ) : (
                   <Button size="sm" variant="ghost" asChild>
                     <a href={whatsappReminder(contact.phone, text)} target="_blank" rel="noreferrer"><MessageCircle strokeWidth={1.5} /> Remind</a>
                   </Button>
-                )}
+                ))}
               </li>
             );
           })}

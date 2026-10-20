@@ -15,7 +15,7 @@ import {
   Textarea,
   toast,
 } from "@pinnacle/ui";
-import { FileText, MoreHorizontal, Paperclip } from "lucide-react";
+import { ExternalLink, FileText, MoreHorizontal, Paperclip } from "lucide-react";
 import { motion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
@@ -30,11 +30,6 @@ import { Timeline } from "./timeline";
 
 const healthTone = { ok: "ok", warn: "warn", risk: "risk" } as const;
 const statusTone = { draft: "mute", sent: "mute", partial: "warn", paid: "ok", overdue: "risk", cancelled: "mute", credited: "mute" } as const;
-const FILES: Record<string, [string, string][]> = {
-  "d-atlas": [["Retainer_Scope_v3.pdf", "PDF · 240 KB"], ["Brand_Guidelines_2025.pdf", "PDF · 3.1 MB"]],
-  "d-northwind": [["Northwind_Launch_Film_Proposal.pdf", "PDF · 1.8 MB"]],
-};
-
 export function DealHeading({ deal, size = "sheet" }: { deal: Deal; size?: "sheet" | "page" }) {
   const company = useCrm((s) => s.companies.find((c) => c.id === deal.companyId));
   const value = deal.valuePaise / 100;
@@ -283,8 +278,9 @@ export function DealSide({ deal }: { deal: Deal }) {
   const canInvoice = useAccess("finance") === "edit";
   const s = useCrm();
   const contacts = s.contacts.filter((c) => c.companyId === deal.companyId);
+  const company = s.companies.find((c) => c.id === deal.companyId);
   const invoices = s.invoices.filter((i) => i.dealId === deal.id);
-  const files = FILES[deal.id] ?? [];
+  const files = company?.links ?? [];
   return (
     <div className="flex flex-col gap-6">
       <section>
@@ -332,17 +328,18 @@ export function DealSide({ deal }: { deal: Deal }) {
         <h3 className="t-eyebrow m-0 mb-2 text-ink-3">Files · {files.length}</h3>
         {files.length ? (
           <ul className="m-0 list-none p-0">
-            {files.map(([n, meta]) => (
-              <li key={n} className="flex items-center gap-2.5 border-b border-line py-2 last:border-0">
+            {files.map((file) => (
+              <li key={file.url} className="flex items-center gap-2.5 border-b border-line py-2 last:border-0">
                 <Paperclip size={14} strokeWidth={1.5} className="text-ink-3" />
-                <span className="t-dense min-w-0 flex-1 truncate">{n}</span>
-                <span className="font-mono text-[11px] text-ink-3">{meta}</span>
+                <a href={file.url} target="_blank" rel="noreferrer" className="t-dense min-w-0 flex-1 truncate hover:underline">{file.label}</a>
+                <ExternalLink size={12} strokeWidth={1.5} className="text-ink-3" />
               </li>
             ))}
           </ul>
         ) : (
-          <p className="t-meta m-0 text-ink-3">Drop proposals, SOWs and contracts here (Cloud Storage, M3).</p>
+          <p className="t-meta m-0 text-ink-3">No linked proposals, agreements, contracts or briefs yet.</p>
         )}
+        {company && <Button asChild size="sm" variant="ghost" className="mt-2"><Link to={`/clients/${company.id}`}>Manage client documents</Link></Button>}
       </section>
     </div>
   );

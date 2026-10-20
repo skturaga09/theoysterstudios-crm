@@ -20,6 +20,7 @@ import {
   UpdateContactSchema,
   UpdateDealSchema,
   UpdateMemberSchema,
+  NotificationPreferencesSchema,
   UpdateTaskSchema,
   IntegrationKeysSchema,
   UpdateConversationSchema,
@@ -37,19 +38,26 @@ import {
   TemplatesSchema,
   type Workspace,
 } from "@pinnacle/shared/schemas";
-import { DEFAULT_FINANCE, DEFAULT_SAC, gstState, invoiceTotals as totalsOf, istDay, type FinanceSettings, accessOf, ROLE_LABEL, roleOf, type Area, DEFAULT_PIPELINES, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines } from "@pinnacle/shared";
+import { DEFAULT_FINANCE, DEFAULT_NOTIFICATION_PREFERENCES, DEFAULT_SAC, gstState, invoiceTotals as totalsOf, istDay, type FinanceSettings, accessOf, ROLE_LABEL, roleOf, type Area, DEFAULT_PIPELINES, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines, type NotificationPreferences } from "@pinnacle/shared";
 import { nameFromEmail, SUPPORT_MEMBER, type Member, type Verify } from "./auth";
 import type { Doc } from "./db";
-import { notify, type Notification } from "./notifications";
+import { notify, type Notification, type NotificationPreferencesDoc } from "./notifications";
 import { createPaymentLink, handleRazorpayWebhook, validRazorpaySignature, type RazorpayKeys } from "./razorpay";
 import { handleWhatsAppWebhook, sendReminder, sendText, type WhatsAppKeys } from "./whatsapp";
 import { feedFor, toIcs } from "./calendar";
 import { createCreditNote, createInvoice, financialYear, nextNumber } from "./invoices";
-import { exchangeGoogleCode, googleAuthorizeUrl, revokeGoogle, syncGoogle, type GoogleAccount } from "./google";
+import { createDriveFolder, shareWithDomain, exchangeGoogleCode, googleAccessToken, googleAuthorizeUrl, revokeGoogle, syncGoogle, type GoogleAccount } from "./google";
 import { sendInstagram, authorizeUrl, exchangeCode, handleWebhook, newVerifyToken, subscribeMessages, validSignature, type Fetch, type InstagramIntegration, type SetupKeys } from "./instagram";
 
 /** `_id` → `id`, matching the web app's types. */
 const out = ({ _id, ...rest }: { _id: string } & object) => ({ id: _id, ...rest });
+const conversationOut = ({ _id, externalId: _, lastInboundAt, ...rest }: Doc) => ({
+  id: _id,
+  ...rest,
+  ...(rest.channel === "whatsapp" && lastInboundAt
+    ? { windowExpiresAt: new Date(+new Date(String(lastInboundAt)) + 24 * 3_600_000).toISOString() }
+    : {}),
+});
 
 const ListQuery = z.object({
   // shortcut: the web app loads whole collections at sign-in; add paging past a few thousand records.
@@ -372,7 +380,7 @@ export function buildApp({
     if (access(req, "sales") === "none") return [];
     // Sales limited to their own deals sees the conversations assigned to them.
     const mine = (await ownDealIds(req)) ? { assigneeId: req.member._id } : {};
-    return (await conversationsCol.find(mine).sort({ lastMessageAt: -1 }).limit(2000).toArray()).map(({ _id, externalId: _, ...c }) => ({ id: _id, ...c }));
+    return (await conversationsCol.find(mine).sort({ lastMessageAt: -1 }).limit(2000).toArray()).map(conversationOut);
   });
   app.patch<{ Params: { id: string } }>("/conversations/:id", { preHandler: mayChange("sales") }, async (req, reply) => {
     const changes = UpdateConversationSchema.parse(req.body);
@@ -388,8 +396,7 @@ export function buildApp({
       await notify(db, [changes.assigneeId], { kind: "lead", text: `${req.member.name} gave you the conversation with ${doc.name}`, link: `/inbox/${doc._id}` }, req.member._id);
     Object.assign(doc, changes);
     for (const [k, v] of Object.entries(changes)) if (v === null) delete (doc as Record<string, unknown>)[k];
-    const { _id, externalId: _, ...c } = doc;
-    return { id: _id, ...c };
+    return conversationOut(doc);
   });
 
   /** Reply from the Inbox: goes out on WhatsApp or Instagram (within their 24-hour window) and joins the thread. */
@@ -413,8 +420,7 @@ export function buildApp({
     }
     const message = { id, direction: "out", body, at: now(), authorId: req.member._id };
     const saved = await conversationsCol.findOneAndUpdate({ _id: c._id }, { $push: { messages: message } as never, $set: { lastMessageAt: message.at, unread: false } }, { returnDocument: "after" });
-    const { _id, externalId: _, ...rest } = saved!;
-    return { id: _id, ...rest };
+    return conversationOut(saved!);
   });
 
   /* ---------- Lead routing (one ordered list of rules) ---------- */
@@ -607,6 +613,10 @@ export function buildApp({
     after: async (deal, req, existing) => {
       await onConfirmed(deal);
       if (deal.ownerId !== existing?.ownerId) await notify(db, [String(deal.ownerId)], { kind: "assigned", text: `${req.member.name} gave you the lead “${deal.title}”`, link: `/deals/${deal._id}` }, req.member._id);
+      if (deal.stage === "won" && existing?.stage !== "won") {
+        const admins = await members.find({ role: "admin", status: { $ne: "removed" } }, { projection: { _id: 1 } }).toArray();
+        await notify(db, [String(deal.ownerId), ...admins.map((m) => m._id)], { kind: "won", text: `${deal.title} was confirmed`, link: `/deals/${deal._id}` }, req.member._id);
+      }
     },
   });
   /** A confirmed deal makes its company a client (once) and starts its project. */
@@ -640,6 +650,38 @@ export function buildApp({
       throw e;
     }
     await db.collection<Doc>("tasks").insertMany(tasks.map((t) => ({ _id: new ObjectId().toHexString(), ...t, projectId })));
+    try {
+      await ensureProjectDriveFolder(projectId, String(project.managerId ?? ""));
+    } catch (e) {
+      // A missing/revoked Google account must not stop a confirmed deal becoming a project.
+      await db.collection<Doc>("projects").updateOne({ _id: projectId }, { $set: { driveFolderError: (e as Error).message.slice(0, 200) } });
+    }
+  }
+
+  /** Creates the project's one Drive folder, preferring the project manager's connected Google account. */
+  async function ensureProjectDriveFolder(projectId: string, preferredMemberId?: string) {
+    const projects = db.collection<Doc>("projects");
+    const project = await projects.findOne({ _id: projectId });
+    if (!project) throw Object.assign(new Error("Project not found"), { statusCode: 404 });
+    const existing = ((project.links as { label: string; url: string }[] | undefined) ?? []).find((l) => l.label === "Google Drive folder");
+    if (existing) return project;
+    const keys = (await getKeys()) as { googleClientId?: string; googleClientSecret?: string };
+    if (!keys.googleClientId || !keys.googleClientSecret) throw new Error("Finish Google setup in Settings → Integrations first");
+    const accounts = db.collection<GoogleAccount>("googleAccounts");
+    const account = (preferredMemberId ? await accounts.findOne({ connectedBy: preferredMemberId }) : null) ?? await accounts.findOne({});
+    if (!account) throw new Error("Connect a Google account in Settings → Integrations first");
+    const token = await googleAccessToken(db, f, { googleClientId: keys.googleClientId, googleClientSecret: keys.googleClientSecret }, account);
+    const folder = await createDriveFolder(f, token, String(project.name));
+    // Share it with the studio's Workspace domain so the whole team can open it (personal Gmail: left private).
+    const domain = (await getWorkspace()).googleDomain || account.email.split("@")[1];
+    let shareError: string | undefined;
+    if (domain && !/^(gmail|googlemail)\.com$/i.test(domain))
+      await shareWithDomain(f, token, folder.id, domain).catch((e: Error) => void (shareError = `Folder made, but not shared with ${domain}: ${e.message}`.slice(0, 200)));
+    return (await projects.findOneAndUpdate(
+      { _id: projectId },
+      { $push: { links: { label: "Google Drive folder", url: folder.url } } as never, $set: { driveFolderId: folder.id, ...(shareError && { driveFolderError: shareError }) }, ...(!shareError && { $unset: { driveFolderError: "" } }) },
+      { returnDocument: "after" },
+    ))!;
   }
   records("projects", CreateProjectSchema, UpdateProjectSchema, () => ({ createdAt: now() }), {
     area: "projects",
@@ -653,6 +695,14 @@ export function buildApp({
       const mine = await crewProjects(req);
       return mine && { _id: { $in: mine.map((p) => p._id) } };
     },
+  });
+  app.post<{ Params: { id: string } }>("/projects/:id/drive-folder", { preHandler: mayChange("projects", false) }, async (req, reply) => {
+    try {
+      return out(await ensureProjectDriveFolder(req.params.id, req.member._id));
+    } catch (e) {
+      const status = (e as { statusCode?: number }).statusCode ?? 409;
+      return reply.code(status).send({ error: (e as Error).message });
+    }
   });
 
   const tasks = records("tasks", CreateTaskSchema, UpdateTaskSchema, () => ({ done: false, comments: [] }), {
@@ -711,11 +761,21 @@ export function buildApp({
 
   /* ---------- Notifications (mine) ---------- */
   const notifications = db.collection<Notification>("notifications");
+  const notificationPreferences = db.collection<NotificationPreferencesDoc>("notificationPreferences");
   app.get("/notifications", async (req) => (await notifications.find({ memberId: req.member._id }).sort({ at: -1 }).limit(50).toArray()).map(out));
   app.post("/notifications/read", async (req) => {
     const { ids } = z.object({ ids: z.array(z.string()).max(200).optional() }).parse(req.body ?? {});
     await notifications.updateMany({ memberId: req.member._id, read: false, ...(ids && { _id: { $in: ids } }) }, { $set: { read: true } });
     return { ok: true };
+  });
+  app.get("/notification-preferences", async (req): Promise<NotificationPreferences> => {
+    const saved = await notificationPreferences.findOne({ _id: req.member._id });
+    return saved ? { app: { ...DEFAULT_NOTIFICATION_PREFERENCES.app, ...saved.app } } : DEFAULT_NOTIFICATION_PREFERENCES;
+  });
+  app.put("/notification-preferences", async (req) => {
+    const next = NotificationPreferencesSchema.parse(req.body);
+    await notificationPreferences.updateOne({ _id: req.member._id }, { $set: next }, { upsert: true });
+    return next;
   });
 
   /* ---------- Finance: packages, payment plans, quotations, schedules, expenses ---------- */

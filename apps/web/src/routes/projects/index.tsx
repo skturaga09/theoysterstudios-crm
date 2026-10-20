@@ -8,6 +8,8 @@ import {
   fmtAgo,
   fmtDate,
   fmtDay,
+  formatFull,
+  invoiceTotals,
   istDay,
   PRIORITIES,
   PRIORITY_LABEL,
@@ -22,15 +24,17 @@ import {
   type TaskStatus,
 } from "@pinnacle/shared";
 import { Avatar, Button, Checkbox, cn, Input, Pill, Segmented, Select, StrikeText, Textarea, toast } from "@pinnacle/ui";
-import { ArrowLeft, ChevronDown, ExternalLink, FolderKanban, MessageSquare, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronDown, ExternalLink, FolderKanban, FolderPlus, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
+import { Timeline } from "../../components/deal/timeline";
 import { ME_ID } from "../../data/seed";
 import { useAccess, useCrm } from "../../data/store";
 import type { Project, Task } from "../../data/types";
 import { usePref } from "../../lib/hooks";
+import { api } from "../../lib/api";
 
 const DELIVERABLE_LABEL: Record<DeliverableStatus, string> = { pending: "Pending", in_progress: "In progress", delivered: "Delivered" };
 const PRIORITY_TONE: Record<Priority, "mute" | "warn" | "risk"> = { low: "mute", normal: "mute", high: "warn", urgent: "risk" };
@@ -100,6 +104,8 @@ export function ProjectRoute() {
   const s = useCrm();
   // Admins and project managers change the project; others see it and update the tasks given to them.
   const canEdit = useAccess("projects") === "edit";
+  const canSeeFinance = useAccess("finance") === "edit";
+  const canSeeCommunication = useAccess("sales") !== "none";
   const p = s.projects.find((x) => x.id === id);
   if (!p)
     return (
@@ -171,6 +177,8 @@ export function ProjectRoute() {
             </div>
           </section>
           <Crew p={p} set={set} />
+          {canSeeFinance && <ProjectFinance p={p} />}
+          {canSeeCommunication && <ProjectCommunication p={p} />}
           <section>
             <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Notes</h2>
             <Textarea key={p.id} rows={4} defaultValue={p.notes ?? ""} placeholder="Brief, special requests, things to remember…" onBlur={(e) => e.target.value.trim() !== (p.notes ?? "") && set({ notes: e.target.value.trim() || undefined })} />
@@ -180,6 +188,67 @@ export function ProjectRoute() {
         </fieldset>
       </div>
     </>
+  );
+}
+
+/** One-project financial truth: confirmed value, invoicing, collections, costs and profit. */
+function ProjectFinance({ p }: { p: Project }) {
+  const s = useCrm();
+  const deal = p.dealId ? s.deals.find((d) => d.id === p.dealId) : undefined;
+  const invoices = s.invoices.filter((i) => i.dealId === p.dealId && i.sent && !i.cancelled);
+  const expenses = s.expenses.filter((e) => e.projectId === p.id);
+  const invoiced = invoices.reduce((sum, invoice) => sum + invoiceTotals(invoice).subtotal - (invoice.credits ?? []).reduce((n, credit) => n + credit.taxablePaise, 0), 0);
+  const received = invoices.reduce((sum, invoice) => sum + invoice.payments.reduce((n, payment) => n + payment.amountPaise, 0), 0);
+  const outstanding = invoices.reduce((sum, invoice) => sum + invoiceTotals(invoice).due, 0);
+  const costs = expenses.reduce((sum, expense) => sum + expense.amountPaise, 0);
+  const confirmed = deal?.valuePaise ?? p.retainerPaise ?? 0;
+  const actualProfit = invoiced - costs;
+  const stat = (label: string, value: number, tone?: string) => (
+    <span className="flex flex-col gap-0.5 rounded-card bg-sunken px-3 py-2">
+      <span className="t-eyebrow text-ink-3">{label}</span>
+      <span className={`font-mono text-[13px] tnum ${tone ?? ""}`}>{formatFull(value)}</span>
+    </span>
+  );
+  return (
+    <section>
+      <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Finance</h2>
+      <div className="grid grid-cols-2 gap-2">
+        {stat("Confirmed value", confirmed)}
+        {stat("Invoiced before GST", invoiced)}
+        {stat("Received incl. GST", received, "text-ok")}
+        {stat("Outstanding incl. GST", outstanding, outstanding ? "text-warn" : undefined)}
+        {stat("Project costs", costs)}
+        {stat("Actual profit", actualProfit, actualProfit < 0 ? "text-risk" : "text-ok")}
+        {stat("Estimated profit", confirmed - costs, confirmed - costs < 0 ? "text-risk" : undefined)}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink-3">
+        <Link to="/invoices" className="hover:text-ink hover:underline">{invoices.length} sent {invoices.length === 1 ? "invoice" : "invoices"}</Link>
+        <Link to="/expenses" className="hover:text-ink hover:underline">{expenses.length} project {expenses.length === 1 ? "expense" : "expenses"}</Link>
+      </div>
+    </section>
+  );
+}
+
+/** Project communication joins the linked Inbox threads and activity timeline in the operating view. */
+function ProjectCommunication({ p }: { p: Project }) {
+  const s = useCrm();
+  const conversations = s.conversations.filter((conversation) => conversation.dealId === p.dealId);
+  const activity = s.activities.filter((item) => item.dealId === p.dealId || item.companyId === p.companyId).slice(0, 8);
+  if (!conversations.length && !activity.length) return null;
+  return (
+    <section>
+      <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Communication</h2>
+      {conversations.map((conversation) => (
+        <Link key={conversation.id} to={`/inbox/${conversation.id}`} className="mb-2 flex items-start gap-2 rounded-card bg-sunken px-3 py-2 hover:bg-hover">
+          <MessageSquare size={14} strokeWidth={1.5} className="mt-0.5 shrink-0 text-ink-3" />
+          <span className="min-w-0 flex-1">
+            <span className="t-dense block truncate">{conversation.name}</span>
+            <span className="block truncate text-[11.5px] text-ink-3">{conversation.messages.at(-1)?.body ?? conversation.subject ?? "Open conversation"}</span>
+          </span>
+        </Link>
+      ))}
+      {!!activity.length && <Timeline items={activity} />}
+    </section>
   );
 }
 
@@ -406,9 +475,36 @@ function Crew({ p, set }: { p: Project; set: (patch: Partial<Project>) => void }
 
 function Links({ p, set }: { p: Project; set: (patch: Partial<Project>) => void }) {
   const [draft, setDraft] = useState({ label: "", url: "" });
+  const [driveBusy, setDriveBusy] = useState(false);
+  const drive = p.links.find((l) => l.label === "Google Drive folder");
   return (
     <section>
       <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Files & links</h2>
+      {!drive && (
+        <div className="mb-3 rounded-card bg-sunken p-3">
+          <p className="t-meta m-0 mb-2 text-ink-2">Create one project folder in the connected Google account. The CRM can manage only folders it creates.</p>
+          {p.driveFolderError && <p className="t-meta m-0 mb-2 text-warn">{p.driveFolderError}</p>}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={driveBusy}
+            onClick={async () => {
+              setDriveBusy(true);
+              try {
+                const saved = await api<Project>(`/projects/${p.id}/drive-folder`, { method: "POST" });
+                useCrm.setState((s) => ({ projects: s.projects.map((x) => (x.id === saved.id ? saved : x)) }));
+                toast("Google Drive folder created");
+              } catch (e) {
+                toast(`Couldn't create Drive folder — ${(e as Error).message}`);
+              } finally {
+                setDriveBusy(false);
+              }
+            }}
+          >
+            <FolderPlus strokeWidth={1.5} /> {driveBusy ? "Creating…" : p.driveFolderError ? "Retry Drive folder" : "Create Drive folder"}
+          </Button>
+        </div>
+      )}
       <ul className="m-0 list-none p-0">
         {p.links.map((l, i) => (
           <li key={i} className="flex items-center gap-2 border-b border-line py-2 last:border-0">
