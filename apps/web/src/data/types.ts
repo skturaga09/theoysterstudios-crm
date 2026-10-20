@@ -180,6 +180,8 @@ export type Task = {
   dueAt: ISO;
   done: boolean;
   doneAt?: ISO;
+  /** Who completed it (set by the server with doneAt). */
+  doneBy?: ID;
   assigneeId: ID;
   dealId?: ID;
   companyId?: ID;

@@ -967,8 +967,21 @@ describe("api", () => {
   it("saves tasks and completes them", async () => {
     const t = (await call("POST", "/tasks", { title: "Send moodboard", dueAt: "2026-10-20T10:00:00+05:30", assigneeId: "sr" })).json();
     expect(t).toMatchObject({ title: "Send moodboard", done: false, remind: false });
-    expect((await call("PATCH", `/tasks/${t.id}`, { done: true, doneAt: "2026-10-15T10:00:00+05:30" })).json().done).toBe(true);
-    expect((await call("PATCH", `/tasks/${t.id}`, { done: false, doneAt: null })).json().doneAt).toBeUndefined(); // cleared
+    // Who finished it and when is recorded by the server, whatever the device sends.
+    const before = Date.now();
+    const done = (await call("PATCH", `/tasks/${t.id}`, { done: true, doneAt: "2020-01-01T00:00:00+05:30" })).json();
+    expect(done).toMatchObject({ done: true, status: "done" });
+    expect(Date.parse(done.doneAt)).toBeGreaterThanOrEqual(before - 1000);
+    expect(done.doneBy).toBe((await call("GET", "/me")).json().id);
+    expect((await call("PATCH", `/tasks/${t.id}`, { title: "Send moodboard v2" })).json().doneAt).toBe(done.doneAt); // other edits keep it
+    const reopened = (await call("PATCH", `/tasks/${t.id}`, { done: false, doneAt: null })).json();
+    expect(reopened.doneAt).toBeUndefined(); // cleared
+    expect(reopened.doneBy).toBeUndefined();
+    // On a client's work it also lands on their timeline.
+    const co = (await call("POST", "/companies", { name: "Tanya & Ishaan", ownerId: "sr" })).json();
+    const ct = (await call("POST", "/tasks", { title: "Send the album proofs", dueAt: "2026-10-20T10:00:00+05:30", assigneeId: "sr", companyId: co.id })).json();
+    await call("PATCH", `/tasks/${ct.id}`, { status: "done" });
+    expect((await call("GET", "/activities")).json().some((a: { companyId?: string; type: string; text: string }) => a.companyId === co.id && a.type === "task" && a.text === "completed “Send the album proofs”")).toBe(true);
     expect((await call("POST", "/tasks", { title: "", dueAt: "2026-10-20T10:00:00+05:30", assigneeId: "sr" })).statusCode).toBe(400);
   });
 

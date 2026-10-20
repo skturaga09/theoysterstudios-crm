@@ -556,7 +556,7 @@ export function buildApp({
       scope?: (req: FastifyRequest) => Promise<Filter<Doc> | undefined>;
       write?: (req: FastifyRequest, next: Record<string, unknown>, existing?: Doc) => string | undefined;
       /** Validates (and may complete) a create or change against the record as it would end up; returns an error message. */
-      check?: (next: Record<string, unknown>, existing?: Doc) => Promise<string | undefined>;
+      check?: (next: Record<string, unknown>, existing: Doc | undefined, req: FastifyRequest) => Promise<string | undefined>;
       /** Runs after a create or change is saved (e.g. a confirmed deal makes its company a client). */
       after?: (saved: Doc, req: FastifyRequest, existing?: Doc) => Promise<void>;
       /** Runs after a record is deleted (e.g. its photo goes too). */
@@ -587,7 +587,7 @@ export function buildApp({
       const body = create.parse(req.body);
       const no = writeError(req, body);
       if (no) return reply.code(403).send({ error: no });
-      const invalid = check && (await check(body));
+      const invalid = check && (await check(body, undefined, req));
       if (invalid) return reply.code(422).send({ error: invalid });
       const doc: Doc = { _id: new ObjectId().toHexString(), ...(await defaults()), ...body };
       await col.insertOne(doc);
@@ -600,7 +600,7 @@ export function buildApp({
       if (!existing) return reply.code(404).send({ error: "Not found" });
       const no = writeError(req, changes, existing);
       if (no) return reply.code(403).send({ error: no });
-      const invalid = check && (await check(changes, existing));
+      const invalid = check && (await check(changes, existing, req));
       if (invalid) return reply.code(422).send({ error: invalid });
       // null clears an optional field (e.g. the next follow-up once it's done).
       const mod: UpdateFilter<Doc> = {};
@@ -859,6 +859,21 @@ export function buildApp({
       return own && { $or: [{ assigneeId: me }, { dealId: { $in: own } }] };
     },
     after: async (t, req, existing) => {
+      // Completing a task goes on the client's timeline too, so the history shows who did what, when.
+      if (t.done && !existing?.done && (t.dealId || t.projectId || t.companyId)) {
+        const project = t.projectId ? await db.collection<Doc>("projects").findOne({ _id: String(t.projectId) }) : null;
+        const dealId = (t.dealId ?? project?.dealId) as string | undefined;
+        const companyId = (t.companyId ?? project?.companyId) as string | undefined;
+        await db.collection<Doc>("activities").insertOne({
+          _id: new ObjectId().toHexString(),
+          type: "task",
+          ...(dealId && { dealId }),
+          ...(companyId && { companyId }),
+          actorId: req.member._id,
+          text: `completed “${t.title}”`,
+          at: String(t.doneAt ?? now()),
+        });
+      }
       if (t.assigneeId !== existing?.assigneeId)
         await notify(db, [String(t.assigneeId)], { kind: "task", text: `${req.member.name} gave you a task: ${t.title}`, link: t.projectId ? `/projects/${t.projectId}` : "/tasks" }, req.member._id);
     },
@@ -869,10 +884,14 @@ export function buildApp({
       if (next.assigneeId !== undefined && next.assigneeId !== req.member._id) return "Only admins and project managers can give tasks to someone else";
       return undefined;
     },
-    // Ticking a task done and moving it to "Done" are the same thing.
-    check: async (next) => {
+    // Ticking a task done and moving it to "Done" are the same thing. Who finished it and when is recorded here,
+    // by the server (not the device's clock); reopening clears both.
+    check: async (next, existing, req) => {
       if (next.status !== undefined) next.done = next.status === "done";
       else if (next.done !== undefined) next.status = next.done ? "done" : "todo";
+      if (next.done === true && !existing?.done) Object.assign(next, { doneAt: now(), doneBy: req.member._id });
+      else if (next.done === false && existing?.done) Object.assign(next, { doneAt: null, doneBy: null });
+      else if (next.done === undefined) { delete next.doneAt; delete next.doneBy; } // not settable on their own
       return undefined;
     },
   });

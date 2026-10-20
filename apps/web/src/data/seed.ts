@@ -387,3 +387,6 @@ export const EXPENSES: Expense[] = [
   { id: "e4", date: day(-12), category: "Software & subscriptions", description: "Adobe Creative Cloud", vendor: "Adobe", amountPaise: 4_230_00, gstPaise: 761_00, createdAt: at(-12) },
   { id: "e5", date: day(-15), category: "Studio rent & utilities", description: "Studio rent", amountPaise: 35_000_00, gstPaise: 0, createdAt: at(-15) },
 ];
+
+/* Demo: finished tasks say who finished them and when (their due time, by whoever they were given to). */
+for (const t of TASKS) if (t.done && !t.doneAt) Object.assign(t, { doneAt: t.dueAt, doneBy: t.assigneeId });

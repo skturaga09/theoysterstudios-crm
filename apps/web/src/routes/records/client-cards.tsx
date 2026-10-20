@@ -5,6 +5,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
 import { taskGroup } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
+import { DoneBy } from "../../components/done-by";
 import { useAccess, useCanEdit, useCrm } from "../../data/store";
 import type { Company, Task } from "../../data/types";
 import { api } from "../../lib/api";
@@ -26,6 +27,7 @@ export function clientSummary(c: Company, s: State, now = new Date()) {
 
   const tasks = s.tasks.filter((t) => (t.companyId ?? s.projects.find((p) => p.id === t.projectId)?.companyId ?? s.deals.find((d) => d.id === t.dealId)?.companyId) === c.id);
   const open = tasks.filter((t) => !t.done).sort((a, b) => a.dueAt.localeCompare(b.dueAt));
+  const recentlyDone = tasks.filter((t) => t.done).sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? "")).slice(0, 5);
   const projectTasks = tasks.filter((t) => live.some((p) => p.id === t.projectId));
   const progress = projectTasks.length ? Math.round((projectTasks.filter((t) => t.done).length / projectTasks.length) * 100) : null;
 
@@ -49,7 +51,7 @@ export function clientSummary(c: Company, s: State, now = new Date()) {
   const week = addDays(today, 7);
   const thisWeek = !delivered && journey.some((m) => !m.done && m.date && m.date >= today && m.date <= week);
   const needsApproval = open.filter((t) => t.approval === "pending").length;
-  return { deal, project, journey, next, open, progress, money, due, overdue, countdown, days, thisWeek, delivered, needsApproval, isClient, nextEventDate: nextEvent?.date };
+  return { deal, project, journey, next, open, recentlyDone, progress, money, due, overdue, countdown, days, thisWeek, delivered, needsApproval, isClient, nextEventDate: nextEvent?.date };
 }
 
 /** Shrinks a photo on the device to an 800×400 card crop (WebP, ~50 KB) before it's uploaded. */
@@ -253,6 +255,20 @@ export function ClientPanel({ company, onClose }: { company?: Company; onClose: 
             {!x.open.length && <li className="t-dense py-2 text-ink-3">Nothing open.</li>}
           </ul>
         </section>
+        {x.recentlyDone.length > 0 && (
+          <section>
+            <h3 className="t-eyebrow m-0 mb-2 text-ink-3">Recently completed</h3>
+            <ul className="m-0 list-none border-t border-line p-0">
+              {x.recentlyDone.map((t) => (
+                <li key={t.id} className="flex items-center gap-2.5 border-b border-line py-2">
+                  <Check size={14} strokeWidth={2} className="shrink-0 text-ok" />
+                  <span className="t-dense min-w-0 flex-1 truncate text-ink-2">{t.title}</span>
+                  <DoneBy t={t} short />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         <Link to={`/clients/${company.id}`} onClick={onClose} className="t-meta text-ink-3 hover:text-ink">Everything about {company.name} — history, invoices, files →</Link>
       </div>
     </Sheet>

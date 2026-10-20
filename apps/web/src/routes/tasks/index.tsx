@@ -3,6 +3,7 @@ import { Avatar, Button, Checkbox, cn, Pill, Segmented, StrikeText, toast, Toolt
 import { Bell, BellOff, CheckSquare, Columns3, List, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { PageHeader } from "../../components/page-header";
+import { DoneBy } from "../../components/done-by";
 import { taskGroup, type TaskGroup } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
 import { useCrm } from "../../data/store";
@@ -32,7 +33,7 @@ function useClientOf() {
   return (t: Task) => t.companyId ?? s.projects.find((p) => p.id === t.projectId)?.companyId ?? s.deals.find((d) => d.id === t.dealId)?.companyId;
 }
 
-type ClientGroup = { id: string; name: string; business?: string; open: Task[]; done: number; overdue: number };
+type ClientGroup = { id: string; name: string; business?: string; open: Task[]; doneTasks: Task[]; done: number; overdue: number };
 
 export function TasksRoute() {
   const s = useCrm();
@@ -41,19 +42,22 @@ export function TasksRoute() {
   const [view, setView] = usePref<"list" | "board">("tasks.view", "list");
   const [who, setWho] = usePref<"me" | "all">("tasks.who", "all");
   const [by, setBy] = usePref<"due" | "client">("tasks.group", "due");
+  const [showDone, setShowDone] = usePref<"yes" | "no">("tasks.showDone", "no");
   useCreateAction(() => useUi.getState().openComposer("task"));
 
   const visible = tasks.filter((t) => who === "all" || t.assigneeId === ME_ID).sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt));
-  const grouped = GROUPS.map((g) => ({ ...g, items: visible.filter((t) => taskGroup(t) === g.id) }));
+  // Done: most recently completed first.
+  const grouped = GROUPS.map((g) => ({ ...g, items: visible.filter((t) => taskGroup(t) === g.id).sort((a, b) => (g.id === "done" ? (b.doneAt ?? "").localeCompare(a.doneAt ?? "") : 0)) }));
   // By client: each client's open work in due order; clients with the most pressing task first, "Internal" last.
   const clients: ClientGroup[] = [...new Set(visible.map((t) => clientOf(t) ?? ""))]
     .map((id) => {
       const mine = visible.filter((t) => (clientOf(t) ?? "") === id);
       const c = s.companies.find((x) => x.id === id);
-      return { id, name: id ? (c?.name ?? "Client") : "Internal (no client)", business: c?.business, open: mine.filter((t) => !t.done), done: mine.filter((t) => t.done).length, overdue: mine.filter((t) => taskGroup(t) === "overdue").length };
+      const doneTasks = mine.filter((t) => t.done).sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? ""));
+      return { id, name: id ? (c?.name ?? "Client") : "Internal (no client)", business: c?.business, open: mine.filter((t) => !t.done), doneTasks, done: doneTasks.length, overdue: mine.filter((t) => taskGroup(t) === "overdue").length };
     })
-    .filter((g) => g.open.length)
-    .sort((a, b) => (a.id ? 0 : 1) - (b.id ? 0 : 1) || b.overdue - a.overdue || +new Date(a.open[0]!.dueAt) - +new Date(b.open[0]!.dueAt));
+    .filter((g) => g.open.length || (showDone === "yes" && g.done))
+    .sort((a, b) => (a.id ? 0 : 1) - (b.id ? 0 : 1) || b.overdue - a.overdue || (a.open[0]?.dueAt ?? "9999").localeCompare(b.open[0]?.dueAt ?? "9999")); // clients with only finished work go last
   const overdue = grouped[0]!.items.length;
   const today = grouped[1]!.items.length;
 
@@ -66,6 +70,12 @@ export function TasksRoute() {
           <>
             <Segmented label="Whose" value={who} onChange={setWho} options={[{ value: "all", label: "Everyone" }, { value: "me", label: "My work" }]} />
             <Segmented label="Group by" value={by} onChange={setBy} options={[{ value: "due", label: "Due date" }, { value: "client", label: "Client" }]} />
+            {by === "client" && (
+              <label className="t-meta flex items-center gap-1.5 text-ink-2">
+                <input type="checkbox" checked={showDone === "yes"} onChange={(e) => setShowDone(e.target.checked ? "yes" : "no")} className="size-4 accent-[var(--ink)]" />
+                Show completed
+              </label>
+            )}
             <Segmented
               label="Layout"
               value={view}
@@ -87,7 +97,7 @@ export function TasksRoute() {
         </div>
       ) : by === "client" ? (
         !clients.length ? (
-          <p className="t-dense border-t border-line py-6 text-ink-3">Everything is done. Switch to Due date to see finished tasks.</p>
+          <p className="t-dense border-t border-line py-6 text-ink-3">Everything is done. Tick "Show completed" to see who finished what, and when.</p>
         ) : view === "list" ? (
           <div className="flex flex-col gap-8">
             {clients.map((g) => (
@@ -96,6 +106,7 @@ export function TasksRoute() {
                 <ul className="m-0 list-none border-t border-line p-0">
                   <AnimatePresence initial={false}>
                     {g.open.map((t) => <TaskRow key={t.id} t={t} />)}
+                    {showDone === "yes" && g.doneTasks.map((t) => <TaskRow key={t.id} t={t} />)}
                   </AnimatePresence>
                 </ul>
               </section>
@@ -107,7 +118,7 @@ export function TasksRoute() {
               {clients.map((g) => (
                 <section key={g.id || "internal"} className="w-[280px] rounded-panel bg-sunken p-2">
                   <div className="px-1.5 pt-1 pb-2.5"><ClientHeader g={g} compact /></div>
-                  <ul className="m-0 flex list-none flex-col gap-2 p-0">{g.open.map((t) => <TaskCard key={t.id} t={t} />)}</ul>
+                  <ul className="m-0 flex list-none flex-col gap-2 p-0">{g.open.map((t) => <TaskCard key={t.id} t={t} />)}{showDone === "yes" && g.doneTasks.map((t) => <TaskCard key={t.id} t={t} />)}</ul>
                 </section>
               ))}
             </div>
@@ -218,11 +229,16 @@ function TaskRow({ t }: { t: Task }) {
           ) : (
             company?.name ?? "Internal"
           )}
+          {t.done && <span className="sm:hidden"> · <DoneBy t={t} short /></span>}
         </div>
       </div>
       {(t.priority === "high" || t.priority === "urgent") && !t.done && <Pill tone={t.priority === "urgent" ? "risk" : "warn"}>{t.priority === "urgent" ? "Urgent" : "High"}</Pill>}
       <RemindToggle t={t} />
-      <span className={cn("hidden w-[120px] text-right font-mono text-[11.5px] sm:block", g === "overdue" ? "text-risk" : "text-ink-2")}>{dueLabel(t)}</span>
+      {t.done ? (
+        <span className="hidden w-[170px] text-right sm:block"><DoneBy t={t} /></span>
+      ) : (
+        <span className={cn("hidden w-[120px] text-right font-mono text-[11.5px] sm:block", g === "overdue" ? "text-risk" : "text-ink-2")}>{dueLabel(t)}</span>
+      )}
       {assignee && <Avatar name={assignee.name} me={assignee.id === ME_ID} />}
     </motion.li>
   );
@@ -241,7 +257,7 @@ function TaskCard({ t }: { t: Task }) {
         </div>
       </div>
       <div className="mt-3 flex items-center gap-2 pl-6.5">
-        <Pill tone={t.done ? "mute" : g === "overdue" ? "risk" : g === "today" ? "warn" : "mute"}>{dueLabel(t)}</Pill>
+        {t.done ? <DoneBy t={t} short /> : <Pill tone={g === "overdue" ? "risk" : g === "today" ? "warn" : "mute"}>{dueLabel(t)}</Pill>}
         {assignee && <Avatar name={assignee.name} me={assignee.id === ME_ID} size="sm" className="ml-auto" />}
       </div>
     </li>

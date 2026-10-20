@@ -31,6 +31,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
+import { DoneBy } from "../../components/done-by";
 import { Timeline } from "../../components/deal/timeline";
 import { ME_ID } from "../../data/seed";
 import { DealPayments } from "../../components/deal/deal-money";
@@ -341,7 +342,7 @@ function Checklist({ p, tasks, canEdit }: { p: Project; tasks: Task[]; canEdit: 
                 </button>
                 {t.priority && t.priority !== "normal" && t.priority !== "low" && <Pill tone={PRIORITY_TONE[t.priority]}>{PRIORITY_LABEL[t.priority]}</Pill>}
                 {t.approval && t.approval !== "none" && <Pill tone={t.approval === "approved" ? "ok" : t.approval === "changes" ? "risk" : "warn"}>{APPROVAL_LABEL[t.approval]}</Pill>}
-                <span className={cn("w-[56px] text-right font-mono text-[11.5px]", overdue(t) ? "text-risk" : "text-ink-2")}>{fmtDay(t.dueAt)}</span>
+                {t.done ? <DoneBy t={t} short /> : <span className={cn("w-[56px] text-right font-mono text-[11.5px]", overdue(t) ? "text-risk" : "text-ink-2")}>{fmtDay(t.dueAt)}</span>}
                 <Select aria-label={`Who does ${t.title}`} disabled={!canEdit} value={t.assigneeId} onChange={(e) => upd({ assigneeId: e.target.value })} className="w-[130px]">
                   {people.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </Select>

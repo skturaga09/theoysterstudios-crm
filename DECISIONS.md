@@ -376,3 +376,8 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   the old photo is deleted, and deleting the client deletes it. No separate storage service to set up.
   Instagram leads bring their profile picture (`profile_pic`, copied since Instagram's links expire), which
   becomes the card photo when the lead is converted. Mentioned in the privacy policy.
+- **Who completed a task, and when:** the server records `doneAt` (its own clock) and `doneBy` (the signed-in
+  person) whenever a task becomes done — ticked or moved to "Done" — and clears both when it's reopened; neither
+  can be set on its own. Completing a client's task also adds "completed …" to their timeline. Shown as "Done by
+  Riya · 20 Oct, 4:10 pm" on the Tasks page (Done section newest first; Client grouping has "Show completed"),
+  the project checklist and the client card panel ("Recently completed").

@@ -401,7 +401,10 @@ const raw = create<CrmState>((set, get) => ({
   },
   updateTask: (id, changes) => {
     const prev = get().tasks;
-    set({ tasks: prev.map((t) => (t.id === id ? { ...t, ...changes } : t)) });
+    // Show who finished it straight away; the server records the same (with its own clock).
+    const was = prev.find((t) => t.id === id);
+    const local = changes.done === true && !was?.done ? { doneAt: now(), doneBy: ME_ID } : changes.done === false ? { doneAt: undefined, doneBy: undefined } : {};
+    set({ tasks: prev.map((t) => (t.id === id ? { ...t, ...changes, ...local } : t)) });
     // `doneAt: undefined` means "clear it", which JSON can only say as null.
     const body = "doneAt" in changes ? { ...changes, doneAt: changes.doneAt ?? null } : changes;
     save(patch(`/tasks/${id}`, body), () => set({ tasks: prev }));
