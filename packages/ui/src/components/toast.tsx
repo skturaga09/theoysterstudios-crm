@@ -44,7 +44,7 @@ export function Toaster() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 8, transition: { duration: 0.15 } }}
             transition={spring.snappy}
-            className="pointer-events-auto flex items-center gap-4 rounded-control bg-ink py-2 pr-2 pl-4 text-[13px] text-on-ink shadow-pop"
+            className="pointer-events-auto flex items-center gap-4 rounded-control bg-ink py-2 pr-2 pl-4 fs-13 text-on-ink shadow-pop"
           >
             <span>{t.message}</span>
             {t.action && (

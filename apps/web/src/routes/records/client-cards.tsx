@@ -143,7 +143,7 @@ export function Cover({ company, canUpload, className, children, hoverZoom }: { 
           )}
         />
       ) : (
-        <span aria-hidden className={cn("absolute inset-0 grid place-items-center font-serif text-[56px] tracking-wide text-white/25 select-none", hoverZoom && "motion-safe:transition-transform motion-safe:duration-[1200ms] motion-safe:group-hover/card:scale-110")}>
+        <span aria-hidden className={cn("absolute inset-0 grid place-items-center font-serif fs-56 tracking-wide text-white/25 select-none", hoverZoom && "motion-safe:transition-transform motion-safe:duration-[1200ms] motion-safe:group-hover/card:scale-110")}>
           {initials(company.name)}
         </span>
       )}
@@ -154,7 +154,7 @@ export function Cover({ company, canUpload, className, children, hoverZoom }: { 
             type="button"
             onClick={(e) => { e.stopPropagation(); input.current?.click(); }}
             className={cn(
-              "absolute top-3 left-3 z-[2] flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 text-[12px] text-white backdrop-blur-sm transition-opacity hover:bg-black/60",
+              "absolute top-3 left-3 z-[2] flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1.5 fs-12 text-white backdrop-blur-sm transition-opacity hover:bg-black/60",
               company.photo ? "opacity-0 group-hover/cover:opacity-100 focus-visible:opacity-100" : "opacity-90",
             )}
           >
@@ -212,12 +212,12 @@ export function ClientCard({ company, onOpen, index = 0 }: { company: Company; o
         {/* A soft fade so the name reads on any photo. */}
         <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
         <span className="absolute top-3 right-3 z-[1] flex flex-col items-end gap-1.5">
-          <span className="rounded-full bg-black/45 px-2.5 py-1 font-mono text-[11px] text-white backdrop-blur-sm">{x.countdown}</span>
-          {x.thisWeek && <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-black motion-safe:animate-pulse">This week</span>}
+          <span className="rounded-full bg-black/45 px-2.5 py-1 font-mono fs-11 text-white backdrop-blur-sm">{x.countdown}</span>
+          {x.thisWeek && <span className="rounded-full bg-white px-2.5 py-1 fs-11 font-medium text-black motion-safe:animate-pulse">This week</span>}
         </span>
         <span className="absolute inset-x-4 bottom-3.5 z-[1] text-white">
-          <span className="block truncate font-serif text-[22px] leading-tight drop-shadow-sm">{company.name}</span>
-          <span className="block truncate text-[12px] text-white/80">{[company.business && BUSINESS_LABEL[company.business], x.nextEventDate && fmtDate(x.nextEventDate), company.city].filter(Boolean).join(" · ") || " "}</span>
+          <span className="block truncate font-serif fs-22 leading-tight drop-shadow-sm">{company.name}</span>
+          <span className="block truncate fs-12 text-white/80">{[company.business && BUSINESS_LABEL[company.business], x.nextEventDate && fmtDate(x.nextEventDate), company.city].filter(Boolean).join(" · ") || " "}</span>
         </span>
       </Cover>
       <div className="flex flex-1 flex-col gap-3 p-4">
@@ -240,7 +240,7 @@ export function ClientCard({ company, onOpen, index = 0 }: { company: Company; o
           {x.needsApproval > 0 && <Pill tone="warn">{x.needsApproval} awaiting client</Pill>}
           {x.open.length > 0 && <Pill tone="mute">{x.open.length} open {x.open.length === 1 ? "task" : "tasks"}</Pill>}
         </span>
-        <span className="mt-auto flex items-center gap-2 border-t border-line pt-3 text-[12px] text-ink-3">
+        <span className="mt-auto flex items-center gap-2 border-t border-line pt-3 fs-12 text-ink-3">
           {owner && <Avatar name={owner.name} me={owner.id === ME_ID} size="sm" />}
           <span className="min-w-0 flex-1 truncate">{owner?.name ?? "Unassigned"}</span>
           <span className="flex items-center gap-1 text-ink-2 opacity-0 transition-all duration-300 group-hover/card:translate-x-0.5 group-hover/card:opacity-100">
@@ -289,7 +289,7 @@ export function ClientPanel({ company, onClose }: { company?: Company; onClose: 
                   </span>
                   <span className="min-w-0 flex-1 leading-tight">
                     <span className={cn("t-dense block", m.current && "font-medium", m.late && "text-risk")}>{m.label}</span>
-                    <span className="text-[11.5px] text-ink-3">{KIND_LABEL[m.kind]}{m.date && ` · ${fmtDate(m.date)}`}{m.late && " · late"}{m.current && !m.late && " · next"}</span>
+                    <span className="fs-11.5 text-ink-3">{KIND_LABEL[m.kind]}{m.date && ` · ${fmtDate(m.date)}`}{m.late && " · late"}{m.current && !m.late && " · next"}</span>
                   </span>
                 </li>
               ))}
@@ -309,9 +309,9 @@ export function ClientPanel({ company, onClose }: { company?: Company; onClose: 
                   <Checkbox checked={t.done} label={t.title} onCheckedChange={() => useCrm.getState().toggleTask(t.id)} />
                   <span className="min-w-0 flex-1 leading-tight">
                     <span className="t-dense block truncate">{t.title}</span>
-                    {t.approval === "pending" && <span className="text-[11px] text-warn">Awaiting client approval</span>}
+                    {t.approval === "pending" && <span className="fs-11 text-warn">Awaiting client approval</span>}
                   </span>
-                  <span className={cn("font-mono text-[11.5px]", taskGroup(t) === "overdue" ? "text-risk" : "text-ink-3")}>{fmtDay(t.dueAt)}</span>
+                  <span className={cn("font-mono fs-11.5", taskGroup(t) === "overdue" ? "text-risk" : "text-ink-3")}>{fmtDay(t.dueAt)}</span>
                   {who && <Avatar name={who.name} me={who.id === ME_ID} size="sm" />}
                 </li>
               );

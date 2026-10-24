@@ -22,7 +22,7 @@ type Row = Company & { isClient: boolean; best?: Deal; openValue: number; ownerN
 const TAGS = ["Priority", "Retainer", "Rebrand", "Films", "Packaging", "At risk"];
 
 export const Monogram = ({ name, photo }: { name: string; photo?: string }) =>
-  photo ? <img src={photo} alt="" className="size-8 shrink-0 rounded-control object-cover" /> : <span className="grid size-8 shrink-0 place-items-center rounded-control bg-sunken font-serif text-[16px] text-ink-2">{name[0]}</span>;
+  photo ? <img src={photo} alt="" className="size-8 shrink-0 rounded-control object-cover" /> : <span className="grid size-8 shrink-0 place-items-center rounded-control bg-sunken font-serif fs-16 text-ink-2">{name[0]}</span>;
 
 export function CompaniesRoute() {
   const isManager = useCanAssign();
@@ -64,16 +64,16 @@ export function CompaniesRoute() {
           <Monogram name={c.name} photo={c.photo} />
           <span className="leading-tight">
             <span className="block font-medium">{c.name}</span>
-            <span className="font-mono text-[11px] text-ink-3">{c.domain}</span>
+            <span className="font-mono fs-11 text-ink-3">{c.domain}</span>
           </span>
         </span>
       ),
     },
-    { id: "since", header: "Client since", accessorFn: (r) => r.clientSince ?? "", cell: ({ row: { original: c } }) => (c.clientSince ? <span className="font-mono text-[12px] text-ink-2">{fmtDay(c.clientSince)}</span> : <span className="text-ink-3">{c.isClient ? "—" : "Prospect"}</span>) },
+    { id: "since", header: "Client since", accessorFn: (r) => r.clientSince ?? "", cell: ({ row: { original: c } }) => (c.clientSince ? <span className="font-mono fs-12 text-ink-2">{fmtDay(c.clientSince)}</span> : <span className="text-ink-3">{c.isClient ? "—" : "Prospect"}</span>) },
     { id: "stage", header: "Best deal", accessorFn: (r) => (r.best ? stageRank(s.pipelines, r.best) : -1), cell: ({ row: { original: c } }) => (c.best ? <DealStage deal={c.best} /> : <span className="text-ink-3">—</span>) },
     { id: "value", header: "Open value", accessorKey: "openValue", meta: { align: "right" }, cell: ({ row: { original: c } }) => (c.openValue ? <MoneyText paise={c.openValue} /> : <span className="text-ink-3">—</span>) },
     { id: "owner", header: "Owner", accessorKey: "ownerName", cell: ({ row: { original: c } }) => <span className="flex items-center gap-2"><Avatar name={c.ownerName} me={c.ownerId === ME_ID} /> <span className="text-ink-2">{c.ownerName}</span></span> },
-    { id: "last", header: "Last activity", accessorKey: "last", cell: ({ row: { original: c } }) => <span className="font-mono text-[12px] text-ink-2">{fmtAgo(c.lastActivityAt)}</span> },
+    { id: "last", header: "Last activity", accessorKey: "last", cell: ({ row: { original: c } }) => <span className="font-mono fs-12 text-ink-2">{fmtAgo(c.lastActivityAt)}</span> },
     { id: "city", header: "City", accessorKey: "city", cell: ({ getValue }) => <span className="text-ink-2">{String(getValue())}</span> },
     {
       id: "tags",
@@ -81,7 +81,7 @@ export function CompaniesRoute() {
       enableSorting: false,
       cell: ({ row: { original: c } }) => (
         <span className="flex gap-1">
-          {c.tags.map((t) => <span key={t} className="rounded-[4px] border border-line px-1.5 py-px text-[11px] text-ink-2">{t}</span>)}
+          {c.tags.map((t) => <span key={t} className="rounded-[4px] border border-line px-1.5 py-px fs-11 text-ink-2">{t}</span>)}
         </span>
       ),
     },
@@ -242,7 +242,7 @@ export function ClientDetails({ c }: { c: Company }) {
       >
         {EDITABLE.map((f) => (
           <label key={f.key} className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-medium">{f.label}</span>
+            <span className="fs-12.5 font-medium">{f.label}</span>
             {"multiline" in f ? (
               <Textarea rows={3} value={form[f.key]} onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
             ) : (
@@ -251,7 +251,7 @@ export function ClientDetails({ c }: { c: Company }) {
           </label>
         ))}
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12.5px] font-medium">Business</span>
+          <span className="fs-12.5 font-medium">Business</span>
           <Select value={business} onChange={(e) => setBusiness(e.target.value as Business | "")}>
             {!business && <option value="">Both / not set</option>}
             {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_LABEL[b]}</option>)}
@@ -269,10 +269,10 @@ export function ClientDetails({ c }: { c: Company }) {
     <div className="flex flex-col gap-6">
       <dl className="m-0 grid grid-cols-[110px_1fr] gap-y-2.5 t-dense">
         <dt className="text-ink-3">Business</dt><dd className="m-0">{c.business ? BUSINESS_LABEL[c.business] : "Both / not set"}</dd>
-        <dt className="text-ink-3">Website</dt><dd className="m-0 font-mono text-[12.5px]">{c.domain || "—"}</dd>
+        <dt className="text-ink-3">Website</dt><dd className="m-0 font-mono fs-12.5">{c.domain || "—"}</dd>
         <dt className="text-ink-3">Industry</dt><dd className="m-0">{c.industry || "—"}</dd>
         <dt className="text-ink-3">City</dt><dd className="m-0">{c.city || "—"}</dd>
-        <dt className="text-ink-3">GSTIN</dt><dd className="m-0 font-mono text-[12.5px]">{c.gstin || "Unregistered"}</dd>
+        <dt className="text-ink-3">GSTIN</dt><dd className="m-0 font-mono fs-12.5">{c.gstin || "Unregistered"}</dd>
         <dt className="text-ink-3">Billing address</dt><dd className="m-0 whitespace-pre-line">{c.address || <span className="text-ink-3">Not added yet</span>}</dd>
         <dt className="text-ink-3">Owner</dt><dd className="m-0">{ownerName}</dd>
       </dl>

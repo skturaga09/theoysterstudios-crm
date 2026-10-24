@@ -324,7 +324,7 @@ export function LeadFlow() {
                     onFocus={() => setHover(id)}
                     onBlur={() => setHover(null)}
                     className={cn(
-                      "absolute flex items-center gap-1.5 rounded-[4px] px-1 text-[12px] whitespace-nowrap transition-colors duration-150",
+                      "absolute flex items-center gap-1.5 rounded-[4px] px-1 fs-12 whitespace-nowrap transition-colors duration-150",
                       left ? "flex-row-reverse text-right" : "text-left",
                       lit ? "text-ink" : "text-ink-3",
                     )}
@@ -335,8 +335,8 @@ export function LeadFlow() {
                     }}
                     aria-label={`${n.node.label}: ${Math.round(n.value)} leads`}
                   >
-                    <span className="font-mono text-[11px] text-ink-3 tnum">{Math.round(n.value)}</span>
-                    <span className={cn(compact && "font-mono text-[10.5px] tracking-[0.04em]")}>{compact ? n.node.short : n.node.label}</span>
+                    <span className="font-mono fs-11 text-ink-3 tnum">{Math.round(n.value)}</span>
+                    <span className={cn(compact && "font-mono fs-10.5 tracking-[0.04em]")}>{compact ? n.node.short : n.node.label}</span>
                   </button>
                 );
               })}
@@ -344,7 +344,7 @@ export function LeadFlow() {
         )}
       </div>
 
-      <p aria-live="polite" className="m-0 mt-3 border-t border-line pt-3 font-mono text-[11.5px] text-ink-2 tnum">
+      <p aria-live="polite" className="m-0 mt-3 border-t border-line pt-3 font-mono fs-11.5 text-ink-2 tnum">
         {legend}
       </p>
 
@@ -382,14 +382,14 @@ function StackedBars({ graph, hover, setHover }: { graph: ReturnType<typeof buil
         return (
           <li key={r.id}>
             <button type="button" onClick={() => setHover(hover === r.id ? null : r.id)} className="flex w-full items-center gap-2 text-left">
-              <span className="w-9 font-mono text-[10.5px] text-ink-2">{r.short}</span>
+              <span className="w-9 font-mono fs-10.5 text-ink-2">{r.short}</span>
               <span className="flex h-3 overflow-hidden rounded-[2px]" style={{ width: `${(total / max) * 100}%` }}>
                 {STAGE_ORDER.map((s) => {
                   const v = ls.find((l) => l.target === `s:${s}`)?.value ?? 0;
                   return v ? <span key={s} className={tone[s]} style={{ width: `${(v / total) * 100}%` }} /> : null;
                 })}
               </span>
-              <span className="font-mono text-[10.5px] text-ink-3">{total}</span>
+              <span className="font-mono fs-10.5 text-ink-3">{total}</span>
             </button>
           </li>
         );

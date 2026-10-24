@@ -209,7 +209,7 @@ export type Project = {
   managerId?: ID;
   startDate?: string;
   dueDate?: string;
-  events: { id: string; name: string; date?: string; venue?: string }[];
+  events: ProjectEvent[];
   crew: { memberId: ID; role: string }[];
   deliverables: { id: string; name: string; dueDate?: string; status: DeliverableStatus; url?: string }[];
   retainerPaise?: number;
@@ -275,3 +275,17 @@ export type Invoice = {
 };
 
 export type Lead = { id: ID; channel: Channel; stage: Stage; at: ISO };
+
+/** A function on a project and who covers it. Crew are typed names, so freelancers outside the CRM fit too. */
+export type ProjectEvent = {
+  id: string;
+  name: string;
+  date?: string;
+  venue?: string;
+  duration?: string;
+  photo?: number;
+  photoCrew?: string[];
+  video?: number;
+  videoCrew?: string[];
+  addOns?: string;
+};

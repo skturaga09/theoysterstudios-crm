@@ -54,7 +54,7 @@ export function NotificationsBell() {
       <MenuTrigger asChild>
         <Button size="icon-sm" variant="ghost" aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} className="relative">
           <Bell strokeWidth={1.5} />
-          {unread > 0 && <span className="absolute -top-0.5 -right-0.5 grid min-w-4 place-items-center rounded-full bg-signal px-1 font-mono text-[10px] leading-4 text-on-ink">{unread > 9 ? "9+" : unread}</span>}
+          {unread > 0 && <span className="absolute -top-0.5 -right-0.5 grid min-w-4 place-items-center rounded-full bg-signal px-1 font-mono fs-10 leading-4 text-on-ink">{unread > 9 ? "9+" : unread}</span>}
         </Button>
       </MenuTrigger>
       <MenuContent align="end" className="w-[340px] max-w-[calc(100vw-32px)] p-0">
@@ -76,7 +76,7 @@ export function NotificationsBell() {
                 }}
               >
                 <span className={cn("t-dense", n.kind === "late" && "text-risk")}>{n.text}</span>
-                <span className="font-mono text-[11px] text-ink-3">{fmtAgo(n.at)}</span>
+                <span className="font-mono fs-11 text-ink-3">{fmtAgo(n.at)}</span>
               </button>
             </li>
           ))}

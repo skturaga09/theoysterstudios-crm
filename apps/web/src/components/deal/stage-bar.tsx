@@ -16,7 +16,7 @@ export function StageBar({ dealId, stage, business }: { dealId: string; stage: S
         return (
           <button key={s.id} aria-pressed={current} onClick={() => changeStage(dealId, s.id)} className="group flex min-w-0 flex-col gap-1.5 rounded-[4px] pt-1 text-left">
             <span className={cn("h-1.5 w-full rounded-[2px] transition-[filter] duration-150 group-hover:brightness-90", tone)} />
-            <span className={cn("truncate text-[11.5px]", current ? "font-medium text-ink" : "text-ink-3 group-hover:text-ink-2")}>{s.label}</span>
+            <span className={cn("truncate fs-11.5", current ? "font-medium text-ink" : "text-ink-3 group-hover:text-ink-2")}>{s.label}</span>
           </button>
         );
       })}

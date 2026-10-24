@@ -104,12 +104,12 @@ export function InboxRoute() {
               aria-selected={on}
               onClick={() => setChannel(c)}
               className={cn(
-                "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-chip px-3 text-[12.5px] transition-colors duration-150",
+                "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-chip px-3 fs-12.5 transition-colors duration-150",
                 on ? "bg-ink text-on-ink" : "bg-sunken text-ink-2 hover:text-ink",
               )}
             >
               {c === "all" ? "All" : <><ChannelChip channel={c} className="h-4 min-w-4" /><span className="sr-only">{CHANNEL_LABEL[c]}</span></>}
-              <span className={cn("font-mono text-[11px] tnum", on ? "text-on-ink/70" : "text-ink-3")}>{n}</span>
+              <span className={cn("font-mono fs-11 tnum", on ? "text-on-ink/70" : "text-ink-3")}>{n}</span>
             </button>
           );
         })}
@@ -167,16 +167,16 @@ function ConvRow({ c, index, selected, active, onOpen }: { c: Conversation; inde
           <div className="flex items-center gap-2">
             <ChannelChip channel={c.channel} />
             <span className={cn("t-dense truncate", c.unread ? "font-semibold" : "font-medium")}>{c.name}</span>
-            <span className="ml-auto shrink-0 font-mono text-[11px] text-ink-3">{fmtAgo(c.lastMessageAt)}</span>
+            <span className="ml-auto shrink-0 font-mono fs-11 text-ink-3">{fmtAgo(c.lastMessageAt)}</span>
           </div>
-          <p className={cn("m-0 mt-1 line-clamp-2 text-[12.5px]", c.unread ? "text-ink-2" : "text-ink-3")}>{c.subject ? `${c.subject} — ` : ""}{last?.body}</p>
+          <p className={cn("m-0 mt-1 line-clamp-2 fs-12.5", c.unread ? "text-ink-2" : "text-ink-3")}>{c.subject ? `${c.subject} — ` : ""}{last?.body}</p>
           <div className="mt-2 flex items-center gap-2">
             {c.dealId ? (
               <Pill tone="ok">Deal</Pill>
             ) : (
               c.extracted && <Pill tone={c.extracted.intent === "quote" ? "new" : "mute"}>{INTENT[c.extracted.intent]}</Pill>
             )}
-            {c.extracted && !c.dealId && <span className="font-mono text-[11px] text-ink-3">est. {formatCompact(c.extracted.estValuePaise)}</span>}
+            {c.extracted && !c.dealId && <span className="font-mono fs-11 text-ink-3">est. {formatCompact(c.extracted.estValuePaise)}</span>}
             {assignee && <Avatar name={assignee.name} me={assignee.id === ME_ID} size="sm" className="ml-auto" />}
           </div>
         </div>
@@ -234,7 +234,7 @@ function Thread({ c }: { c: Conversation }) {
           <h2 className="t-sheet m-0">{c.name}</h2>
           <p className="t-meta m-0 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-ink-3">
             <ChannelChip channel={c.channel} />
-            <span className="font-mono text-[11.5px]">{c.handle}</span>
+            <span className="font-mono fs-11.5">{c.handle}</span>
             <span>·</span>
             <span>{c.company ? `${c.company}, ` : ""}{c.city}</span>
           </p>
@@ -275,7 +275,7 @@ function Thread({ c }: { c: Conversation }) {
               <>
                 <Sparkles size={13} strokeWidth={1.5} className="text-ink-3" />
                 <span className="t-eyebrow text-ink-3">Suggested from this message</span>
-                <span className="ml-auto font-mono text-[11px] text-ink-3">{Math.round(c.extracted.confidence * 100)}% confident · edit before creating</span>
+                <span className="ml-auto font-mono fs-11 text-ink-3">{Math.round(c.extracted.confidence * 100)}% confident · edit before creating</span>
               </>
             ) : (
               <span className="t-eyebrow text-ink-3">Fill in to create a deal from this conversation</span>
@@ -283,25 +283,25 @@ function Thread({ c }: { c: Conversation }) {
           </div>
           <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
             <label className="flex flex-col gap-1">
-              <span className="text-[11.5px] text-ink-3">Business</span>
+              <span className="fs-11.5 text-ink-3">Business</span>
               <Select value={draft.business} onChange={(e) => setDraft({ ...draft, business: e.target.value as Business })} className="[&_select]:h-8">
                 {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_SHORT[b]}</option>)}
               </Select>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11.5px] text-ink-3">Service</span>
+              <span className="fs-11.5 text-ink-3">Service</span>
               <Input value={draft.service} onChange={(e) => setDraft({ ...draft, service: e.target.value })} className="h-8" />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11.5px] text-ink-3">Est. value</span>
+              <span className="fs-11.5 text-ink-3">Est. value</span>
               <AmountInput value={draft.value} onValue={(value) => setDraft({ ...draft, value })} placeholder="58,950" aria-label="Estimated value in rupees" />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11.5px] text-ink-3">City</span>
+              <span className="fs-11.5 text-ink-3">City</span>
               <Input value={draft.city} onChange={(e) => setDraft({ ...draft, city: e.target.value })} className="h-8" />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11.5px] text-ink-3">Owner</span>
+              <span className="fs-11.5 text-ink-3">Owner</span>
               <Select value={draft.ownerId} disabled={!isManager} onChange={(e) => setDraft({ ...draft, ownerId: e.target.value })} className="[&_select]:h-8">
                 {s.members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
               </Select>
@@ -329,7 +329,7 @@ function Thread({ c }: { c: Conversation }) {
               >
                 {m.body}
               </div>
-              <span className="font-mono text-[10.5px] text-ink-3">
+              <span className="font-mono fs-10.5 text-ink-3">
                 {m.direction === "out" ? `${author?.name ?? "You"} · ` : ""}{fmtTime(m.at)} IST · {fmtAgo(m.at)}
               </span>
             </motion.li>
@@ -404,7 +404,7 @@ function Composer({ c }: { c: Conversation }) {
   return (
     <div className="sticky bottom-0 border-t border-line bg-bg pt-3 pb-1">
       {wa && (
-        <p className={cn("m-0 mb-2 flex items-center gap-2 font-mono text-[11px]", windowOpen ? "text-ok" : "text-warn")}>
+        <p className={cn("m-0 mb-2 flex items-center gap-2 font-mono fs-11", windowOpen ? "text-ok" : "text-warn")}>
           <span className={cn("size-1.5 rounded-full", windowOpen ? "bg-ok" : "bg-warn")} />
           {windowOpen
             ? `24-hour window open · ${hoursLeft}h left for free-form replies`
@@ -430,7 +430,7 @@ function Composer({ c }: { c: Conversation }) {
             className="min-h-[72px]"
           />
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[11px] text-ink-3">⌘ Enter to send</span>
+            <span className="font-mono fs-11 text-ink-3">⌘ Enter to send</span>
             <Button type="submit" variant="ink" size="sm" className="ml-auto" disabled={!text.trim() || busy}>
               <Send strokeWidth={1.5} /> {busy ? "Sending…" : `Send on ${via}`}
             </Button>

@@ -81,7 +81,7 @@ export function CommandMenu({ groups, placeholder = "Search or jump to…" }: { 
                           >
                             {it.icon}
                             <span className="flex-1 truncate">{it.label}</span>
-                            {it.hint && <span className="font-mono text-[11px] text-ink-3">{it.hint}</span>}
+                            {it.hint && <span className="font-mono fs-11 text-ink-3">{it.hint}</span>}
                           </Command.Item>
                         ))}
                       </Command.Group>

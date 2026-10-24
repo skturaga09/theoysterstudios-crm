@@ -1,4 +1,5 @@
 import {
+  splitNames,
   APPROVAL_LABEL,
   APPROVALS,
   BUSINESS_LABEL,
@@ -37,7 +38,7 @@ import { ME_ID } from "../../data/seed";
 import { DealPayments } from "../../components/deal/deal-money";
 import { stageState } from "../../data/finance";
 import { useAccess, useCrm } from "../../data/store";
-import type { Project, Task } from "../../data/types";
+import type { Project, ProjectEvent, Task } from "../../data/types";
 import { usePref } from "../../lib/hooks";
 import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
@@ -86,8 +87,8 @@ export function ProjectsRoute() {
                     <BusinessIcon business={p.business} />
                     <span className="min-w-0">
                       {/* The client first, in the business colour; then the project and its date. */}
-                      <span className={cn("block truncate text-[15px] font-medium", BUSINESS_TEXT[p.business])}>{client?.name ?? "No client"}</span>
-                      <span className="block truncate text-[12px] text-ink-2">
+                      <span className={cn("block truncate fs-15 font-medium", BUSINESS_TEXT[p.business])}>{client?.name ?? "No client"}</span>
+                      <span className="block truncate fs-12 text-ink-2">
                         {p.name}
                         <span className="text-ink-3">{p.dueDate ? ` · ${p.business === "photography" ? "event" : "due"} ${fmtDate(p.dueDate)}` : ""}</span>
                       </span>
@@ -96,7 +97,7 @@ export function ProjectsRoute() {
                   {late > 0 && <Pill tone="risk">{late} overdue</Pill>}
                   <span className="flex w-[140px] items-center gap-2">
                     <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-sunken"><span className="block h-full bg-ink" style={{ width: `${pr.pct}%` }} /></span>
-                    <span className="font-mono text-[11px] text-ink-3">{pr.done}/{pr.total}</span>
+                    <span className="font-mono fs-11 text-ink-3">{pr.done}/{pr.total}</span>
                   </span>
                   <Pill tone={STATUS_TONE[p.status]}>{PROJECT_STATUS_LABEL[p.status]}</Pill>
                   {manager && <Avatar name={manager.name} me={manager.id === ME_ID} size="sm" />}
@@ -229,7 +230,7 @@ function ProjectFinance({ p }: { p: Project }) {
   const stat = (label: string, value: number, tone?: string) => (
     <span className="flex flex-col gap-0.5 rounded-card bg-sunken px-3 py-2">
       <span className="t-eyebrow text-ink-3">{label}</span>
-      <span className={`font-mono text-[13px] tnum ${tone ?? ""}`}>{formatFull(value)}</span>
+      <span className={`font-mono fs-13 tnum ${tone ?? ""}`}>{formatFull(value)}</span>
     </span>
   );
   return (
@@ -249,7 +250,7 @@ function ProjectFinance({ p }: { p: Project }) {
         </span>
         {stat("Estimated profit", confirmed - costs, confirmed - costs < 0 ? "text-risk" : undefined)}
       </div>
-      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12px] text-ink-3">
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 fs-12 text-ink-3">
         <Link to="/invoices" className="hover:text-ink hover:underline">{invoices.length} sent {invoices.length === 1 ? "invoice" : "invoices"}</Link>
         <Link to="/expenses" className="hover:text-ink hover:underline">{expenses.length} project {expenses.length === 1 ? "expense" : "expenses"}</Link>
       </div>
@@ -271,7 +272,7 @@ function ProjectCommunication({ p }: { p: Project }) {
           <MessageSquare size={14} strokeWidth={1.5} className="mt-0.5 shrink-0 text-ink-3" />
           <span className="min-w-0 flex-1">
             <span className="t-dense block truncate">{conversation.name}</span>
-            <span className="block truncate text-[11.5px] text-ink-3">{conversation.messages.at(-1)?.body ?? conversation.subject ?? "Open conversation"}</span>
+            <span className="block truncate fs-11.5 text-ink-3">{conversation.messages.at(-1)?.body ?? conversation.subject ?? "Open conversation"}</span>
           </span>
         </Link>
       ))}
@@ -300,18 +301,66 @@ function UrlField({ value, label, onSave, placeholder }: { value?: string; label
   );
 }
 
+/** Photographers or cinematographers on one function: how many, and who (names can come later). */
+function CrewSlot({ label, count, names, onChange }: { label: string; count?: number; names?: string[]; onChange: (count: number | undefined, names: string[] | undefined) => void }) {
+  const shown = Math.max(count ?? 0, names?.length ?? 0);
+  return (
+    <label className="flex min-w-0 items-center gap-2">
+      <span className="t-meta w-[120px] shrink-0 text-ink-3">{label}</span>
+      <Input
+        aria-label={`${label}: how many`}
+        inputMode="numeric"
+        defaultValue={shown || ""}
+        key={`n${shown}`}
+        placeholder="0"
+        onBlur={(x) => {
+          const n = Math.min(20, Math.max(0, Number(x.target.value.replace(/\D/g, "")) || 0));
+          if (n !== shown) onChange(n || undefined, names);
+        }}
+        className="h-8 w-12 text-center font-mono"
+      />
+      <Input
+        aria-label={`${label}: names`}
+        defaultValue={names?.join(", ") ?? ""}
+        key={`c${names?.join()}`}
+        placeholder="Names, e.g. Aniketh, Arun"
+        onBlur={(x) => {
+          const list = splitNames(x.target.value);
+          if (list.join() !== (names ?? []).join()) onChange(Math.max(count ?? 0, list.length) || undefined, list.length ? list : undefined);
+        }}
+        className="h-8 min-w-0 flex-1"
+      />
+    </label>
+  );
+}
+
 function Functions({ p, set }: { p: Project; set: (patch: Partial<Project>) => void }) {
-  const change = (id: string, patch: Partial<Project["events"][number]>) => set({ events: p.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
+  const change = (id: string, patch: Partial<ProjectEvent>) => set({ events: p.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
+  const text = (e: ProjectEvent, key: "venue" | "duration" | "addOns") => ({
+    defaultValue: e[key] ?? "",
+    onBlur: (x: React.FocusEvent<HTMLInputElement>) => x.target.value.trim() !== (e[key] ?? "") && change(e.id, { [key]: x.target.value.trim() || undefined }),
+  });
   return (
     <section>
       <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Functions · {p.events.length}</h2>
       <ul className="m-0 list-none border-t border-line p-0">
         {p.events.map((e) => (
-          <li key={e.id} className="flex flex-wrap items-center gap-2 border-b border-line py-2">
-            <Input aria-label="Function" defaultValue={e.name} onBlur={(x) => x.target.value.trim() && x.target.value.trim() !== e.name && change(e.id, { name: x.target.value.trim() })} className="h-8 w-[160px]" />
-            <Input type="date" aria-label={`${e.name} date`} value={e.date ?? ""} onChange={(x) => change(e.id, { date: x.target.value || undefined })} className="h-8 w-[150px]" />
-            <Input aria-label={`${e.name} venue`} defaultValue={e.venue ?? ""} placeholder="Venue" onBlur={(x) => x.target.value.trim() !== (e.venue ?? "") && change(e.id, { venue: x.target.value.trim() || undefined })} className="h-8 min-w-0 flex-1 basis-[160px]" />
-            <Button size="icon-sm" variant="ghost" aria-label={`Remove ${e.name}`} onClick={() => set({ events: p.events.filter((x) => x.id !== e.id) })}><Trash2 strokeWidth={1.5} /></Button>
+          <li key={e.id} className="border-b border-line py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Input aria-label="Function" defaultValue={e.name} onBlur={(x) => x.target.value.trim() && x.target.value.trim() !== e.name && change(e.id, { name: x.target.value.trim() })} className="h-8 w-[160px] font-medium" />
+              <Input type="date" aria-label={`${e.name} date`} value={e.date ?? ""} onChange={(x) => change(e.id, { date: x.target.value || undefined })} className="h-8 w-[150px]" />
+              <Input aria-label={`${e.name} duration`} placeholder="Duration, e.g. 6 hrs" {...text(e, "duration")} className="h-8 w-[170px]" />
+              <Input aria-label={`${e.name} venue`} placeholder="Venue" {...text(e, "venue")} className="h-8 min-w-0 flex-1 basis-[160px]" />
+              <Button size="icon-sm" variant="ghost" aria-label={`Remove ${e.name}`} onClick={() => set({ events: p.events.filter((x) => x.id !== e.id) })}><Trash2 strokeWidth={1.5} /></Button>
+            </div>
+            <div className="mt-2 flex flex-col gap-2 pl-1">
+              <CrewSlot label="Photographers" count={e.photo} names={e.photoCrew} onChange={(photo, photoCrew) => change(e.id, { photo, photoCrew })} />
+              <CrewSlot label="Cinematographers" count={e.video} names={e.videoCrew} onChange={(video, videoCrew) => change(e.id, { video, videoCrew })} />
+              <label className="flex min-w-0 items-center gap-2">
+                <span className="t-meta w-[120px] shrink-0 text-ink-3">Add-ons</span>
+                <Input aria-label={`${e.name} add-ons`} placeholder="Drone, LED wall, same-day edit…" {...text(e, "addOns")} className="h-8 min-w-0 flex-1" />
+              </label>
+            </div>
           </li>
         ))}
       </ul>
@@ -344,12 +393,12 @@ function Checklist({ p, tasks, canEdit }: { p: Project; tasks: Task[]; canEdit: 
                 <fieldset disabled={!mine} className="contents"><Checkbox checked={t.done} label={t.title} onCheckedChange={() => useCrm.getState().toggleTask(t.id)} /></fieldset>
                 <button onClick={() => setOpen(expanded ? undefined : t.id)} className="flex min-w-0 flex-1 basis-[200px] items-center gap-1.5 text-left" aria-expanded={expanded}>
                   <StrikeText done={t.done} className="t-dense truncate">{t.title}</StrikeText>
-                  {!!t.comments?.length && <span className="flex items-center gap-0.5 font-mono text-[11px] text-ink-3"><MessageSquare size={11} strokeWidth={1.5} />{t.comments.length}</span>}
+                  {!!t.comments?.length && <span className="flex items-center gap-0.5 font-mono fs-11 text-ink-3"><MessageSquare size={11} strokeWidth={1.5} />{t.comments.length}</span>}
                   <ChevronDown size={13} strokeWidth={1.5} className={cn("shrink-0 text-ink-3 transition-transform", expanded && "rotate-180")} />
                 </button>
                 {t.priority && t.priority !== "normal" && t.priority !== "low" && <Pill tone={PRIORITY_TONE[t.priority]}>{PRIORITY_LABEL[t.priority]}</Pill>}
                 {t.approval && t.approval !== "none" && <Pill tone={t.approval === "approved" ? "ok" : t.approval === "changes" ? "risk" : "warn"}>{APPROVAL_LABEL[t.approval]}</Pill>}
-                {t.done ? <DoneBy t={t} short /> : <span className={cn("w-[56px] text-right font-mono text-[11.5px]", overdue(t) ? "text-risk" : "text-ink-2")}>{fmtDay(t.dueAt)}</span>}
+                {t.done ? <DoneBy t={t} short /> : <span className={cn("w-[56px] text-right font-mono fs-11.5", overdue(t) ? "text-risk" : "text-ink-2")}>{fmtDay(t.dueAt)}</span>}
                 <Select aria-label={`Who does ${t.title}`} disabled={!canEdit} value={t.assigneeId} onChange={(e) => upd({ assigneeId: e.target.value })} className="w-[130px]">
                   {people.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </Select>
@@ -413,7 +462,7 @@ function Comments({ t }: { t: Task }) {
         <div key={c.id} className="flex gap-2">
           <Avatar name={(c.authorId === "client" ? `${c.authorName ?? "Client"} (client)` : (members.find((m) => m.id === c.authorId)?.name ?? "Support"))} size="sm" />
           <div className="min-w-0 flex-1">
-            <div className="text-[11.5px] text-ink-3">{(c.authorId === "client" ? `${c.authorName ?? "Client"} (client)` : (members.find((m) => m.id === c.authorId)?.name ?? "Support"))} · {fmtAgo(c.at)}</div>
+            <div className="fs-11.5 text-ink-3">{(c.authorId === "client" ? `${c.authorName ?? "Client"} (client)` : (members.find((m) => m.id === c.authorId)?.name ?? "Support"))} · {fmtAgo(c.at)}</div>
             <p className="t-dense m-0 whitespace-pre-wrap">{c.body}</p>
           </div>
         </div>
@@ -473,7 +522,7 @@ function Crew({ p, set }: { p: Project; set: (patch: Partial<Project>) => void }
           return (
             <li key={`${c.memberId}-${i}`} className="flex items-center gap-2.5 border-b border-line py-2 last:border-0">
               <Avatar name={m?.name ?? "?"} me={c.memberId === ME_ID} size="sm" />
-              <span className="t-dense min-w-0 flex-1 truncate">{m?.name ?? "Former teammate"} <span className="text-[11.5px] text-ink-3">· {c.role}</span></span>
+              <span className="t-dense min-w-0 flex-1 truncate">{m?.name ?? "Former teammate"} <span className="fs-11.5 text-ink-3">· {c.role}</span></span>
               <Button size="icon-sm" variant="ghost" aria-label={`Remove ${m?.name ?? "crew member"}`} onClick={() => set({ crew: p.crew.filter((_, k) => k !== i) })}><Trash2 strokeWidth={1.5} /></Button>
             </li>
           );
@@ -541,7 +590,7 @@ function Links({ p, set }: { p: Project; set: (patch: Partial<Project>) => void 
         {p.links.map((l, i) => (
           <li key={i} className="flex items-center gap-2 border-b border-line py-2 last:border-0">
             <a href={l.url} target="_blank" rel="noreferrer" className="t-dense min-w-0 flex-1 truncate hover:underline">{l.label}</a>
-            <label className="flex items-center gap-1 text-[11.5px] text-ink-3" title="Show this link in the client's portal">
+            <label className="flex items-center gap-1 fs-11.5 text-ink-3" title="Show this link in the client's portal">
               <input type="checkbox" checked={!!l.client} onChange={(e) => set({ links: p.links.map((x, k) => (k === i ? { ...x, client: e.target.checked || undefined } : x)) })} className="size-3.5 accent-[var(--ink)]" />
               Client sees
             </label>
@@ -581,8 +630,8 @@ export function ProjectList({ projects }: { projects: Project[] }) {
           <li key={p.id}>
             <Link to={`/projects/${p.id}`} className="flex items-center gap-3 border-b border-line py-2.5 hover:bg-hover">
               <span className="t-dense min-w-0 flex-1 truncate font-medium">{p.name}</span>
-              {p.dueDate && <span className="font-mono text-[11px] text-ink-3">{fmtDate(p.dueDate)}</span>}
-              <span className="font-mono text-[11px] text-ink-3">{pr.done}/{pr.total}</span>
+              {p.dueDate && <span className="font-mono fs-11 text-ink-3">{fmtDate(p.dueDate)}</span>}
+              <span className="font-mono fs-11 text-ink-3">{pr.done}/{pr.total}</span>
               <Pill tone={STATUS_TONE[p.status]}>{PROJECT_STATUS_LABEL[p.status]}</Pill>
             </Link>
           </li>
@@ -642,7 +691,7 @@ function ClientPortal({ p, canShare }: { p: Project; canShare: boolean }) {
       {link.url ? (
         <div className="flex flex-col gap-2">
           <span className="flex gap-2">
-            <Input readOnly value={link.url} onFocus={(e) => e.target.select()} aria-label="Client link" className="h-8 flex-1 font-mono text-[11px]" />
+            <Input readOnly value={link.url} onFocus={(e) => e.target.select()} aria-label="Client link" className="h-8 flex-1 font-mono fs-11" />
             <Button size="sm" onClick={() => void navigator.clipboard.writeText(link.url!).then(() => toast("Copied"))}>Copy</Button>
           </span>
           <span className="flex flex-wrap items-center gap-2">
@@ -688,12 +737,12 @@ function Services({ p }: { p: Project }) {
           {lines.map((l, i) => (
             <li key={i} className="flex items-center gap-3 border-b border-line py-2">
               <span className="t-dense min-w-0 flex-1">{l.desc}{l.qty !== 1 && <span className="text-ink-3"> × {l.qty}</span>}</span>
-              <span className="font-mono text-[12px] text-ink-2">{formatFull(Math.round(l.qty * l.ratePaise))}</span>
+              <span className="font-mono fs-12 text-ink-2">{formatFull(Math.round(l.qty * l.ratePaise))}</span>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="t-dense m-0">{deal?.service || deal?.title}{deal?.requirements && <span className="block text-[12px] text-ink-3">{deal.requirements}</span>}</p>
+        <p className="t-dense m-0">{deal?.service || deal?.title}{deal?.requirements && <span className="block fs-12 text-ink-3">{deal.requirements}</span>}</p>
       )}
       {accepted.map((q) => <Link key={q.id} to={`/quotes/${q.id}/agreement`} className="t-meta mt-1 mr-3 inline-block text-ink-3 hover:text-ink hover:underline">Agreement {q.number}{q.signature ? ` · signed by ${q.signature.name}` : ""}</Link>)}
     </section>
@@ -768,7 +817,7 @@ function ClientUpdates({ p }: { p: Project }) {
         {(p.clientUpdates ?? []).slice(0, 5).map((u) => (
           <li key={u.id} className="border-b border-line py-2 last:border-0">
             <p className="t-dense m-0 whitespace-pre-wrap">{u.body}</p>
-            <span className="font-mono text-[11px] text-ink-3">{u.by} · {fmtAgo(u.at)}</span>
+            <span className="font-mono fs-11 text-ink-3">{u.by} · {fmtAgo(u.at)}</span>
           </li>
         ))}
       </ul>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_TEMPLATES } from "./domain";
-import { istDay, planProject } from "./projects";
+import { istDay, planProject, splitNames } from "./projects";
+import { UpdateProjectSchema } from "./schemas";
 
 describe("planProject", () => {
   it("dates wedding tasks from the event and falls back to the confirmation day", () => {
@@ -17,4 +18,17 @@ describe("planProject", () => {
     expect(late.tasks.find((t) => t.title === "Confirm functions, timings and venue")!.dueAt).toBe("2026-12-01T18:00:00+05:30");
   });
   it("uses the IST day", () => expect(istDay("2026-10-19T19:00:00Z")).toBe("2026-10-20"));
+});
+
+describe("function crew", () => {
+  it("splits typed crew names", () => {
+    expect(splitNames("Aniketh & Arun")).toEqual(["Aniketh", "Arun"]);
+    expect(splitNames(" Bobby, Teju and Ravi ,")).toEqual(["Bobby", "Teju", "Ravi"]);
+    expect(splitNames("Anand")).toEqual(["Anand"]); // "and" inside a name stays
+    expect(splitNames("")).toEqual([]);
+  });
+  it("keeps the lineup when a project is saved", () => {
+    const e = { id: "e1", name: "Wedding", photo: 2, photoCrew: ["Aniketh", "Arun"], video: 2, videoCrew: ["Bobby", "Teju"], addOns: "Drone", duration: "4 pm – 11 pm" };
+    expect(UpdateProjectSchema.parse({ events: [e] }).events?.[0]).toEqual(e);
+  });
 });

@@ -146,12 +146,12 @@ export function TasksRoute() {
           <div className="flex min-w-max items-start gap-3">
             {grouped.map((g) => (
               <section key={g.id} className="w-[280px] rounded-panel bg-sunken p-2">
-                <h2 className={cn("m-0 flex items-center gap-2 px-1.5 pt-1 pb-2.5 text-[12.5px] font-medium", g.id === "overdue" && "text-risk")}>
-                  {g.label} <span className="font-mono text-[11px] font-normal text-ink-3">{g.items.length}</span>
+                <h2 className={cn("m-0 flex items-center gap-2 px-1.5 pt-1 pb-2.5 fs-12.5 font-medium", g.id === "overdue" && "text-risk")}>
+                  {g.label} <span className="font-mono fs-11 font-normal text-ink-3">{g.items.length}</span>
                 </h2>
                 <ul className="m-0 flex list-none flex-col gap-2 p-0">
                   {g.items.map((t) => <TaskCard key={t.id} t={t} />)}
-                  {!g.items.length && <li className="rounded-card border border-dashed border-line-2 px-3 py-5 text-center text-[12px] text-ink-3">Nothing here</li>}
+                  {!g.items.length && <li className="rounded-card border border-dashed border-line-2 px-3 py-5 text-center fs-12 text-ink-3">Nothing here</li>}
                 </ul>
               </section>
             ))}
@@ -165,12 +165,12 @@ export function TasksRoute() {
 /** A client's heading on the Tasks page: name (to their page), business, and how much is open, late and done. */
 function ClientHeader({ g, compact }: { g: ClientGroup; compact?: boolean }) {
   return (
-    <h2 className={cn("m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5", compact ? "text-[12.5px] font-medium" : "t-dense mb-2 font-medium")}>
+    <h2 className={cn("m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5", compact ? "fs-12.5 font-medium" : "t-dense mb-2 font-medium")}>
       {g.id ? <Link to={`/clients/${g.id}`} className="hover:underline">{g.name}</Link> : <span className="text-ink-2">{g.name}</span>}
-      {g.business && <span className="text-[11px] font-normal text-ink-3">{BUSINESS_SHORT[g.business as keyof typeof BUSINESS_SHORT]}</span>}
-      <span className="font-mono text-[11px] font-normal text-ink-3">{g.open.length} open</span>
-      {g.overdue > 0 && <span className="font-mono text-[11px] font-normal text-risk">{g.overdue} overdue</span>}
-      {g.done > 0 && <span className="font-mono text-[11px] font-normal text-ink-3">{g.done} done</span>}
+      {g.business && <span className="fs-11 font-normal text-ink-3">{BUSINESS_SHORT[g.business as keyof typeof BUSINESS_SHORT]}</span>}
+      <span className="font-mono fs-11 font-normal text-ink-3">{g.open.length} open</span>
+      {g.overdue > 0 && <span className="font-mono fs-11 font-normal text-risk">{g.overdue} overdue</span>}
+      {g.done > 0 && <span className="font-mono fs-11 font-normal text-ink-3">{g.done} done</span>}
     </h2>
   );
 }
@@ -221,7 +221,7 @@ function TaskRow({ t }: { t: Task }) {
       <Checkbox checked={t.done} label={t.title} onCheckedChange={toggle} />
       <div className="min-w-0 flex-1 leading-tight">
         <StrikeText done={t.done} className="t-dense">{t.title}</StrikeText>
-        <div className="text-[11.5px] text-ink-3">
+        <div className="fs-11.5 text-ink-3">
           {project ? (
             <Link to={`/projects/${project.id}`} className="hover:text-ink hover:underline">{project.name}</Link>
           ) : deal ? (
@@ -237,7 +237,7 @@ function TaskRow({ t }: { t: Task }) {
       {t.done ? (
         <span className="hidden w-[170px] text-right sm:block"><DoneBy t={t} /></span>
       ) : (
-        <span className={cn("hidden w-[120px] text-right font-mono text-[11.5px] sm:block", g === "overdue" ? "text-risk" : "text-ink-2")}>{dueLabel(t)}</span>
+        <span className={cn("hidden w-[120px] text-right font-mono fs-11.5 sm:block", g === "overdue" ? "text-risk" : "text-ink-2")}>{dueLabel(t)}</span>
       )}
       {assignee && <Avatar name={assignee.name} me={assignee.id === ME_ID} />}
     </motion.li>
@@ -253,7 +253,7 @@ function TaskCard({ t }: { t: Task }) {
         <Checkbox checked={t.done} label={t.title} onCheckedChange={toggle} className="mt-0.5" />
         <div className="min-w-0 flex-1">
           <StrikeText done={t.done} className="t-dense">{t.title}</StrikeText>
-          <div className="mt-0.5 text-[11.5px] text-ink-3">{company?.name ?? "Internal"}</div>
+          <div className="mt-0.5 fs-11.5 text-ink-3">{company?.name ?? "Internal"}</div>
         </div>
       </div>
       <div className="mt-3 flex items-center gap-2 pl-6.5">

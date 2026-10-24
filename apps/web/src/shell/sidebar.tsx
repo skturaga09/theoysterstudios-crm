@@ -1,8 +1,8 @@
 import { ROLE_LABEL, roleOf } from "@pinnacle/shared";
 import { HEALTH_LABEL } from "@pinnacle/shared";
-import { Avatar, Button, cn, Tooltip, useTheme, ChannelChip } from "@pinnacle/ui";
+import { Avatar, Button, cn, Tooltip, useTheme, ChannelChip, Menu, MenuContent, MenuItem, MenuTrigger, TEXT_SIZE_LABEL, TEXT_SIZES, useTextSize, type TextSize } from "@pinnacle/ui";
 import { signOut } from "firebase/auth";
-import { LogOut, Moon, Sun } from "lucide-react";
+import { ALargeSmall, LogOut, Moon, Sun } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { NavLink } from "react-router";
 import { invoiceStatus, isOpen, taskGroup } from "../data/derive";
@@ -37,8 +37,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       <div className="flex h-[52px] items-center gap-2.5 px-4">
         <img src="/logo-mark.png" alt="" className="size-[28px] shrink-0 object-contain" />
         <div className="min-w-0 leading-tight">
-          <div className="truncate text-[13.5px] font-semibold">{studioName}</div>
-          <div className="font-mono text-[10.5px] tracking-[0.04em] text-ink-3">CRM</div>
+          <div className="truncate fs-13.5 font-semibold">{studioName}</div>
+          <div className="font-mono fs-10.5 tracking-[0.04em] text-ink-3">CRM</div>
         </div>
       </div>
 
@@ -75,7 +75,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                               exit={{ y: -10, opacity: 0 }}
                               transition={{ duration: 0.2 }}
                               className={cn(
-                                "block font-mono text-[11px] leading-4 tnum",
+                                "block font-mono fs-11 leading-4 tnum",
                                 SIGNAL_COUNT.has(to) ? "font-medium text-signal" : "text-ink-3",
                               )}
                             >
@@ -98,18 +98,18 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           </NavLink>
           <ul className="m-0 flex list-none flex-col p-0">
             {!channels.length && (
-              <li className="px-2.5 py-1 text-[12px] text-ink-3">
+              <li className="px-2.5 py-1 fs-12 text-ink-3">
                 <NavLink to="/settings/integrations" onClick={onNavigate} className="hover:text-ink-2">None connected yet</NavLink>
               </li>
             )}
             {channels.map((c) => (
-              <li key={c.channel} className="flex h-7 items-center gap-2.5 px-2.5 text-[12.5px] text-ink-2">
+              <li key={c.channel} className="flex h-7 items-center gap-2.5 px-2.5 fs-12.5 text-ink-2">
                 <Tooltip content={c.note ?? `${HEALTH_LABEL[c.status]} · last event ${fmtMin(c.lastEventMin)} ago`} side="right">
                   <span tabIndex={0} aria-label={`${c.label}: ${HEALTH_LABEL[c.status]}`} className={cn("size-1.5 shrink-0 rounded-full", dot[c.status])} />
                 </Tooltip>
                 <ChannelChip channel={c.channel} className="h-4 min-w-4" />
                 <span className="flex-1 truncate">{c.label}</span>
-                <span className="font-mono text-[10.5px] text-ink-3 tnum" title={c.waiting ? "Connected — no messages received yet" : `Last message ${fmtMin(c.lastEventMin)} ago`}>{c.waiting ? "waiting" : fmtMin(c.lastEventMin)}</span>
+                <span className="font-mono fs-10.5 text-ink-3 tnum" title={c.waiting ? "Connected — no messages received yet" : `Last message ${fmtMin(c.lastEventMin)} ago`}>{c.waiting ? "waiting" : fmtMin(c.lastEventMin)}</span>
               </li>
             ))}
           </ul>
@@ -119,11 +119,12 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       <div className="flex items-center gap-2.5 border-t border-line px-3 py-2.5">
         <Avatar name={me.name} me size="lg" />
         <div className="min-w-0 flex-1 leading-tight">
-          <div className="truncate text-[12.5px] font-medium">{me.name}</div>
-          <div className="truncate text-[11px] text-ink-3">
+          <div className="truncate fs-12.5 font-medium">{me.name}</div>
+          <div className="truncate fs-11 text-ink-3">
             {me.title} · {ROLE_LABEL[roleOf(me.role)]}
           </div>
         </div>
+        <TextSizeMenu />
         <Button variant="ghost" size="icon-sm" aria-label="Toggle theme" onClick={toggle}>
           <Sun strokeWidth={1.5} className="theme-dark-only" />
           <Moon strokeWidth={1.5} className="theme-light-only" />
@@ -133,5 +134,24 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </Button>
       </div>
     </div>
+  );
+}
+
+/** Each person picks how big the text is on their own device. */
+function TextSizeMenu() {
+  const { size, set } = useTextSize();
+  return (
+    <Menu>
+      <MenuTrigger asChild>
+        <Button variant="ghost" size="icon-sm" aria-label="Text size" title="Text size">
+          <ALargeSmall strokeWidth={1.5} />
+        </Button>
+      </MenuTrigger>
+      <MenuContent align="end">
+        {(Object.keys(TEXT_SIZES) as TextSize[]).map((k) => (
+          <MenuItem key={k} checked={size === k} onSelect={() => set(k)}>{TEXT_SIZE_LABEL[k]}</MenuItem>
+        ))}
+      </MenuContent>
+    </Menu>
   );
 }

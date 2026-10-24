@@ -10,6 +10,7 @@ import { useAccess, useCrm } from "../../data/store";
 import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
 import { usePref } from "../../lib/hooks";
+import type { ProjectEvent } from "../../data/types";
 
 type Kind = "event" | "enquiry" | "meeting" | "task" | "followup" | "payment" | "deliverable";
 type Item = { id: string; kind: Kind; day: string; title: string; link: string; time?: string; clash?: boolean };
@@ -26,6 +27,8 @@ const KIND: Record<Kind, { label: string; dot: string }> = {
 const time = (iso: string) => new Date(iso).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" });
 
 /** Everything with a date, in one place: weddings and functions, tasks, follow-ups, payments and deliverables. */
+const ROLE_WORDS = /photographer|cinematographer|videographer|\blead\b|assistant|\btbd\b|\bto be\b/i;
+
 export function CalendarRoute() {
   const s = useCrm();
   const canMoney = useAccess("finance") === "edit";
@@ -36,18 +39,29 @@ export function CalendarRoute() {
   const [hidden, setHidden] = useState<Set<Kind>>(new Set());
   const mine = who === "me";
 
-  // Who is booked on which day: the manager and crew of every project with a function that day.
-  const firstName = (id: string) => s.members.find((m) => m.id === id)?.name.split(" ")[0];
+  // Who is booked on which day: the manager and crew of every project with a function that day, plus the
+  // photographers and cinematographers named on that function.
+  // shortcut: crew are matched by the name as typed ("Arun" ≠ "Arun K"); link names to team members if that misleads.
+  const memberName = (id?: string) => s.members.find((m) => m.id === id)?.name;
+  const firstName = (id: string) => memberName(id)?.split(" ")[0];
   const people = (p: (typeof s.projects)[number]) => [...new Set([p.managerId, ...p.crew.map((c) => c.memberId)].filter((x): x is string => !!x))];
-  const booked = new Map<string, Map<string, Set<string>>>(); // day → person → projects
+  const booked = new Map<string, Map<string, { name: string; projects: Set<string> }>>(); // day → person → projects
   for (const p of s.projects.filter((x) => x.status === "planning" || x.status === "active"))
     for (const e of p.events.filter((x) => x.date))
-      for (const m of people(p)) {
-        const day = booked.get(e.date!) ?? new Map<string, Set<string>>();
-        day.set(m, (day.get(m) ?? new Set()).add(p.id));
+      for (const name of [...people(p).map(memberName), ...(e.photoCrew ?? []), ...(e.videoCrew ?? [])]) {
+        if (!name || ROLE_WORDS.test(name)) continue; // "Lead photographer", "TBD" aren't people
+        const day = booked.get(e.date!) ?? new Map<string, { name: string; projects: Set<string> }>();
+        const who = day.get(name.toLowerCase()) ?? { name, projects: new Set<string>() };
+        who.projects.add(p.id);
+        day.set(name.toLowerCase(), who);
         booked.set(e.date!, day);
       }
-  const clashes = [...booked].flatMap(([day, byPerson]) => [...byPerson].filter(([, ps]) => ps.size > 1).map(([m, ps]) => ({ day, member: m, projects: [...ps] })));
+  const clashes = [...booked].flatMap(([day, byPerson]) => [...byPerson.values()].filter((w) => w.projects.size > 1).map((w) => ({ day, member: w.name, projects: [...w.projects] })));
+  const lineup = (e: ProjectEvent) =>
+    [
+      (e.photo || e.photoCrew?.length) && `${Math.max(e.photo ?? 0, e.photoCrew?.length ?? 0)} photo${e.photoCrew?.length ? ` (${e.photoCrew.join(", ")})` : ""}`,
+      (e.video || e.videoCrew?.length) && `${Math.max(e.video ?? 0, e.videoCrew?.length ?? 0)} video${e.videoCrew?.length ? ` (${e.videoCrew.join(", ")})` : ""}`,
+    ].filter(Boolean).join(" · ");
   const clashOn = (day: string, projectId: string) => clashes.some((c) => c.day === day && c.projects.includes(projectId));
 
   const items: Item[] = [
@@ -55,8 +69,8 @@ export function CalendarRoute() {
       .filter((p) => !mine || p.managerId === ME_ID || p.crew.some((c) => c.memberId === ME_ID))
       .flatMap((p) => [
         ...p.events.filter((e) => e.date).map((e): Item => {
-          const team = people(p).map(firstName).filter(Boolean).join(", ");
-          return { id: `e-${p.id}-${e.id}`, kind: "event", day: e.date!, title: `${e.name} · ${p.name}${e.venue ? ` · ${e.venue}` : ""}${team ? ` · ${team}` : ""}`, link: `/projects/${p.id}`, clash: clashOn(e.date!, p.id) };
+          const team = lineup(e) || people(p).map(firstName).filter(Boolean).join(", ");
+          return { id: `e-${p.id}-${e.id}`, kind: "event", day: e.date!, title: `${e.name}${e.duration ? ` (${e.duration})` : ""} · ${p.name}${e.venue ? ` · ${e.venue}` : ""}${team ? ` · ${team}` : ""}`, link: `/projects/${p.id}`, clash: clashOn(e.date!, p.id) };
         }),
         ...(p.business === "marketing" && p.dueDate ? [{ id: `pd-${p.id}`, kind: "deliverable" as Kind, day: p.dueDate, title: `Project due · ${p.name}`, link: `/projects/${p.id}` }] : []),
         ...p.deliverables.filter((d) => d.dueDate && d.status !== "delivered").map((d): Item => ({ id: `d-${p.id}-${d.id}`, kind: "deliverable", day: d.dueDate!, title: `${d.name} · ${p.name}`, link: `/projects/${p.id}` })),
@@ -123,7 +137,7 @@ export function CalendarRoute() {
               key={k}
               aria-pressed={!hidden.has(k)}
               onClick={() => setHidden((h) => { const n = new Set(h); if (n.has(k)) n.delete(k); else n.add(k); return n; })}
-              className={cn("flex items-center gap-1.5 rounded-control px-2 py-1 text-[12px]", hidden.has(k) ? "text-ink-3 line-through" : "bg-sunken text-ink-2")}
+              className={cn("flex items-center gap-1.5 rounded-control px-2 py-1 fs-12", hidden.has(k) ? "text-ink-3 line-through" : "bg-sunken text-ink-2")}
             >
               <span className={cn("size-2 rounded-full", KIND[k].dot)} /> {KIND[k].label}
             </button>
@@ -135,7 +149,7 @@ export function CalendarRoute() {
         <div role="alert" className="t-dense mb-3 rounded-card bg-risk-wash px-4 py-3 text-risk">
           Double-booked this month:{" "}
           {clashes.filter((c) => c.day.startsWith(month)).map((c, i) => (
-            <span key={`${c.day}-${c.member}`}>{i > 0 && "; "}<b>{s.members.find((m) => m.id === c.member)?.name ?? "Someone"}</b> on {fmtDay(c.day)} ({c.projects.map((id) => s.projects.find((p) => p.id === id)?.name).join(" and ")})</span>
+            <span key={`${c.day}-${c.member}`}>{i > 0 && "; "}<b>{c.member}</b> on {fmtDay(c.day)} ({c.projects.map((id) => s.projects.find((p) => p.id === id)?.name).join(" and ")})</span>
           ))}
           . Change the crew on one of the projects.
         </div>
@@ -151,17 +165,17 @@ export function CalendarRoute() {
               onClick={() => setPicked(day)}
               className={cn("flex min-h-[64px] flex-col items-stretch gap-0.5 border-r border-b border-line p-1 text-left md:min-h-[104px]", !day.startsWith(month) && "bg-sunken/60 text-ink-3", picked === day && "outline-2 -outline-offset-2 outline-ink")}
             >
-              <span className={cn("font-mono text-[11px]", day === today && "self-start rounded-full bg-ink px-1.5 text-on-ink")}>{Number(day.slice(8))}</span>
+              <span className={cn("font-mono fs-11", day === today && "self-start rounded-full bg-ink px-1.5 text-on-ink")}>{Number(day.slice(8))}</span>
               {/* Phones: dots only; wider screens: the first few titles. */}
               <span className="flex flex-wrap gap-0.5 md:hidden">{list.slice(0, 6).map((i) => <span key={i.id} className={cn("size-1.5 rounded-full", KIND[i.kind].dot)} />)}</span>
               <span className="hidden flex-col gap-0.5 md:flex">
                 {list.slice(0, 3).map((i) => (
-                  <span key={i.id} className="flex items-center gap-1 truncate text-[11px] leading-tight">
+                  <span key={i.id} className="flex items-center gap-1 truncate fs-11 leading-tight">
                     <span className={cn("size-1.5 shrink-0 rounded-full", KIND[i.kind].dot)} />
                     <span className={cn("truncate", i.clash && "text-risk")}>{i.clash && "⚠ "}{i.title}</span>
                   </span>
                 ))}
-                {list.length > 3 && <span className="text-[11px] text-ink-3">+{list.length - 3} more</span>}
+                {list.length > 3 && <span className="fs-11 text-ink-3">+{list.length - 3} more</span>}
               </span>
             </button>
           );
@@ -176,7 +190,7 @@ export function CalendarRoute() {
               <Link to={i.link} className="flex items-center gap-3 border-b border-line py-2.5 hover:bg-hover">
                 <span className={cn("size-2 shrink-0 rounded-full", KIND[i.kind].dot)} />
                 <span className={cn("t-dense min-w-0 flex-1 truncate", i.clash && "text-risk")}>{i.clash && "⚠ Double-booked · "}{i.title}</span>
-                <span className="font-mono text-[11.5px] text-ink-3">{i.time ?? KIND[i.kind].label}</span>
+                <span className="font-mono fs-11.5 text-ink-3">{i.time ?? KIND[i.kind].label}</span>
               </Link>
             </li>
           ))}
@@ -204,7 +218,7 @@ function FeedButton() {
     <div className="flex w-full flex-col gap-2 rounded-card bg-sunken p-3 md:w-[460px]">
       <p className="t-meta m-0 text-ink-2">In Google Calendar: <b>Other calendars → + → From URL</b>, paste this, then <b>Add calendar</b>. It updates every few hours. Keep it private — anyone with it can see your items.</p>
       <span className="flex gap-2">
-        <Input readOnly value={url} onFocus={(e) => e.target.select()} className="h-8 flex-1 font-mono text-[11px]" />
+        <Input readOnly value={url} onFocus={(e) => e.target.select()} className="h-8 flex-1 font-mono fs-11" />
         <Button size="sm" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Copied"))}><Copy strokeWidth={1.5} /> Copy</Button>
       </span>
       <button className="t-meta self-start text-ink-3 hover:text-ink" onClick={() => void load(true)}>Make a new address (stops the old one)</button>

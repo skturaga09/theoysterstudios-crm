@@ -30,7 +30,7 @@ export function TH({ className, align = "left", ...props }: ComponentProps<"th">
     <th
       scope="col"
       className={cn(
-        "h-9 border-b border-line px-3 font-mono text-[10.5px] font-medium tracking-[0.08em] text-ink-3 uppercase whitespace-nowrap",
+        "h-9 border-b border-line px-3 font-mono fs-10.5 font-medium tracking-[0.08em] text-ink-3 uppercase whitespace-nowrap",
         align === "right" ? "text-right" : "text-left",
         className,
       )}

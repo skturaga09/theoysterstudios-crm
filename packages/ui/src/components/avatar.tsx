@@ -1,6 +1,6 @@
 import { cn } from "../lib/cn";
 
-const sizes = { sm: "size-5 text-[9px]", md: "size-6 text-[10px]", lg: "size-8 text-[11.5px]" } as const;
+const sizes = { sm: "size-5 fs-9", md: "size-6 fs-10", lg: "size-8 fs-11.5" } as const;
 
 export const initials = (name: string) =>
   name

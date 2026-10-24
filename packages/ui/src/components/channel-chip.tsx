@@ -20,7 +20,7 @@ export function ChannelChip({ channel, className }: { channel: Channel; classNam
       aria-label={CHANNEL_LABEL[channel]}
       className={cn(
         "inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-control",
-        icon ? "p-px" : "border border-line-2 px-1 font-mono text-[9.5px] leading-none font-medium tracking-[0.04em] text-ink-2",
+        icon ? "p-px" : "border border-line-2 px-1 font-mono fs-9.5 leading-none font-medium tracking-[0.04em] text-ink-2",
         className,
       )}
     >

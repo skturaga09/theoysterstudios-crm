@@ -127,7 +127,7 @@ function PortalPage() {
           </div>
           <div className="mt-4 flex items-center gap-3" aria-label={`${pct}% of the work done`}>
             <span className="h-2 flex-1 overflow-hidden rounded-full bg-sunken"><span className="block h-full bg-ink" style={{ width: `${pct}%` }} /></span>
-            <span className="font-mono text-[12px] text-ink-2">{pct}% done</span>
+            <span className="font-mono fs-12 text-ink-2">{pct}% done</span>
           </div>
         </section>
 
@@ -146,7 +146,7 @@ function PortalPage() {
                 <li key={i} className="flex flex-wrap items-baseline gap-x-3 border-b border-line py-2.5">
                   <span className="t-dense font-medium">{e.name}</span>
                   {e.venue && <span className="t-meta text-ink-3">{e.venue}</span>}
-                  <span className="ml-auto font-mono text-[12px] text-ink-2">{e.date ? fmtDate(e.date) : "Date to confirm"}</span>
+                  <span className="ml-auto font-mono fs-12 text-ink-2">{e.date ? fmtDate(e.date) : "Date to confirm"}</span>
                 </li>
               ))}
             </ul>
@@ -160,7 +160,7 @@ function PortalPage() {
               {view.updates!.slice(0, 5).map((u) => (
                 <li key={u.id} className="border-b border-line py-3">
                   <p className="t-dense m-0 whitespace-pre-wrap">{u.body}</p>
-                  <span className="font-mono text-[11px] text-ink-3">{u.by} · {fmtDate(u.at)}</span>
+                  <span className="font-mono fs-11 text-ink-3">{u.by} · {fmtDate(u.at)}</span>
                 </li>
               ))}
             </ul>
@@ -174,7 +174,7 @@ function PortalPage() {
               {view.agreements?.map((q) => (
                 <li key={q.id} className="flex flex-wrap items-center gap-3 border-b border-line py-2.5">
                   <FileText size={16} strokeWidth={1.5} className="text-ink-3" />
-                  <span className="t-dense min-w-0 flex-1">Service agreement {q.number}{q.signature && <span className="text-[11.5px] text-ink-3"> · signed by {q.signature.name}</span>}</span>
+                  <span className="t-dense min-w-0 flex-1">Service agreement {q.number}{q.signature && <span className="fs-11.5 text-ink-3"> · signed by {q.signature.name}</span>}</span>
                   <Button asChild size="sm" variant="ghost"><Link to={`/portal/${token}/agreements/${q.id}`}>View / PDF</Link></Button>
                 </li>
               ))}
@@ -204,7 +204,7 @@ function PortalPage() {
               {view.deliverables.map((d, i) => (
                 <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line py-2.5">
                   <span className="t-dense min-w-0 flex-1">{d.name}</span>
-                  {d.dueDate && d.status !== "delivered" && <span className="font-mono text-[11.5px] text-ink-3">by {fmtDate(d.dueDate)}</span>}
+                  {d.dueDate && d.status !== "delivered" && <span className="font-mono fs-11.5 text-ink-3">by {fmtDate(d.dueDate)}</span>}
                   <Pill tone={STATUS_TONE[d.status] ?? "mute"}>{STATUS_TEXT[d.status] ?? d.status}</Pill>
                   {d.url && <Button asChild size="sm"><a href={d.url} target="_blank" rel="noreferrer">Open <ExternalLink strokeWidth={1.5} /></a></Button>}
                 </li>
@@ -220,8 +220,8 @@ function PortalPage() {
               <ul className="m-0 list-none border-t border-line p-0">
                 {view.schedule.map((m, i) => (
                   <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line py-2.5">
-                    <span className="t-dense min-w-0 flex-1">{m.label}{m.dueDate && <span className="text-[11.5px] text-ink-3"> · by {fmtDate(m.dueDate)}</span>}</span>
-                    <span className="font-mono text-[12.5px]">{formatFull(m.amountPaise)} <span className="text-ink-3">+ GST</span></span>
+                    <span className="t-dense min-w-0 flex-1">{m.label}{m.dueDate && <span className="fs-11.5 text-ink-3"> · by {fmtDate(m.dueDate)}</span>}</span>
+                    <span className="font-mono fs-12.5">{formatFull(m.amountPaise)} <span className="text-ink-3">+ GST</span></span>
                     <Pill tone={STATUS_TONE[m.status]}>{STATUS_TEXT[m.status]}</Pill>
                   </li>
                 ))}
@@ -233,8 +233,8 @@ function PortalPage() {
                   <li key={inv.id} className="mb-2 flex flex-wrap items-center gap-3 rounded-card bg-sunken p-3">
                     <FileText size={16} strokeWidth={1.5} className="text-ink-3" />
                     <span className="min-w-0 flex-1">
-                      <span className="block font-mono text-[12.5px]">{inv.number}</span>
-                      <span className="text-[11.5px] text-ink-3">{formatFull(inv.totalPaise)} · {inv.duePaise > 100 ? `${formatFull(inv.duePaise)} due${inv.dueAt ? ` by ${fmtDate(inv.dueAt)}` : ""}` : "paid in full"}</span>
+                      <span className="block font-mono fs-12.5">{inv.number}</span>
+                      <span className="fs-11.5 text-ink-3">{formatFull(inv.totalPaise)} · {inv.duePaise > 100 ? `${formatFull(inv.duePaise)} due${inv.dueAt ? ` by ${fmtDate(inv.dueAt)}` : ""}` : "paid in full"}</span>
                     </span>
                     <Button asChild size="sm" variant="ghost"><Link to={`/portal/${token}/invoices/${inv.id}`}>View / PDF</Link></Button>
                     {inv.payUrl && <Button asChild size="sm" variant="ink"><a href={inv.payUrl} target="_blank" rel="noreferrer">Pay {formatFull(inv.duePaise)}</a></Button>}
@@ -308,7 +308,7 @@ function ApprovalCard({ a, token, onDone }: { a: Approval; token: string; onDone
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="t-dense m-0 min-w-0 flex-1 font-medium">{a.title}</h3>
         {a.approval === "changes" && <Pill tone="warn">Changes asked</Pill>}
-        {a.dueAt && <span className="font-mono text-[11.5px] text-ink-3">by {fmtDate(a.dueAt)}</span>}
+        {a.dueAt && <span className="font-mono fs-11.5 text-ink-3">by {fmtDate(a.dueAt)}</span>}
       </div>
       {a.notes.length > 0 && (
         <ul className="m-0 mt-2 list-none p-0">

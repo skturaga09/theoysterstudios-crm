@@ -174,37 +174,46 @@
   margin-right: -0.08em; /* …without shifting what follows */
 }
 
-/* ---------- Type scale ---------- */
+/* ---------- Type scale ----------
+   Every size is multiplied by --fs, the reader's text size (set on <html> by the staff app; 1 elsewhere). */
+@utility fs-* {
+  font-size: calc(--value(number) * 1px * var(--fs, 1));
+}
+@media print {
+  :root {
+    --fs: 1 !important; /* invoices and the playbook print at their designed size */
+  }
+}
 @utility t-eyebrow {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: calc(11px * var(--fs, 1));
   line-height: 1;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-weight: 500;
 }
 @utility t-meta {
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs, 1));
   line-height: 1.45;
 }
 @utility t-dense {
-  font-size: 13px;
+  font-size: calc(13px * var(--fs, 1));
   line-height: 1.45;
 }
 @utility t-body {
-  font-size: 14px;
+  font-size: calc(14px * var(--fs, 1));
   line-height: 1.45;
 }
 @utility t-sheet {
   font-family: var(--font-serif);
-  font-size: 22px;
+  font-size: calc(22px * var(--fs, 1));
   line-height: 1.1;
   font-weight: 400;
   letter-spacing: -0.005em;
 }
 @utility t-title {
   font-family: var(--font-serif);
-  font-size: 34px;
+  font-size: calc(34px * var(--fs, 1));
   line-height: 1.05;
   font-weight: 400;
   letter-spacing: -0.015em;
@@ -212,7 +221,7 @@
 }
 @utility t-greeting {
   font-family: var(--font-serif);
-  font-size: 42px;
+  font-size: calc(42px * var(--fs, 1));
   line-height: 1.05;
   font-weight: 400;
   letter-spacing: -0.02em;
@@ -220,7 +229,7 @@
 }
 @utility t-kpi {
   font-family: var(--font-serif);
-  font-size: 44px;
+  font-size: calc(44px * var(--fs, 1));
   line-height: 1;
   font-weight: 400;
   letter-spacing: -0.02em;
@@ -246,7 +255,7 @@
     background: var(--bg);
     color: var(--ink);
     font-family: var(--font-sans);
-    font-size: 13px;
+    font-size: calc(13px * var(--fs, 1));
     line-height: 1.45;
     font-feature-settings: "ss01";
     -webkit-font-smoothing: antialiased;

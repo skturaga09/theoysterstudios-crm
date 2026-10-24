@@ -44,11 +44,11 @@ export function DealHeading({ deal, size = "sheet" }: { deal: Deal; size?: "shee
         <p className="t-dense m-0 mt-1 text-ink-2">{deal.title}</p>
       </div>
       <div className="flex items-baseline gap-1.5">
-        <span className="font-mono text-[14px] text-ink-2">₹</span>
-        <span className={cn("font-serif leading-none tnum", size === "page" ? "text-[44px]" : "text-[32px]")}>
+        <span className="font-mono fs-14 text-ink-2">₹</span>
+        <span className={cn("font-serif leading-none tnum", size === "page" ? "fs-44" : "fs-32")}>
           {isCr ? (value / 1_00_00_000).toFixed(2) : (value / 1_00_000).toFixed(1)}
         </span>
-        <span className="font-mono text-[13px] text-ink-2">{isCr ? "Cr" : "L"}</span>
+        <span className="font-mono fs-13 text-ink-2">{isCr ? "Cr" : "L"}</span>
         <Pill tone={deal.stage === "lost" ? "mute" : healthTone[deal.health]} className="ml-2 self-center">
           {deal.stage === "lost" ? "Lost" : deal.stage === "won" ? "Won" : HEALTH_LABEL[deal.health]}
         </Pill>
@@ -68,7 +68,7 @@ export function NextStep({ deal }: { deal: Deal }) {
       <div className="mb-1.5 flex items-center">
         <span className="t-eyebrow text-signal">Next step</span>
         {!editing && canEdit && (
-          <button className="ml-auto text-[12px] text-ink-3 hover:text-ink" onClick={() => setEditing(true)}>
+          <button className="ml-auto fs-12 text-ink-3 hover:text-ink" onClick={() => setEditing(true)}>
             Edit
           </button>
         )}
@@ -129,7 +129,7 @@ export function DealProperties({ deal }: { deal: Deal }) {
       </Prop>
       <Prop label="Value">
         <label className="flex w-full items-center rounded-control bg-sunken pl-3 focus-within:bg-surface focus-within:ring-1 focus-within:ring-line-2">
-          <span className="font-mono text-[12.5px] text-ink-3">₹</span>
+          <span className="font-mono fs-12.5 text-ink-3">₹</span>
           <input
             key={deal.valuePaise}
             aria-label="Deal value in rupees"
@@ -143,12 +143,12 @@ export function DealProperties({ deal }: { deal: Deal }) {
               }
               if (v !== deal.valuePaise) s.updateDeal(deal.id, { valuePaise: v });
             }}
-            className="h-[34px] w-full bg-transparent px-1.5 pr-3 font-mono text-[12.5px] tnum outline-none"
+            className="h-[34px] w-full bg-transparent px-1.5 pr-3 font-mono fs-12.5 tnum outline-none"
           />
         </label>
       </Prop>
       <Prop label="">
-        <span className="font-mono text-[12px] text-ink-3 tnum">{formatFull(deal.valuePaise)} · {Math.round(probabilityOf(s.pipelines, deal) * 100)}% · weighted {formatFull(rupees(deal.valuePaise / 100 * probabilityOf(s.pipelines, deal)))}</span>
+        <span className="font-mono fs-12 text-ink-3 tnum">{formatFull(deal.valuePaise)} · {Math.round(probabilityOf(s.pipelines, deal) * 100)}% · weighted {formatFull(rupees(deal.valuePaise / 100 * probabilityOf(s.pipelines, deal)))}</span>
       </Prop>
       <Prop label="Close date">
         <input
@@ -156,7 +156,7 @@ export function DealProperties({ deal }: { deal: Deal }) {
           aria-label="Close date"
           defaultValue={deal.closeAt.slice(0, 10)}
           onChange={(e) => e.target.value && s.updateDeal(deal.id, { closeAt: new Date(e.target.value + "T10:00:00").toISOString() })}
-          className="h-[34px] w-full rounded-control bg-sunken px-3 font-mono text-[12.5px] text-ink outline-none focus-visible:bg-surface"
+          className="h-[34px] w-full rounded-control bg-sunken px-3 font-mono fs-12.5 text-ink outline-none focus-visible:bg-surface"
         />
       </Prop>
       <Prop label="Health">
@@ -176,8 +176,8 @@ export function DealProperties({ deal }: { deal: Deal }) {
         {contact ? (
           <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
             <span className="truncate">{contact.name}</span>
-            {contact.phone && <a href={`tel:${contact.phone.replace(/\s/g, "")}`} className="font-mono text-[12px] text-ink-2 hover:text-ink">{contact.phone}</a>}
-            {contact.email && <a href={`mailto:${contact.email}`} className="truncate font-mono text-[12px] text-ink-2 hover:text-ink">{contact.email}</a>}
+            {contact.phone && <a href={`tel:${contact.phone.replace(/\s/g, "")}`} className="font-mono fs-12 text-ink-2 hover:text-ink">{contact.phone}</a>}
+            {contact.email && <a href={`mailto:${contact.email}`} className="truncate font-mono fs-12 text-ink-2 hover:text-ink">{contact.email}</a>}
           </span>
         ) : (
           <span className="text-ink-3">—</span>
@@ -233,7 +233,7 @@ export function DealProperties({ deal }: { deal: Deal }) {
         )}
       </Prop>
       <Prop label="City">{company?.city}</Prop>
-      <Prop label="Created"><span className="font-mono text-[12.5px]">{fmtDate(deal.createdAt)}</span></Prop>
+      <Prop label="Created"><span className="font-mono fs-12.5">{fmtDate(deal.createdAt)}</span></Prop>
       {(deal.stage === "lost" || deal.lostReason) && (
         <Prop label="Lost reason">
           {/* Feeds Reports → why leads are lost. */}
@@ -297,8 +297,8 @@ export function DealSide({ deal }: { deal: Deal }) {
             <li key={c.id} className="flex items-center gap-2.5 border-b border-line py-2 last:border-0">
               <Avatar name={c.name} size="md" />
               <div className="min-w-0 leading-tight">
-                <div className="t-dense truncate font-medium">{c.name}{c.id === deal.contactId && <span className="ml-1.5 text-[11px] font-normal text-ink-3">primary</span>}</div>
-                <div className="truncate text-[11.5px] text-ink-3">{c.title} · {c.email ?? c.phone ?? c.handle}</div>
+                <div className="t-dense truncate font-medium">{c.name}{c.id === deal.contactId && <span className="ml-1.5 fs-11 font-normal text-ink-3">primary</span>}</div>
+                <div className="truncate fs-11.5 text-ink-3">{c.title} · {c.email ?? c.phone ?? c.handle}</div>
               </div>
             </li>
           ))}
@@ -315,8 +315,8 @@ export function DealSide({ deal }: { deal: Deal }) {
               return (
                 <li key={i.id} className="flex items-center gap-2.5 border-b border-line py-2 last:border-0">
                   <FileText size={14} strokeWidth={1.5} className="text-ink-3" />
-                  <span className="flex-1 truncate font-mono text-[12px]">{i.number}</span>
-                  <MoneyText paise={invoiceTotals(i).total} className="text-[12px]" />
+                  <span className="flex-1 truncate font-mono fs-12">{i.number}</span>
+                  <MoneyText paise={invoiceTotals(i).total} className="fs-12" />
                   <Pill tone={statusTone[st]}>{st[0]!.toUpperCase() + st.slice(1)}</Pill>
                 </li>
               );

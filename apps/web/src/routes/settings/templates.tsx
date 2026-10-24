@@ -58,7 +58,7 @@ export function TemplatesRoute() {
             <Select aria-label="Priority" value={x.priority} disabled={!canEdit} onChange={(e) => setTask(i, { priority: e.target.value as Priority })} className="w-[100px]">
               {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
             </Select>
-            <label className="flex items-center gap-1.5 text-[12px] text-ink-2">
+            <label className="flex items-center gap-1.5 fs-12 text-ink-2">
               <input type="checkbox" checked={!!x.approval} disabled={!canEdit} onChange={(e) => setTask(i, { approval: e.target.checked })} />
               Client approval
             </label>

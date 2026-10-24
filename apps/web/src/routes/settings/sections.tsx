@@ -21,7 +21,7 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
     <div className="grid grid-cols-1 gap-2 border-b border-line py-4 sm:grid-cols-[220px_minmax(0,1fr)] sm:gap-6">
       <div>
         <div className="t-dense font-medium">{label}</div>
-        {hint && <div className="mt-0.5 text-[12px] text-ink-3">{hint}</div>}
+        {hint && <div className="mt-0.5 fs-12 text-ink-3">{hint}</div>}
       </div>
       <div className="min-w-0">{children}</div>
     </div>
@@ -176,9 +176,9 @@ export function PipelineSettingsRoute() {
           const n = inUse(s.id);
           return (
             <li key={s.id} className="flex flex-wrap items-center gap-3 border-b border-line py-3">
-              <span className="w-6 font-mono text-[11px] text-ink-3">{s.kind === "open" ? i + 1 : s.kind === "won" ? "✓" : "—"}</span>
+              <span className="w-6 font-mono fs-11 text-ink-3">{s.kind === "open" ? i + 1 : s.kind === "won" ? "✓" : "—"}</span>
               <Input aria-label="Stage name" value={s.label} disabled={!canEdit} onChange={(e) => change(s.id, { label: e.target.value })} className="h-8 min-w-0 flex-1 basis-[160px]" />
-              <span className="w-16 font-mono text-[11.5px] text-ink-3">{n} {n === 1 ? "deal" : "deals"}</span>
+              <span className="w-16 font-mono fs-11.5 text-ink-3">{n} {n === 1 ? "deal" : "deals"}</span>
               <label className="flex items-center gap-1.5">
                 <span className="sr-only">Probability for {s.label}</span>
                 <Input
@@ -188,7 +188,7 @@ export function PipelineSettingsRoute() {
                   onChange={(e) => change(s.id, { probability: Math.min(100, Math.max(0, Number(e.target.value.replace(/\D/g, "")) || 0)) / 100 })}
                   className="h-8 w-14 text-right font-mono"
                 />
-                <span className="font-mono text-[12px] text-ink-3">%</span>
+                <span className="font-mono fs-12 text-ink-3">%</span>
               </label>
               {canEdit && (
                 <span className="flex w-[100px] justify-end">
@@ -244,7 +244,7 @@ export function PipelineSettingsRoute() {
 /* ---------- Integrations ---------- */
 function IntegrationIcon({ channel }: { channel: Channel }) {
   const icon = CHANNEL_ICON[channel];
-  if (!icon) return <ChannelChip channel={channel} className="h-9 min-w-9 text-[11px]" />;
+  if (!icon) return <ChannelChip channel={channel} className="h-9 min-w-9 fs-11" />;
 
   return (
     <span
@@ -338,7 +338,7 @@ export function IntegrationsRoute() {
                   </div>
                   <p className="t-meta m-0 mt-1 max-w-[60ch] text-ink-2">{ABOUT[c.channel]}</p>
                   {c.connected && (
-                    <p className="m-0 mt-2 font-mono text-[11.5px] text-ink-3">
+                    <p className="m-0 mt-2 font-mono fs-11.5 text-ink-3">
                       {c.account} · {"waiting" in c && c.waiting ? `connected ${fmtMin(c.lastEventMin)} ago · no messages received yet` : `last event ${fmtMin(c.lastEventMin)} ago`}
                     </p>
                   )}
@@ -411,8 +411,8 @@ export function IntegrationsRoute() {
               {c.channel === "web" && (
                 <div className="mt-3 flex flex-col gap-2 rounded-card bg-sunken p-3">
                   <p className="t-meta m-0 text-ink-2">Your enquiry form lives at the address below — point the website's “Contact” or “Enquire” button to it, or embed it with the code. Each enquiry arrives in Inbox as a routed lead. Add <code>?business=marketing</code> to open on the marketing form.</p>
-                  <code className="block overflow-x-auto rounded-control bg-surface px-3 py-2 font-mono text-[11.5px]">{`${window.location.origin}/enquire`}</code>
-                  <pre className="m-0 overflow-x-auto rounded-control bg-surface p-3 font-mono text-[11.5px] text-ink-2">{`<iframe src="${window.location.origin}/enquire?embed" title="Enquire" style="width:100%;min-height:760px;border:0"></iframe>`}</pre>
+                  <code className="block overflow-x-auto rounded-control bg-surface px-3 py-2 font-mono fs-11.5">{`${window.location.origin}/enquire`}</code>
+                  <pre className="m-0 overflow-x-auto rounded-control bg-surface p-3 font-mono fs-11.5 text-ink-2">{`<iframe src="${window.location.origin}/enquire?embed" title="Enquire" style="width:100%;min-height:760px;border:0"></iframe>`}</pre>
                   <a href="/enquire" target="_blank" rel="noreferrer" className="t-meta self-start text-ink-2 underline">Open the form</a>
                 </div>
               )}
@@ -473,7 +473,7 @@ export function RoutingRoute() {
             const who = owner(r.ownerId);
             return (
               <motion.li key={r.id} layout exit={{ opacity: 0, height: 0 }} className="flex items-center gap-3 overflow-hidden border-b border-line py-3">
-                <span className="w-6 font-mono text-[11px] text-ink-3">{i + 1}</span>
+                <span className="w-6 font-mono fs-11 text-ink-3">{i + 1}</span>
                 <span className="t-dense min-w-0 flex-1">When {describe(r)}</span>
                 <ArrowRight size={14} strokeWidth={1.5} className="text-ink-3" />
                 <span className={cn("t-dense w-36 font-medium", !who && "text-risk")} title={who ? undefined : "No longer on the team — this rule is skipped"}>
@@ -518,19 +518,19 @@ export function RoutingRoute() {
             toast("Rule added");
           }}
         >
-          <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">Channel</span>
+          <label className="flex flex-col gap-1.5"><span className="fs-12 text-ink-3">Channel</span>
             <Select value={draft.channel} onChange={(e) => setDraft({ ...draft, channel: e.target.value })}>
               <option value="">Any</option>
               {CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}
             </Select>
           </label>
-          <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">City</span>
+          <label className="flex flex-col gap-1.5"><span className="fs-12 text-ink-3">City</span>
             <Input value={draft.city} onChange={(e) => setDraft({ ...draft, city: e.target.value })} placeholder="Any" />
           </label>
-          <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">Min value (₹)</span>
+          <label className="flex flex-col gap-1.5"><span className="fs-12 text-ink-3">Min value (₹)</span>
             <Input inputMode="decimal" value={draft.min} onChange={(e) => setDraft({ ...draft, min: e.target.value })} placeholder="e.g. 5,00,000" className="font-mono" />
           </label>
-          <label className="flex flex-col gap-1.5"><span className="text-[12px] text-ink-3">Assign to</span>
+          <label className="flex flex-col gap-1.5"><span className="fs-12 text-ink-3">Assign to</span>
             <Select value={draft.ownerId} onChange={(e) => setDraft({ ...draft, ownerId: e.target.value })}>
               {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
             </Select>
@@ -580,12 +580,12 @@ export function NotificationsRoute() {
   return (
     <>
       <SettingsHeader title="Notifications" body="Choose the in-app alerts you receive. These settings are yours; teammates set their own." />
-      <div className="mb-1 grid grid-cols-[minmax(0,1fr)_64px] gap-4 pb-2 font-mono text-[10.5px] tracking-[0.08em] text-ink-3 uppercase">
+      <div className="mb-1 grid grid-cols-[minmax(0,1fr)_64px] gap-4 pb-2 font-mono fs-10.5 tracking-[0.08em] text-ink-3 uppercase">
         <span>Event</span><span className="text-center">In app</span>
       </div>
       {EVENTS.map(([k, label, hint]) => (
         <div key={k} className="grid grid-cols-[minmax(0,1fr)_64px] items-center gap-4 border-t border-line py-3">
-          <div><div className="t-dense font-medium">{label}</div><div className="text-[12px] text-ink-3">{hint}</div></div>
+          <div><div className="t-dense font-medium">{label}</div><div className="fs-12 text-ink-3">{hint}</div></div>
           <span className="flex justify-center opacity-100 disabled:opacity-50"><Switch label={`${label} in app`} checked={prefs.app[k]} onChange={(v) => loaded && saving === undefined && void set(k, v)} /></span>
         </div>
       ))}
@@ -669,16 +669,16 @@ function ImportPanel() {
 
   return (
     <section className="mb-10 rounded-panel border border-line bg-surface p-4 md:p-5" aria-labelledby="import-h">
-      <h2 id="import-h" className="m-0 mb-1 flex items-center gap-2 text-[14px] font-medium"><Upload size={16} strokeWidth={1.5} /> Import from a spreadsheet</h2>
+      <h2 id="import-h" className="m-0 mb-1 flex items-center gap-2 fs-14 font-medium"><Upload size={16} strokeWidth={1.5} /> Import from a spreadsheet</h2>
       <p className="t-meta m-0 mb-4 text-ink-3">Export a CSV from Google Sheets, Excel or Notion (… menu → Export → CSV). Up to 2,000 rows at a time. Duplicates are skipped: contacts by email, companies by name.</p>
       <div className="flex flex-wrap items-end gap-3">
         <Segmented label="Import" value={target} onChange={(t) => { setTarget(t); setMapping(file ? guessMapping(t, file.headers) : {}); setResult(undefined); }} options={[{ value: "contacts", label: "Contacts" }, { value: "companies", label: "Companies" }]} />
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12px] text-ink-3">CSV file</span>
+          <span className="fs-12 text-ink-3">CSV file</span>
           <input
             type="file"
             accept=".csv,text/csv"
-            className="t-dense file:mr-3 file:rounded-control file:border file:border-line-2 file:bg-surface file:px-3 file:py-1.5 file:text-[12.5px]"
+            className="t-dense file:mr-3 file:rounded-control file:border file:border-line-2 file:bg-surface file:px-3 file:py-1.5 file:fs-12.5"
             onChange={async (e) => {
               const f = e.target.files?.[0];
               setResult(undefined);
@@ -699,7 +699,7 @@ function ImportPanel() {
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {fields.map((f) => (
               <label key={f.key} className="flex flex-col gap-1.5">
-                <span className="text-[12px] text-ink-3">{f.label}{f.required && " *"}</span>
+                <span className="fs-12 text-ink-3">{f.label}{f.required && " *"}</span>
                 <Select value={mapping[f.key] ?? -1} onChange={(e) => setMapping({ ...mapping, [f.key]: Number(e.target.value) })}>
                   <option value={-1}>— Skip —</option>
                   {file.headers.map((h, k) => <option key={k} value={k}>{h || `Column ${k + 1}`}</option>)}
@@ -707,11 +707,11 @@ function ImportPanel() {
               </label>
             ))}
             <label className="flex flex-col gap-1.5">
-              <span className="text-[12px] text-ink-3">Owner for all rows</span>
+              <span className="fs-12 text-ink-3">Owner for all rows</span>
               <Select value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>{members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</Select>
             </label>
             <label className="flex flex-col gap-1.5">
-              <span className="text-[12px] text-ink-3">Business when not given</span>
+              <span className="fs-12 text-ink-3">Business when not given</span>
               <Select value={importBusiness} onChange={(e) => setImportBusiness(e.target.value as Business | "")}>
                 <option value="">Both / not set</option>
                 {BUSINESSES.map((b) => <option key={b} value={b}>{BUSINESS_LABEL[b]}</option>)}
@@ -719,7 +719,7 @@ function ImportPanel() {
             </label>
             {target === "contacts" && (
               <label className="flex flex-col gap-1.5">
-                <span className="text-[12px] text-ink-3">Source when not given</span>
+                <span className="fs-12 text-ink-3">Source when not given</span>
                 <Select value={source} onChange={(e) => setSource(e.target.value as Channel)}>{CHANNELS.map((c) => <option key={c} value={c}>{CHANNEL_LABEL[c]}</option>)}</Select>
               </label>
             )}
@@ -771,7 +771,7 @@ function ImportPanel() {
             {result.skipped.length > 0 && ` ${result.skipped.length} skipped:`}
           </p>
           {result.skipped.length > 0 && (
-            <ul className="m-0 mt-2 max-h-48 list-none overflow-y-auto p-0 font-mono text-[11.5px] text-ink-2">
+            <ul className="m-0 mt-2 max-h-48 list-none overflow-y-auto p-0 font-mono fs-11.5 text-ink-2">
               {result.skipped.slice(0, 200).map((x) => <li key={x.row}>Row {x.row + 1}: {x.reason}</li>)}
             </ul>
           )}

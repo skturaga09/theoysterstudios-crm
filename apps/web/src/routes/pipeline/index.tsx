@@ -65,7 +65,7 @@ function FilterChip<T extends string>({
       <MenuTrigger asChild>
         <button
           className={cn(
-            "inline-flex h-7 items-center gap-1.5 rounded-control border px-2.5 text-[12.5px] transition-colors duration-150",
+            "inline-flex h-7 items-center gap-1.5 rounded-control border px-2.5 fs-12.5 transition-colors duration-150",
             value ? "border-line-2 bg-surface text-ink" : "border-dashed border-line-2 text-ink-2 hover:text-ink",
           )}
         >
@@ -141,7 +141,7 @@ export function PipelineRoute() {
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <Menu>
           <MenuTrigger asChild>
-            <button className="inline-flex h-7 items-center gap-1.5 rounded-control px-1.5 text-[13px] font-medium hover:bg-hover">
+            <button className="inline-flex h-7 items-center gap-1.5 rounded-control px-1.5 fs-13 font-medium hover:bg-hover">
               {viewName} <ChevronDown size={13} strokeWidth={1.5} className="text-ink-3" />
             </button>
           </MenuTrigger>
@@ -241,7 +241,7 @@ function DealTable({ deals }: { deals: Deal[] }) {
               <TR key={d.id} data-nav-index={i} onClick={() => useUi.getState().openDeal(d.id)} className={cn(active === i && "bg-hover")}>
                 <TD>
                   <div className="font-medium">{name(d)}</div>
-                  <div className="text-[11.5px] text-ink-3">{d.title}</div>
+                  <div className="fs-11.5 text-ink-3">{d.title}</div>
                 </TD>
                 <TD><DealStage deal={d} /></TD>
                 <TD align="right"><MoneyText paise={d.valuePaise} /></TD>
@@ -255,7 +255,7 @@ function DealTable({ deals }: { deals: Deal[] }) {
         </TBody>
       </Table>
       {!rows.length && <p className="t-dense py-8 text-ink-3">No deals match these filters. Clear a filter or create a deal with C.</p>}
-      <p className="m-0 mt-3 font-mono text-[11px] text-ink-3">{rows.length} deals · {formatCompact(rows.reduce((a, d) => a + d.valuePaise, 0))} · J / K to move · Enter to open</p>
+      <p className="m-0 mt-3 font-mono fs-11 text-ink-3">{rows.length} deals · {formatCompact(rows.reduce((a, d) => a + d.valuePaise, 0))} · J / K to move · Enter to open</p>
     </div>
   );
 }

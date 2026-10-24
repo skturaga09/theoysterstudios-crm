@@ -153,7 +153,7 @@ export function SignApp() {
               <input type="checkbox" checked={form.agree} onChange={(e) => setForm({ ...form, agree: e.target.checked })} className="mt-1 size-4 accent-[var(--ink)]" />
               <span>I have read this agreement and agree to its services, fees of {formatFull(total)} including GST, payment schedule and terms. Typing my name above is my signature.</span>
             </label>
-            {form.name.trim() && <p className="m-0 text-[20px] italic text-ink">{form.name.trim()}</p>}
+            {form.name.trim() && <p className="m-0 fs-20 italic text-ink">{form.name.trim()}</p>}
             {error && <p role="alert" className="t-meta m-0 text-risk">{error}</p>}
             <div className="flex flex-wrap items-center gap-3">
               <p className="t-meta m-0 min-w-0 flex-1 text-ink-3">We record your name, the time, your IP address and device, and a fingerprint of this exact document, as proof of acceptance.</p>

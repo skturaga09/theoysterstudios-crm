@@ -26,8 +26,8 @@ export function DealQuotes({ deal }: { deal: Deal }) {
           <li key={q.id}>
             <Link to={`/quotes/${q.id}`} onClick={() => useUi.getState().closeDeal()} className="flex items-center gap-2.5 border-b border-line py-2 last:border-0 hover:bg-hover">
               <FileSignature size={14} strokeWidth={1.5} className="text-ink-3" />
-              <span className="flex-1 truncate font-mono text-[12px]">{q.number}</span>
-              <MoneyText paise={invoiceTotals({ ...q, payments: [] }).total} className="text-[12px]" />
+              <span className="flex-1 truncate font-mono fs-12">{q.number}</span>
+              <MoneyText paise={invoiceTotals({ ...q, payments: [] }).total} className="fs-12" />
               <Pill tone={q.status === "accepted" ? "ok" : q.status === "declined" ? "risk" : q.status === "sent" ? "warn" : "mute"}>{q.status[0]!.toUpperCase() + q.status.slice(1)}</Pill>
             </Link>
           </li>
@@ -88,14 +88,14 @@ export function DealPayments({ deal }: { deal: Deal }) {
               <li key={m.id} className="flex flex-col gap-1.5 border-b border-line py-2 last:border-0">
                 <div className="flex items-center gap-2">
                   <span className="t-dense min-w-0 flex-1 truncate">{m.label}</span>
-                  <MoneyText paise={m.amountPaise} className="text-[12px]" />
+                  <MoneyText paise={m.amountPaise} className="fs-12" />
                   <Pill tone={STAGE_TONE[st]}>{label(st)}</Pill>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {inv ? (
-                    <Link to={`/invoices?open=${inv.id}`} className="font-mono text-[11.5px] text-ink-2 hover:underline">{inv.number}</Link>
+                    <Link to={`/invoices?open=${inv.id}`} className="font-mono fs-11.5 text-ink-2 hover:underline">{inv.number}</Link>
                   ) : (
-                    <Input type="date" aria-label={`${m.label} due`} disabled={!canPlan} value={m.dueDate ?? ""} onChange={(e) => change(m.id, { dueDate: e.target.value || undefined })} className="h-7 w-[140px] text-[12px]" />
+                    <Input type="date" aria-label={`${m.label} due`} disabled={!canPlan} value={m.dueDate ?? ""} onChange={(e) => change(m.id, { dueDate: e.target.value || undefined })} className="h-7 w-[140px] fs-12" />
                   )}
                   <span className="ml-auto flex items-center gap-1">
                     {!inv && canInvoice && <Button size="sm" onClick={() => void invoiceStage(deal.id, m.id)}>Invoice</Button>}

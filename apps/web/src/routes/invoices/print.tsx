@@ -88,14 +88,14 @@ export function AgreementDocument({ quote: q, studio, client, deal }: { quote: A
   const sig = q.signature;
   const signedAt = sig && new Date(sig.at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit" });
   return (
-    <article className="inv mx-auto w-[210mm] max-w-full p-[14mm] text-[11.5px] leading-relaxed shadow-pop" aria-label={`Service agreement ${q.number}`}>
+    <article className="inv mx-auto w-[210mm] max-w-full p-[14mm] fs-11.5 leading-relaxed shadow-pop" aria-label={`Service agreement ${q.number}`}>
       <style>{PRINT_CSS}</style>
       <header className="bl flex items-start gap-6 border-b pb-5">
         <img src="/logo.png" alt="" className="h-20 w-auto object-contain" />
         <div className="ml-auto text-right">
-          <h1 className="m-0 text-[20px] font-semibold tracking-wide">SERVICE AGREEMENT</h1>
-          <p className="i3 m-0 mt-1 font-mono text-[11px]">From quotation {q.number}</p>
-          <p className="i3 m-0 font-mono text-[11px]">Quotation dated {fmtDate(q.createdAt)}</p>
+          <h1 className="m-0 fs-20 font-semibold tracking-wide">SERVICE AGREEMENT</h1>
+          <p className="i3 m-0 mt-1 font-mono fs-11">From quotation {q.number}</p>
+          <p className="i3 m-0 font-mono fs-11">Quotation dated {fmtDate(q.createdAt)}</p>
         </div>
       </header>
 
@@ -104,7 +104,7 @@ export function AgreementDocument({ quote: q, studio, client, deal }: { quote: A
       </section>
 
       <section className="mt-6">
-        <h2 className="i3 m-0 mb-2 text-[10px] font-medium tracking-wider uppercase">1. Services and deliverables</h2>
+        <h2 className="i3 m-0 mb-2 fs-10 font-medium tracking-wider uppercase">1. Services and deliverables</h2>
         <p className="i2 m-0 mb-2">Project: <span className="text-[var(--i-ink)]">{deal?.title ?? client.name}</span>{deal?.eventDate ? ` · event date ${fmtDate(deal.eventDate)}` : ""}</p>
         <ol className="m-0 pl-5">
           {q.lines.map((line, index) => <li key={index} className="bl border-b py-1.5">{line.desc} · quantity {line.qty} · ₹{inr(Math.round(line.qty * line.ratePaise))} before GST</li>)}
@@ -112,12 +112,12 @@ export function AgreementDocument({ quote: q, studio, client, deal }: { quote: A
       </section>
 
       <section className="mt-6">
-        <h2 className="i3 m-0 mb-2 text-[10px] font-medium tracking-wider uppercase">2. Fees and taxes</h2>
+        <h2 className="i3 m-0 mb-2 fs-10 font-medium tracking-wider uppercase">2. Fees and taxes</h2>
         <p className="m-0">The total consideration is <b>₹{inr(total)}</b>, including GST at 18%. GST invoices will be issued for each payment stage.</p>
       </section>
 
       <section className="mt-6">
-        <h2 className="i3 m-0 mb-2 text-[10px] font-medium tracking-wider uppercase">3. Payment schedule</h2>
+        <h2 className="i3 m-0 mb-2 fs-10 font-medium tracking-wider uppercase">3. Payment schedule</h2>
         <table className="w-full border-collapse">
           <tbody>
             {q.schedule.map((item) => (
@@ -132,7 +132,7 @@ export function AgreementDocument({ quote: q, studio, client, deal }: { quote: A
       </section>
 
       <section className="mt-6">
-        <h2 className="i3 m-0 mb-2 text-[10px] font-medium tracking-wider uppercase">4. Terms</h2>
+        <h2 className="i3 m-0 mb-2 fs-10 font-medium tracking-wider uppercase">4. Terms</h2>
         <p className="i2 m-0 whitespace-pre-line">{q.terms || "The parties will perform the accepted services and payment obligations in good faith. Changes to scope, dates or deliverables must be agreed in writing."}</p>
       </section>
 
@@ -145,7 +145,7 @@ export function AgreementDocument({ quote: q, studio, client, deal }: { quote: A
           <p className="m-0 font-semibold">For {client.name}</p>
           {sig ? (
             <>
-              <p className="m-0 mt-3 text-[16px] italic">{sig.name}</p>
+              <p className="m-0 mt-3 fs-16 italic">{sig.name}</p>
               <p className="i3 m-0">Signed online · {signedAt} IST</p>
             </>
           ) : (
@@ -155,8 +155,8 @@ export function AgreementDocument({ quote: q, studio, client, deal }: { quote: A
       </section>
 
       {sig?.ip && (
-        <section className="bl mt-8 border-t pt-3 text-[10px]">
-          <h2 className="i3 m-0 mb-1 text-[10px] font-medium tracking-wider uppercase">Electronic acceptance record</h2>
+        <section className="bl mt-8 border-t pt-3 fs-10">
+          <h2 className="i3 m-0 mb-1 fs-10 font-medium tracking-wider uppercase">Electronic acceptance record</h2>
           <p className="i2 m-0">Accepted online by <b>{sig.name}</b>{sig.email ? ` (${sig.email})` : ""}{sig.phone ? ` · ${sig.phone}` : ""} on {signedAt} IST, from IP {sig.ip}, after confirming they had read and agreed to this agreement, its payment schedule and terms. Device: {sig.userAgent || "not recorded"}.</p>
           <p className="i2 m-0 mt-1">Document fingerprint (SHA-256 of the quotation as signed): <span className="font-mono break-all">{sig.fingerprint}</span></p>
           <p className="i3 m-0 mt-1">{sig.method}.</p>
@@ -199,15 +199,15 @@ export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; c
         <Button variant="ink" size="sm" className="ml-auto" onClick={() => window.print()}><Printer strokeWidth={1.5} /> Print / Save as PDF</Button>
       </div>
 
-      <article className="inv relative mx-auto w-[210mm] max-w-full p-[14mm] text-[11.5px] leading-relaxed shadow-pop" aria-label={`${quote ? "Quotation" : credit ? "Credit note" : "Tax invoice"} ${inv.number}`}>
-        {stamp && <div className="absolute top-[14mm] left-1/2 -translate-x-1/2 rounded border-2 border-current px-3 py-1 text-[13px] font-semibold tracking-wider text-[#b42318]">{stamp}</div>}
+      <article className="inv relative mx-auto w-[210mm] max-w-full p-[14mm] fs-11.5 leading-relaxed shadow-pop" aria-label={`${quote ? "Quotation" : credit ? "Credit note" : "Tax invoice"} ${inv.number}`}>
+        {stamp && <div className="absolute top-[14mm] left-1/2 -translate-x-1/2 rounded border-2 border-current px-3 py-1 fs-13 font-semibold tracking-wider text-[#b42318]">{stamp}</div>}
 
         <header className="bl flex items-start gap-6 border-b pb-5">
           <img src="/logo.png" alt="" className="h-20 w-auto object-contain" />
           <div className="ml-auto text-right">
-            <h1 className="m-0 text-[20px] font-semibold tracking-wide">{quote ? "QUOTATION" : credit ? "CREDIT NOTE" : "TAX INVOICE"}</h1>
-            {!quote && <p className="i3 m-0 text-[10px]">Original for recipient</p>}
-            <dl className="m-0 mt-2 grid grid-cols-[auto_auto] justify-end gap-x-3 font-mono text-[11px]">
+            <h1 className="m-0 fs-20 font-semibold tracking-wide">{quote ? "QUOTATION" : credit ? "CREDIT NOTE" : "TAX INVOICE"}</h1>
+            {!quote && <p className="i3 m-0 fs-10">Original for recipient</p>}
+            <dl className="m-0 mt-2 grid grid-cols-[auto_auto] justify-end gap-x-3 font-mono fs-11">
               <dt className="i3">{quote ? "Quotation no." : credit ? "Credit note no." : "Invoice no."}</dt><dd className="m-0 font-semibold">{inv.number}</dd>
               <dt className="i3">Date</dt><dd className="m-0">{fmtDate(inv.issuedAt)}</dd>
               {quote ? (
@@ -223,14 +223,14 @@ export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; c
 
         <section className="bl grid grid-cols-2 gap-6 border-b py-5">
           <div>
-            <h2 className="i3 m-0 mb-1 text-[10px] font-medium tracking-wider uppercase">Supplier</h2>
+            <h2 className="i3 m-0 mb-1 fs-10 font-medium tracking-wider uppercase">Supplier</h2>
             <p className="m-0 font-semibold">{seller.legalName || "—"}</p>
             <p className="i2 m-0 whitespace-pre-line">{seller.address}</p>
             <p className="m-0 mt-1 font-mono">GSTIN {seller.gstin || "—"}</p>
             {stateWithCode(seller.gstin) && <p className="i2 m-0">State: {stateWithCode(seller.gstin)}</p>}
           </div>
           <div>
-            <h2 className="i3 m-0 mb-1 text-[10px] font-medium tracking-wider uppercase">{quote ? "Prepared for" : "Bill to"}</h2>
+            <h2 className="i3 m-0 mb-1 fs-10 font-medium tracking-wider uppercase">{quote ? "Prepared for" : "Bill to"}</h2>
             <p className="m-0 font-semibold">{buyer.name}</p>
             {buyer.address ? <p className="i2 m-0 whitespace-pre-line">{buyer.address}</p> : buyer.city && <p className="i2 m-0">{buyer.city}</p>}
             <p className="m-0 mt-1 font-mono">GSTIN {buyer.gstin || "Unregistered"}</p>
@@ -243,7 +243,7 @@ export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; c
 
         <table className="w-full border-collapse">
           <thead>
-            <tr className="bl border-y text-left text-[10px] tracking-wider uppercase">
+            <tr className="bl border-y text-left fs-10 tracking-wider uppercase">
               <th className="i3 py-2 pr-2 font-medium">#</th>
               <th className="i3 py-2 pr-2 font-medium">Description</th>
               <th className="i3 py-2 pr-2 font-medium">SAC</th>
@@ -268,7 +268,7 @@ export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; c
 
         <section className="mt-4 grid grid-cols-[1fr_auto] gap-6">
           <div>
-            <h2 className="i3 m-0 mb-1 text-[10px] font-medium tracking-wider uppercase">Amount in words</h2>
+            <h2 className="i3 m-0 mb-1 fs-10 font-medium tracking-wider uppercase">Amount in words</h2>
             <p className="m-0 font-medium">{rupeesInWords(t.total)}</p>
           </div>
           <dl className="m-0 grid min-w-[62mm] grid-cols-[1fr_auto] gap-x-6 gap-y-1 font-mono">
@@ -294,7 +294,7 @@ export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; c
 
         {quote && quote.schedule.length > 0 && (
           <section className="mt-6">
-            <h2 className="i3 m-0 mb-1 text-[10px] font-medium tracking-wider uppercase">Payment plan (before GST)</h2>
+            <h2 className="i3 m-0 mb-1 fs-10 font-medium tracking-wider uppercase">Payment plan (before GST)</h2>
             <table className="w-full border-collapse">
               <tbody>
                 {quote.schedule.map((m) => (
@@ -310,16 +310,16 @@ export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; c
         )}
         {quote?.terms && (
           <section className="mt-6">
-            <h2 className="i3 m-0 mb-1 text-[10px] font-medium tracking-wider uppercase">Terms</h2>
+            <h2 className="i3 m-0 mb-1 fs-10 font-medium tracking-wider uppercase">Terms</h2>
             <p className="i2 m-0 whitespace-pre-line">{quote.terms}</p>
           </section>
         )}
 
         <footer className="bl mt-10 flex items-end justify-between border-t pt-4">
-          <p className="i3 m-0 max-w-[90mm] text-[10px]">{quote ? "This is a quotation, not a tax invoice. A GST invoice is issued for each payment." : "This is a computer-generated invoice. Tax is not payable on reverse charge basis."}</p>
+          <p className="i3 m-0 max-w-[90mm] fs-10">{quote ? "This is a quotation, not a tax invoice. A GST invoice is issued for each payment." : "This is a computer-generated invoice. Tax is not payable on reverse charge basis."}</p>
           <div className="text-right">
             <p className="m-0">For {seller.legalName || "—"}</p>
-            <p className="i3 m-0 mt-10 text-[10px]">Authorised signatory</p>
+            <p className="i3 m-0 mt-10 fs-10">Authorised signatory</p>
           </div>
         </footer>
       </article>

@@ -128,7 +128,7 @@ export function GrowthReports({ since, rangeLabel }: { since: number; rangeLabel
                 ].map(([label, value]) => (
                   <div key={label} className="flex flex-col gap-0.5 rounded-card bg-sunken px-3 py-2">
                     <dt className="t-eyebrow text-ink-3">{label}</dt>
-                    <dd className="m-0 font-mono text-[14px] tnum">{value}</dd>
+                    <dd className="m-0 font-mono fs-14 tnum">{value}</dd>
                   </div>
                 ))}
               </dl>

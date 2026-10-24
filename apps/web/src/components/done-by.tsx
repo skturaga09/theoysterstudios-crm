@@ -10,7 +10,7 @@ export function DoneBy({ t, short }: { t: Task; short?: boolean }) {
   if (!t.done) return null;
   const by = t.doneBy === "support" ? "Support" : who;
   return (
-    <span className="text-[11.5px] text-ok" title={t.doneAt ? `Completed ${doneTime(t.doneAt)}${by ? ` by ${by}` : ""}` : "Completed"}>
+    <span className="fs-11.5 text-ok" title={t.doneAt ? `Completed ${doneTime(t.doneAt)}${by ? ` by ${by}` : ""}` : "Completed"}>
       {short ? "✓ " : "Done "}
       {by && `${short ? "" : "by "}${by.split(" ")[0]}`}
       {t.doneAt && `${by ? " · " : ""}${doneTime(t.doneAt)}`}

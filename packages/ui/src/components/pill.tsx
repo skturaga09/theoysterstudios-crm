@@ -22,7 +22,7 @@ export function Pill({
   return (
     <span
       className={cn(
-        "inline-flex h-5 items-center gap-1.5 rounded-chip px-2 text-[11.5px] font-medium whitespace-nowrap",
+        "inline-flex h-5 items-center gap-1.5 rounded-chip px-2 fs-11.5 font-medium whitespace-nowrap",
         tones[tone],
         className,
       )}

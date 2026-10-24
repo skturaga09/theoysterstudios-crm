@@ -17,7 +17,7 @@ export function AppShell() {
   const [drawer, setDrawer] = useState(false);
 
   return (
-    <div className="grid h-dvh grid-cols-1 overflow-hidden bg-bg lg:grid-cols-[232px_minmax(0,1fr)] print:block print:h-auto print:overflow-visible">
+    <div className="grid h-dvh grid-cols-1 overflow-hidden bg-bg lg:grid-cols-[calc(232px*var(--fs,1))_minmax(0,1fr)] print:block print:h-auto print:overflow-visible">
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[70] focus:rounded-control focus:bg-surface focus:px-3 focus:py-2"

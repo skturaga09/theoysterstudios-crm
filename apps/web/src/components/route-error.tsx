@@ -13,7 +13,7 @@ export function RouteError() {
       <EmptyState
         icon={TriangleAlert}
         title="This page didn't load"
-        body={<>Reload to try again. If it keeps happening, tell support what you clicked. <span className="font-mono text-[11px] text-ink-3">{String((error as Error)?.message ?? error).slice(0, 200)}</span></>}
+        body={<>Reload to try again. If it keeps happening, tell support what you clicked. <span className="font-mono fs-11 text-ink-3">{String((error as Error)?.message ?? error).slice(0, 200)}</span></>}
         action={<Button variant="ink" onClick={() => window.location.reload()}>Reload</Button>}
       />
     </div>

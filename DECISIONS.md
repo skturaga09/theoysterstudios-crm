@@ -395,3 +395,13 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   While writing it we found the lost reason could not be entered anywhere, so Reports always said "No reason
   given"; a lead marked Lost now has a Lost reason field on its page. Projects rows lead with a camera
   (photography) or megaphone (marketing) and the client's name in the business colour.
+- **Bigger text, set per person (24 Oct 2026).** The studio couldn't read the 11–13px type. Every font size now
+  multiplies a `--fs` variable (type tokens, and `fs-N` utilities that replaced the `text-[Npx]` classes). The
+  staff app defaults to Large (×1.15); Standard (×1) and Extra large (×1.3) are under the Aa button by the
+  user's name, saved on that device. The sidebar widens with it. Public pages (portal, signing, enquiry) and
+  printing stay at the designed size.
+- **Who covers each function.** Each function on a project now has duration, photographers and
+  cinematographers (how many, and names as typed: "Aniketh & Arun"), and add-ons. Names are free text so
+  freelancers outside the CRM fit; the number can run ahead of the names until the crew is fixed. The Calendar
+  shows the line-up and warns when the same name is on two projects the same day. The client portal still
+  doesn't show crew. The project-level Crew list still decides who on the team can open the project.

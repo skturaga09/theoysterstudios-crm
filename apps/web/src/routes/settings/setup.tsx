@@ -16,7 +16,7 @@ import { IS_DEMO } from "../../lib/demo";
 function Copyable({ value }: { value: string }) {
   return (
     <span className="mt-1.5 flex max-w-full items-center gap-2 rounded-control bg-sunken px-2.5 py-1.5">
-      <code className="min-w-0 flex-1 overflow-x-auto font-mono text-[12px] whitespace-nowrap">{value}</code>
+      <code className="min-w-0 flex-1 overflow-x-auto font-mono fs-12 whitespace-nowrap">{value}</code>
       <button
         type="button"
         aria-label={`Copy ${value}`}
@@ -56,7 +56,7 @@ function Steps({ steps, done, toggle }: { steps: Step[]; done: Set<string>; togg
               <Check size={12} strokeWidth={2.5} />
             </button>
             <div className={cn("t-dense min-w-0 flex-1", on && "text-ink-3")}>
-              <p className="m-0"><span className="mr-1.5 font-mono text-[11px] text-ink-3">{i + 1}</span><span className="font-medium">{s.title}</span></p>
+              <p className="m-0"><span className="mr-1.5 font-mono fs-11 text-ink-3">{i + 1}</span><span className="font-medium">{s.title}</span></p>
               {s.body && <div className="mt-1 text-ink-2">{s.body}</div>}
             </div>
           </li>
@@ -129,7 +129,7 @@ function KeysForm({ fields, keys, onSaved }: { fields: { key: KeyField; label: s
         const savedSecret = f.secret && keys?.[`${f.key}Saved` as keyof Keys];
         return (
           <label key={f.key} className="flex flex-col gap-1.5">
-            <span className="text-[12.5px] font-medium">
+            <span className="fs-12.5 font-medium">
               {f.label}{" "}
               {(savedId || savedSecret) && <span className="font-normal text-ok">· saved{savedId ? `: ${savedId}` : ""}</span>}
             </span>
@@ -266,7 +266,7 @@ export function GoogleAccounts({ status, onChanged }: { status?: IntegrationStat
         <ul className="m-0 mb-3 list-none p-0">
           {accounts.map((a) => (
             <li key={a.email} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line py-2 last:border-0">
-              <span className="t-dense min-w-0 flex-1 font-mono text-[12.5px]">{a.email}</span>
+              <span className="t-dense min-w-0 flex-1 font-mono fs-12.5">{a.email}</span>
               <span className="t-meta text-ink-3">
                 {a.error ? <span className="text-risk">{a.error}</span> : `checked ${ago(a.lastSyncAt)}`} · by {members.find((m) => m.id === a.connectedBy)?.name ?? (a.connectedBy === "support" ? "Support" : "a teammate")}
               </span>

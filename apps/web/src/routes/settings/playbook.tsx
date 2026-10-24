@@ -161,7 +161,7 @@ function Steps({ steps }: { steps: [string, string][] }) {
     <ol className="m-0 list-none p-0">
       {steps.map(([title, body], i) => (
         <li key={title} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3 border-b border-line py-3">
-          <span className="font-mono text-[12px] text-ink-3">{String(i + 1).padStart(2, "0")}</span>
+          <span className="font-mono fs-12 text-ink-3">{String(i + 1).padStart(2, "0")}</span>
           <span className="t-dense"><span className="font-medium">{title}.</span> <span className="text-ink-2">{body}</span></span>
         </li>
       ))}
@@ -187,7 +187,7 @@ export function PlaybookRoute() {
         <ol className="m-0 list-none p-0">
           {RULES.map(([rule, why], i) => (
             <li key={rule} className="flex gap-3 border-b border-line py-3">
-              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink font-mono text-[11px] text-on-ink">{i + 1}</span>
+              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-ink font-mono fs-11 text-on-ink">{i + 1}</span>
               <span className="t-dense"><span className="font-medium">{rule}</span> <span className="text-ink-2">{why}</span></span>
             </li>
           ))}
@@ -226,7 +226,7 @@ export function PlaybookRoute() {
             {SETUP.map(([label, to], i) => (
               <li key={to}>
                 <Link to={to} className="flex items-center gap-3 rounded-card border border-line bg-surface px-3 py-2.5 t-dense hover:bg-hover">
-                  <span className="font-mono text-[12px] text-ink-3">{i + 1}</span>{label}
+                  <span className="font-mono fs-12 text-ink-3">{i + 1}</span>{label}
                 </Link>
               </li>
             ))}

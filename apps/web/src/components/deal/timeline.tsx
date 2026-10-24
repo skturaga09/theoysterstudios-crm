@@ -48,7 +48,7 @@ export function Timeline({
                 })()}
                 {deal && <span className="text-ink-3"> · {deal.title}</span>}
               </p>
-              <p className="m-0 mt-0.5 flex items-center gap-1.5 font-mono text-[11px] text-ink-3">{fmtAgo(a.at)}</p>
+              <p className="m-0 mt-0.5 flex items-center gap-1.5 font-mono fs-11 text-ink-3">{fmtAgo(a.at)}</p>
               {a.body && <p className="t-dense m-0 mt-2 rounded-card bg-sunken px-3 py-2 whitespace-pre-line text-ink-2">{a.body}</p>}
             </div>
           </li>

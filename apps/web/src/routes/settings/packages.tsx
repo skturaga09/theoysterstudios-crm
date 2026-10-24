@@ -60,7 +60,7 @@ export function PackagesRoute() {
             <li key={i} className="flex flex-wrap items-center gap-2 border-b border-line py-2.5">
               <Input aria-label="Stage" value={x.label} onChange={(e) => setPlan(plan.map((y, k) => (k === i ? { ...y, label: e.target.value } : y)))} className="h-8 min-w-0 flex-1 basis-[180px]" />
               <Input aria-label="Percent" inputMode="numeric" value={x.percent} onChange={(e) => setPlan(plan.map((y, k) => (k === i ? { ...y, percent: Math.min(100, Number(e.target.value.replace(/[^\d.]/g, "")) || 0) } : y)))} className="h-8 w-16 text-right font-mono" />
-              <span className="font-mono text-[12px] text-ink-3">%, due</span>
+              <span className="font-mono fs-12 text-ink-3">%, due</span>
               <Input aria-label="Days" inputMode="numeric" value={x.days} onChange={(e) => setPlan(plan.map((y, k) => (k === i ? { ...y, days: Number(e.target.value.replace(/[^\d-]/g, "")) || 0 } : y)))} className="h-8 w-16 text-right font-mono" />
               <Select aria-label="Counted from" value={x.from} onChange={(e) => setPlan(plan.map((y, k) => (k === i ? { ...y, from: e.target.value as PlanStep["from"] } : y)))} className="w-[190px]">
                 <option value="confirmed">days from booking</option>

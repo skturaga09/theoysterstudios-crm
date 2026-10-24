@@ -47,7 +47,7 @@ export function MenuItem({
         <span className="grid size-4 place-items-center">{checked && <Check strokeWidth={1.5} className="!text-ink" />}</span>
       )}
       <span className="flex flex-1 items-center gap-2 truncate">{children}</span>
-      {hint && <span className="font-mono text-[11px] text-ink-3">{hint}</span>}
+      {hint && <span className="font-mono fs-11 text-ink-3">{hint}</span>}
     </M.Item>
   );
 }

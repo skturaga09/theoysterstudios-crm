@@ -6,7 +6,7 @@ export function Kbd({ className, ...props }: ComponentProps<"kbd">) {
     <kbd
       className={cn(
         "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-[4px] border border-line px-1",
-        "font-mono text-[10.5px] leading-none text-ink-3",
+        "font-mono fs-10.5 leading-none text-ink-3",
         className,
       )}
       {...props}

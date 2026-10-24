@@ -115,7 +115,7 @@ export function DataTable<T extends { id: string }>({
             <X strokeWidth={1.5} /> Clear
           </Button>
         )}
-        <span className="ml-auto font-mono text-[11.5px] text-ink-3">{total} {total === 1 ? noun[0] : noun[1]}</span>
+        <span className="ml-auto font-mono fs-11.5 text-ink-3">{total} {total === 1 ? noun[0] : noun[1]}</span>
         <Menu>
           <MenuTrigger asChild>
             <Button size="sm" variant="ghost">
@@ -150,7 +150,7 @@ export function DataTable<T extends { id: string }>({
                       scope="col"
                       aria-sort={sorted === "asc" ? "ascending" : sorted === "desc" ? "descending" : undefined}
                       className={cn(
-                        "h-9 border-b border-line px-3 font-mono text-[10.5px] font-medium tracking-[0.08em] whitespace-nowrap text-ink-3 uppercase",
+                        "h-9 border-b border-line px-3 font-mono fs-10.5 font-medium tracking-[0.08em] whitespace-nowrap text-ink-3 uppercase",
                         right ? "text-right" : "text-left",
                         h.column.id === "select" && "w-10",
                       )}
@@ -198,7 +198,7 @@ export function DataTable<T extends { id: string }>({
       </div>
 
       {total > pageSize && (
-        <div className="mt-3 flex items-center justify-end gap-2 font-mono text-[11.5px] text-ink-3">
+        <div className="mt-3 flex items-center justify-end gap-2 font-mono fs-11.5 text-ink-3">
           {pageIndex * pageSize + 1}–{Math.min(total, (pageIndex + 1) * pageSize)} of {total}
           <Button size="icon-sm" variant="ghost" aria-label="Previous page" disabled={!table.getCanPreviousPage()} onClick={() => table.previousPage()}>
             <ChevronLeft strokeWidth={1.5} />
@@ -220,7 +220,7 @@ export function DataTable<T extends { id: string }>({
             transition={spring.snappy}
             className="fixed bottom-6 left-1/2 z-30 flex items-center gap-1 rounded-panel bg-ink py-1.5 pr-1.5 pl-4 text-on-ink shadow-pop"
           >
-            <span className="mr-2 font-mono text-[12px] tnum">{selectedIds.length} selected</span>
+            <span className="mr-2 font-mono fs-12 tnum">{selectedIds.length} selected</span>
             {bulkActions(selectedIds, () => setSelection({}))}
             <button aria-label="Clear selection" onClick={() => setSelection({})} className="grid size-7 place-items-center rounded-control text-on-ink/70 hover:bg-on-ink/10 hover:text-on-ink">
               <X size={14} strokeWidth={1.5} />
@@ -235,7 +235,7 @@ export function DataTable<T extends { id: string }>({
 /** Button styled for the inverted bulk bar. */
 export function BulkButton({ children, ...p }: React.ComponentProps<"button">) {
   return (
-    <button {...p} className="inline-flex h-7 items-center gap-1.5 rounded-control px-2.5 text-[12.5px] text-on-ink/85 hover:bg-on-ink/10 hover:text-on-ink">
+    <button {...p} className="inline-flex h-7 items-center gap-1.5 rounded-control px-2.5 fs-12.5 text-on-ink/85 hover:bg-on-ink/10 hover:text-on-ink">
       {children}
     </button>
   );

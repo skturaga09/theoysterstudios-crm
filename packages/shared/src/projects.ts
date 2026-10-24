@@ -64,3 +64,6 @@ export function projectFromDeal(deal: DealLike, templates: Record<Business, Proj
     tasks: tasks.map((t) => ({ ...t, status: "todo" as const, done: false, remind: false, links: [], comments: [], business, dealId, assigneeId: ownerId })),
   };
 }
+
+/** Crew typed as "Aniketh & Arun" or "Bobby, Teju and Ravi" → one name each (at most 20). */
+export const splitNames = (text: string) => text.split(/\s*(?:,|&|\band\b)\s*/i).map((x) => x.trim()).filter(Boolean).slice(0, 20);

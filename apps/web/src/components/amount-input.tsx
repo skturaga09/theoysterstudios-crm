@@ -14,11 +14,11 @@ export function AmountInput({ value, onValue, hint = true, className, ...props }
   return (
     <span className={cn("flex flex-col gap-0.5", className)}>
       <span className="flex items-center rounded-control border border-transparent bg-sunken pl-3 focus-within:border-line-2 focus-within:bg-surface">
-        <span className="font-mono text-[12.5px] text-ink-3">₹</span>
-        <input inputMode="decimal" autoComplete="off" value={value} onChange={(e) => onValue(e.target.value)} aria-invalid={bad || undefined} className="h-[34px] w-full min-w-0 bg-transparent px-1.5 font-mono text-[12.5px] tnum text-ink outline-none placeholder:text-ink-3" {...props} />
+        <span className="font-mono fs-12.5 text-ink-3">₹</span>
+        <input inputMode="decimal" autoComplete="off" value={value} onChange={(e) => onValue(e.target.value)} aria-invalid={bad || undefined} className="h-[34px] w-full min-w-0 bg-transparent px-1.5 font-mono fs-12.5 tnum text-ink outline-none placeholder:text-ink-3" {...props} />
       </span>
-      {hint && bad && <span className="text-[11px] text-risk">Enter an amount like 58,950</span>}
-      {showRead && <span className="font-mono text-[11px] text-ink-3">= {formatFull(paise!)}</span>}
+      {hint && bad && <span className="fs-11 text-risk">Enter an amount like 58,950</span>}
+      {showRead && <span className="font-mono fs-11 text-ink-3">= {formatFull(paise!)}</span>}
     </span>
   );
 }

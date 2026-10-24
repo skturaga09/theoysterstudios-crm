@@ -1,4 +1,4 @@
-import { bootTheme, Toaster, TooltipProvider } from "@pinnacle/ui";
+import { bootTextSize, bootTheme, Toaster, TooltipProvider } from "@pinnacle/ui";
 import { MotionConfig } from "motion/react";
 import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
@@ -19,6 +19,7 @@ const isPrivacy = window.location.pathname === "/privacy";
 const isPortal = window.location.pathname.startsWith("/portal/");
 const isSign = window.location.pathname.startsWith("/sign/");
 const isEnquire = window.location.pathname === "/enquire";
+if (!isPortal && !isSign && !isEnquire) bootTextSize();
 const Privacy = lazy(() => import("./routes/privacy").then((m) => ({ default: m.PrivacyPage })));
 const Portal = lazy(() => import("./routes/portal/index").then((m) => ({ default: m.PortalApp })));
 const Sign = lazy(() => import("./routes/sign/index").then((m) => ({ default: m.SignApp })));

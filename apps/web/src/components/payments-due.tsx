@@ -33,7 +33,7 @@ export function PaymentsDue({ limit = 8 }: { limit?: number }) {
               <li key={`${deal.id}-${item.id}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line py-2.5">
                 <span className="min-w-0 flex-1 basis-[200px]">
                   <Link to={`/deals/${deal.id}`} className="t-dense block truncate font-medium hover:underline">{company?.name ?? deal.title}</Link>
-                  <span className="text-[11.5px] text-ink-3">{item.label}{item.dueDate ? ` · ${fmtDate(item.dueDate)}` : ""}{inv ? ` · ${inv.number}` : ""}</span>
+                  <span className="fs-11.5 text-ink-3">{item.label}{item.dueDate ? ` · ${fmtDate(item.dueDate)}` : ""}{inv ? ` · ${inv.number}` : ""}</span>
                 </span>
                 <MoneyText paise={amountPaise} />
                 <Pill tone={STAGE_TONE[state]}>{state[0]!.toUpperCase() + state.slice(1)}</Pill>

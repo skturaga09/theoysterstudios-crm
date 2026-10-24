@@ -124,7 +124,7 @@ function SectionHead({ title, meta, to, linkLabel }: { title: string; meta?: Rea
       <h2 className="t-eyebrow m-0 text-ink-2">{title}</h2>
       {meta && <span className="t-meta text-ink-3">{meta}</span>}
       {to && (
-        <Link to={to} viewTransition className="ml-auto inline-flex items-center gap-1 text-[12.5px] text-ink-2 hover:text-ink">
+        <Link to={to} viewTransition className="ml-auto inline-flex items-center gap-1 fs-12.5 text-ink-2 hover:text-ink">
           {linkLabel} <ArrowRight size={13} strokeWidth={1.5} />
         </Link>
       )}
@@ -145,7 +145,7 @@ function ArrivingNow() {
           <span className="relative size-2 rounded-full bg-signal" />
         </span>
         <h2 id="arriving-h" className="t-eyebrow m-0 text-ink-2">Arriving now</h2>
-        <Link to="/inbox" viewTransition className="ml-auto inline-flex items-center gap-1 text-[12.5px] text-ink-2 hover:text-ink">
+        <Link to="/inbox" viewTransition className="ml-auto inline-flex items-center gap-1 fs-12.5 text-ink-2 hover:text-ink">
           Inbox <ArrowRight size={13} strokeWidth={1.5} />
         </Link>
       </header>
@@ -176,13 +176,13 @@ function FeedRow({ c, fresh, onOpen }: { c: Conversation; fresh: boolean; onOpen
           <div className="flex items-center gap-2">
             {c.unread && <span aria-label="Unread" className="size-1.5 shrink-0 rounded-full bg-signal" />}
             <span className={cn("t-dense truncate", c.unread ? "font-medium" : "text-ink-2")}>{c.name}</span>
-            <span className="ml-auto shrink-0 font-mono text-[11px] text-ink-3">{fmtAgo(c.lastMessageAt)}</span>
+            <span className="ml-auto shrink-0 font-mono fs-11 text-ink-3">{fmtAgo(c.lastMessageAt)}</span>
           </div>
-          <p className="m-0 mt-0.5 line-clamp-1 text-[12.5px] text-ink-3">{last?.body}</p>
+          <p className="m-0 mt-0.5 line-clamp-1 fs-12.5 text-ink-3">{last?.body}</p>
           {c.extracted && !c.dealId && (
             <div className="mt-1.5 flex items-center gap-2">
               <Pill tone={c.extracted.intent === "quote" ? "new" : "mute"}>{INTENT_LABEL[c.extracted.intent]}</Pill>
-              <span className="font-mono text-[11px] text-ink-3">est. <MoneyText paise={c.extracted.estValuePaise} /></span>
+              <span className="font-mono fs-11 text-ink-3">est. <MoneyText paise={c.extracted.estValuePaise} /></span>
             </div>
           )}
         </div>
@@ -221,7 +221,7 @@ function ClosingThisMonth() {
                 <TR key={d.id} onClick={() => useUi.getState().openDeal(d.id)} className={cn(wonPulse === d.id && "won-pulse")}>
                   <TD>
                     <div className="font-medium">{companies.find((c) => c.id === d.companyId)?.name}</div>
-                    <div className="text-[11.5px] text-ink-3">{d.title}</div>
+                    <div className="fs-11.5 text-ink-3">{d.title}</div>
                   </TD>
                   <TD className="hidden md:table-cell"><DealStage deal={d} /></TD>
                   <TD align="right"><MoneyText paise={d.valuePaise} /></TD>
@@ -271,7 +271,7 @@ function LeadFollowUps() {
                     <button onClick={() => useUi.getState().openDeal(d.id)} className="flex w-full items-center gap-2.5 border-b border-line py-2 text-left hover:bg-hover">
                       <span className="min-w-0 flex-1 leading-tight">
                         <span className="t-dense block truncate font-medium">{companies.find((c) => c.id === d.companyId)?.name ?? d.title}</span>
-                        <span className="block truncate text-[11.5px] text-ink-3">{d.title}{g.key !== "today" ? ` · ${fmtDay(d.nextFollowUpAt!)}` : ""}</span>
+                        <span className="block truncate fs-11.5 text-ink-3">{d.title}{g.key !== "today" ? ` · ${fmtDay(d.nextFollowUpAt!)}` : ""}</span>
                       </span>
                       {owner && <Avatar name={owner.name} me={owner.id === ME_ID} size="sm" />}
                     </button>
@@ -309,7 +309,7 @@ function FollowUps() {
               <Checkbox checked={t.done} label={t.title} onCheckedChange={() => toggle(t.id)} />
               <div className="min-w-0 flex-1 leading-tight">
                 <StrikeText done={t.done} className="t-dense">{t.title}</StrikeText>
-                <div className="text-[11.5px] text-ink-3">{companies.find((c) => c.id === t.companyId)?.name ?? "Internal"}</div>
+                <div className="fs-11.5 text-ink-3">{companies.find((c) => c.id === t.companyId)?.name ?? "Internal"}</div>
               </div>
               <Pill tone={t.done ? "mute" : g === "overdue" ? "risk" : "warn"}>
                 {t.done ? "Done" : g === "overdue" ? `Overdue · ${fmtDay(t.dueAt)}` : istTime(t.dueAt)}

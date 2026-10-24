@@ -50,7 +50,7 @@ export function TeamRoute() {
       <section className="mt-10">
         <header className="mb-3 flex items-center gap-3">
           <h2 className="t-eyebrow m-0 text-ink-2">People with access</h2>
-          <span className="font-mono text-[11.5px] whitespace-nowrap text-ink-3">{members.length} · {admins} {admins === 1 ? "admin" : "admins"}</span>
+          <span className="font-mono fs-11.5 whitespace-nowrap text-ink-3">{members.length} · {admins} {admins === 1 ? "admin" : "admins"}</span>
           <button
             onClick={async () => {
               try {
@@ -60,7 +60,7 @@ export function TeamRoute() {
                 toast(SIGN_IN_URL);
               }
             }}
-            className="ml-auto inline-flex items-center gap-1.5 font-mono text-[11.5px] text-ink-2 hover:text-ink"
+            className="ml-auto inline-flex items-center gap-1.5 font-mono fs-11.5 text-ink-2 hover:text-ink"
           >
             <Copy size={12} strokeWidth={1.5} /> {SIGN_IN_URL.replace("https://", "")}
           </button>
@@ -123,12 +123,12 @@ function AddMember({ members, onChange }: { members: Member[]; onChange: () => v
       className="rounded-panel border border-line bg-surface p-4 md:p-5"
       aria-labelledby="add-h"
     >
-      <h2 id="add-h" className="m-0 mb-4 flex items-center gap-2 text-[14px] font-medium">
+      <h2 id="add-h" className="m-0 mb-4 flex items-center gap-2 fs-14 font-medium">
         <UserPlus size={16} strokeWidth={1.5} /> Add a person
       </h2>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_150px_auto] md:items-end">
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12.5px] font-medium">Google or Gmail address</span>
+          <span className="fs-12.5 font-medium">Google or Gmail address</span>
           <Input
             id="member-email"
             type="email"
@@ -142,11 +142,11 @@ function AddMember({ members, onChange }: { members: Member[]; onChange: () => v
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12.5px] font-medium">Name <span className="font-normal text-ink-3">(optional)</span></span>
+          <span className="fs-12.5 font-medium">Name <span className="font-normal text-ink-3">(optional)</span></span>
           <Input id="member-name" placeholder="Taken from Google if blank" value={name} onChange={(e) => setName(e.target.value)} />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-[12.5px] font-medium">Role</span>
+          <span className="fs-12.5 font-medium">Role</span>
           <Select id="member-role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
             {(Object.keys(ROLE_LABEL) as Role[]).map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
           </Select>
@@ -179,12 +179,12 @@ function MemberRow({ m, isMe, canEdit, lastAdmin, onChange }: { m: Member; isMe:
         <div className="min-w-0 flex-1 basis-[200px] leading-tight">
           <div className="t-dense flex items-center gap-2 font-medium">
             {m.name}
-            {isMe && <span className="text-[11px] font-normal text-ink-3">you</span>}
+            {isMe && <span className="fs-11 font-normal text-ink-3">you</span>}
             {m.status === "invited" ? <Pill tone="new">Invited</Pill> : null}
           </div>
-          <div className="mt-0.5 font-mono text-[11.5px] text-ink-3">{m.email}</div>
+          <div className="mt-0.5 font-mono fs-11.5 text-ink-3">{m.email}</div>
         </div>
-        <div className="hidden w-[150px] font-mono text-[11px] text-ink-3 md:block">
+        <div className="hidden w-[150px] font-mono fs-11 text-ink-3 md:block">
           {m.status === "invited" ? `Added ${fmtDate(m.addedAt).replace(/^\w+ /, "")}` : m.lastSignInAt ? `Signed in ${fmtAgo(m.lastSignInAt)}` : "Never signed in"}
         </div>
         <div className="w-[140px]">

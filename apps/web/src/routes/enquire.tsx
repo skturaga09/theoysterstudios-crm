@@ -157,7 +157,7 @@ export function EnquirePage() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Labelled label="Phone / WhatsApp" error={errors.phone}>
                 <span className="flex items-center rounded-control bg-sunken focus-within:bg-surface focus-within:ring-1 focus-within:ring-line-2">
-                  <span className="border-r border-line px-3 font-mono text-[13px] text-ink-2">+91</span>
+                  <span className="border-r border-line px-3 font-mono fs-13 text-ink-2">+91</span>
                   <input type="tel" inputMode="tel" value={f.phone} onChange={set("phone")} autoComplete="tel-national" aria-invalid={!!errors.phone} placeholder="98765 43210" className="h-[38px] w-full min-w-0 bg-transparent px-3 t-dense text-ink outline-none placeholder:text-ink-3" />
                 </span>
               </Labelled>
@@ -180,7 +180,7 @@ export function EnquirePage() {
                       type="button"
                       aria-pressed={on}
                       onClick={() => setServices(on ? services.filter((y) => y !== x) : [...services, x])}
-                      className={cn("flex items-center gap-1.5 rounded-chip border px-3 py-1.5 text-[13px] transition-colors", on ? "border-ink bg-ink text-on-ink" : "border-line-2 bg-surface text-ink-2 hover:border-ink-3")}
+                      className={cn("flex items-center gap-1.5 rounded-chip border px-3 py-1.5 fs-13 transition-colors", on ? "border-ink bg-ink text-on-ink" : "border-line-2 bg-surface text-ink-2 hover:border-ink-3")}
                     >
                       {on && <Check size={13} strokeWidth={2} />} {x}
                     </button>
@@ -215,7 +215,7 @@ export function EnquirePage() {
           {failure && <p role="alert" className="t-dense m-0 rounded-control bg-risk-wash px-3 py-2 text-risk">{failure}</p>}
           <div className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center">
             <p className="t-meta m-0 flex-1 text-ink-3">By sending this you agree to be contacted about your enquiry.</p>
-            <Button type="submit" variant="ink" disabled={state === "sending"} className="h-11 px-6 text-[14px]">
+            <Button type="submit" variant="ink" disabled={state === "sending"} className="h-11 px-6 fs-14">
               <Send strokeWidth={1.5} /> {state === "sending" ? "Sending…" : "Send enquiry"}
             </Button>
           </div>
@@ -266,7 +266,7 @@ function Labelled({ label, required, error, children }: { label: string; require
     <label className="flex flex-col gap-1.5">
       <span className="t-meta text-ink-2">{label}{required && <span className="text-risk" aria-hidden> *</span>}</span>
       <span className={cn("block rounded-control", error && "ring-1 ring-risk")}>{children}</span>
-      {error && <span role="alert" className="text-[12px] text-risk">{error}</span>}
+      {error && <span role="alert" className="fs-12 text-risk">{error}</span>}
     </label>
   );
 }

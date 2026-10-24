@@ -144,7 +144,7 @@ export function ReportsRoute() {
           meta={IS_DEMO ? `${formatCompact(lakh(collected))} of ${formatCompact(lakh(target))} · ${Math.round((collected / target) * 100)}%` : `${formatCompact(lakh(collected))} received from invoice payments`}
           onExport={() => downloadCsv("revenue", [["Month", "Collected (₹)", "Target (₹)"], ...revenue.map((r) => [r.month, r.collected * 1e5, r.target * 1e5])])}
         />
-        <div className="flex items-center gap-5 pb-3 text-[12px] text-ink-2">
+        <div className="flex items-center gap-5 pb-3 fs-12 text-ink-2">
           <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-[2px] bg-ink" /> Collected</span>
           {IS_DEMO && <span className="flex items-center gap-2"><span className="h-0 w-4 border-t-2 border-dashed border-ink-3" /> Target</span>}
         </div>
@@ -164,7 +164,7 @@ export function ReportsRoute() {
                 cursor={{ fill: "var(--hover)" }}
                 content={({ active, payload, label }) =>
                   active && payload?.length ? (
-                    <div className="rounded-control bg-ink px-3 py-2 text-[12px] text-on-ink shadow-pop">
+                    <div className="rounded-control bg-ink px-3 py-2 fs-12 text-on-ink shadow-pop">
                       <div className="mb-1 font-medium">{label}</div>
                       <div className="font-mono tnum">Collected {formatFull(lakh(Number(payload[0]?.payload.collected)))}</div>
                       {IS_DEMO && <div className="font-mono text-on-ink/70 tnum">Target {formatFull(lakh(Number(payload[0]?.payload.target)))}</div>}
@@ -191,9 +191,9 @@ export function ReportsRoute() {
               <li key={r.c}>
                 <Tip content={`${CHANNEL_LABEL[r.c]}: ${r.won} won of ${r.n} leads (${Math.round(r.rate * 100)}%)`}>
                   <div tabIndex={0} className="grid grid-cols-[112px_minmax(0,1fr)_72px] items-center gap-3 rounded-[4px] py-1 hover:bg-hover">
-                    <span className="truncate text-[12.5px] text-ink-2">{CHANNEL_LABEL[r.c].replace(" Lead Ads", "")}</span>
+                    <span className="truncate fs-12.5 text-ink-2">{CHANNEL_LABEL[r.c].replace(" Lead Ads", "")}</span>
                     <span className="h-3 rounded-r-[4px] bg-ink" style={{ width: `${Math.max(1.5, (r.rate / maxRate) * 100)}%` }} />
-                    <span className="text-right font-mono text-[12px] tnum">{Math.round(r.rate * 100)}% <span className="text-ink-3">· {r.n}</span></span>
+                    <span className="text-right font-mono fs-12 tnum">{Math.round(r.rate * 100)}% <span className="text-ink-3">· {r.n}</span></span>
                   </div>
                 </Tip>
               </li>
@@ -216,13 +216,13 @@ export function ReportsRoute() {
                   {drop !== null && (
                     <div className="grid grid-cols-[112px_1fr] gap-3 py-0.5">
                       <span />
-                      <span className="font-mono text-[11px] text-ink-3">↓ {drop}% drop-off</span>
+                      <span className="font-mono fs-11 text-ink-3">↓ {drop}% drop-off</span>
                     </div>
                   )}
                   <div className="grid grid-cols-[112px_minmax(0,1fr)_48px] items-center gap-3">
-                    <span className="text-[12.5px] text-ink-2">{f.label}</span>
+                    <span className="fs-12.5 text-ink-2">{f.label}</span>
                     <span className={f.st === "won" ? "h-5 rounded-r-[4px] bg-ok" : "h-5 rounded-r-[4px] bg-ink"} style={{ width: `${Math.max(1.5, (f.n / (funnel[0]!.n || 1)) * 100)}%`, opacity: f.st === "won" ? 1 : 1 - i * 0.14 }} />
-                    <span className="text-right font-mono text-[12px] tnum">{f.n}</span>
+                    <span className="text-right font-mono fs-12 tnum">{f.n}</span>
                   </div>
                 </li>
               );

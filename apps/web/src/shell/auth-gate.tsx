@@ -67,7 +67,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <>
             <h1 className="t-sheet m-0">This account isn't on the team</h1>
             <p className="t-body m-0 text-ink-2">
-              <span className="font-mono text-[13px] text-ink">{gate.email}</span> can't open the CRM yet. Ask an admin to add it in Settings → Team & access.
+              <span className="font-mono fs-13 text-ink">{gate.email}</span> can't open the CRM yet. Ask an admin to add it in Settings → Team & access.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               <Button variant="ink" onClick={() => void signOut(auth).then(signIn)}>Use another account</Button>

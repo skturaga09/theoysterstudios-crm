@@ -267,7 +267,21 @@ const link = z.object({
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date");
 const smallId = z.string().trim().min(1).max(40);
 
-export const ProjectEventSchema = z.object({ id: smallId, name: z.string().trim().min(1).max(80), date: day.optional(), venue: optionalText(160) });
+const crewNames = z.array(z.string().trim().min(1).max(60)).max(20).optional();
+const crewCount = z.number().int().min(0).max(20).optional();
+/** A function (haldi, wedding, reception…) and who covers it: photo and video crew by name, add-ons, duration. */
+export const ProjectEventSchema = z.object({
+  id: smallId,
+  name: z.string().trim().min(1).max(80),
+  date: day.optional(),
+  venue: optionalText(160),
+  duration: optionalText(60),
+  photo: crewCount,
+  photoCrew: crewNames,
+  video: crewCount,
+  videoCrew: crewNames,
+  addOns: optionalText(200),
+});
 export const CrewSchema = z.object({ memberId: id, role: z.string().trim().min(1).max(60) });
 export const DeliverableSchema = z.object({
   id: smallId,

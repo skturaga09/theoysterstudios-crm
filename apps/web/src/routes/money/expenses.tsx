@@ -70,11 +70,11 @@ export function ExpensesRoute() {
           <TBody>
             {shown.map((e) => (
               <TR key={e.id} interactive={false}>
-                <TD className="font-mono text-[12px] whitespace-nowrap">{fmtDate(e.date)}</TD>
-                <TD>{e.category}{e.business && <span className="text-[11.5px] text-ink-3"> · {BUSINESS_SHORT[e.business]}</span>}</TD>
+                <TD className="font-mono fs-12 whitespace-nowrap">{fmtDate(e.date)}</TD>
+                <TD>{e.category}{e.business && <span className="fs-11.5 text-ink-3"> · {BUSINESS_SHORT[e.business]}</span>}</TD>
                 <TD>
                   {e.description}
-                  {e.vendor && <span className="text-[11.5px] text-ink-3"> · {e.vendor}</span>}
+                  {e.vendor && <span className="fs-11.5 text-ink-3"> · {e.vendor}</span>}
                   {e.receiptUrl && <a href={e.receiptUrl} target="_blank" rel="noreferrer" aria-label="Receipt" className="ml-1 inline-flex text-ink-3 hover:text-ink"><ExternalLink size={12} strokeWidth={1.5} /></a>}
                 </TD>
                 <TD className="text-ink-2">{[client(e.companyId), project(e.projectId)].filter(Boolean).join(" · ") || "—"}</TD>

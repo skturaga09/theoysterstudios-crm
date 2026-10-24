@@ -15,9 +15,9 @@ import { runFor } from "../data/pipeline";
 function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[12.5px] font-medium">{label}</span>
+      <span className="fs-12.5 font-medium">{label}</span>
       {children}
-      {hint && <span className="text-[11.5px] text-ink-3">{hint}</span>}
+      {hint && <span className="fs-11.5 text-ink-3">{hint}</span>}
     </label>
   );
 }
@@ -387,7 +387,7 @@ function NewInvoiceForm({ dealId, invoiceId, onDone }: { dealId?: string; invoic
       </div>
 
       <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
-        <legend className="mb-1.5 text-[12.5px] font-medium">Items</legend>
+        <legend className="mb-1.5 fs-12.5 font-medium">Items</legend>
         {lines.map((l, i) => (
           <div key={i} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-card border border-line p-2.5">
             <Input aria-label={`Item ${i + 1} description`} placeholder="Product shoot — 2 days" value={l.desc} onChange={(e) => setLine(i, { desc: e.target.value })} />
@@ -413,7 +413,7 @@ function NewInvoiceForm({ dealId, invoiceId, onDone }: { dealId?: string; invoic
         </Select>
       </Field>
 
-      <dl className="m-0 grid grid-cols-[1fr_auto] gap-y-1 border-t border-line pt-3 font-mono text-[12.5px]">
+      <dl className="m-0 grid grid-cols-[1fr_auto] gap-y-1 border-t border-line pt-3 font-mono fs-12.5">
         <dt className="text-ink-2">Taxable value</dt><dd className="m-0 text-right">{formatFull(t.subtotal)}</dd>
         {supply === "intra" ? (
           <>

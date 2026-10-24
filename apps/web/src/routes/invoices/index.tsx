@@ -103,12 +103,12 @@ export function InvoicesRoute() {
         <div className="grid grid-cols-2 border-t border-ink md:grid-cols-4">
           {buckets.map((b, i) => (
             <div key={b.b} className={cn("flex flex-col gap-2 py-4 pr-4", i > 0 && "md:border-l md:border-line md:pl-5", i % 2 === 1 && "border-l border-line pl-5", i >= 2 && "border-t border-line md:border-t-0")}>
-              <span className="font-mono text-[11px] text-ink-3">{b.b} days</span>
+              <span className="font-mono fs-11 text-ink-3">{b.b} days</span>
               <span className="flex items-baseline gap-1">
-                <span className={cn("font-serif text-[30px] leading-none tnum", b.amt ? "text-ink" : "text-ink-3")}>{b.amt ? formatCompact(b.amt).replace("₹", "").replace(/ (L|Cr|K)$/, "") : "0"}</span>
-                {b.amt > 0 && <span className="font-mono text-[12px] text-ink-2">{formatCompact(b.amt).split(" ")[1]}</span>}
+                <span className={cn("font-serif fs-30 leading-none tnum", b.amt ? "text-ink" : "text-ink-3")}>{b.amt ? formatCompact(b.amt).replace("₹", "").replace(/ (L|Cr|K)$/, "") : "0"}</span>
+                {b.amt > 0 && <span className="font-mono fs-12 text-ink-2">{formatCompact(b.amt).split(" ")[1]}</span>}
               </span>
-              <span className="font-mono text-[11px] text-ink-3">{b.n} {b.n === 1 ? "invoice" : "invoices"}</span>
+              <span className="font-mono fs-11 text-ink-3">{b.n} {b.n === 1 ? "invoice" : "invoices"}</span>
             </div>
           ))}
         </div>
@@ -133,10 +133,10 @@ export function InvoicesRoute() {
           <TBody>
             {rows.map(({ i, st, t, co }, k) => (
               <TR key={i.id} data-nav-index={k} onClick={() => setOpenId(i.id)} className={cn(active === k && "bg-hover")}>
-                <TD className="font-mono text-[12.5px]">{i.number}</TD>
-                <TD><div className="font-medium">{co?.name}</div><div className="font-mono text-[11px] text-ink-3">{co?.gstin || "Unregistered"}</div></TD>
+                <TD className="font-mono fs-12.5">{i.number}</TD>
+                <TD><div className="font-medium">{co?.name}</div><div className="font-mono fs-11 text-ink-3">{co?.gstin || "Unregistered"}</div></TD>
                 <TD numeric className="hidden text-ink-2 md:table-cell">{fmtDay(i.issuedAt)}</TD>
-                <TD numeric className={st === "overdue" ? "text-risk" : "text-ink-2"}>{fmtDay(i.dueAt)}{st === "overdue" && <span className="ml-1.5 text-[11px]">+{daysOverdue(i)}d</span>}</TD>
+                <TD numeric className={st === "overdue" ? "text-risk" : "text-ink-2"}>{fmtDay(i.dueAt)}{st === "overdue" && <span className="ml-1.5 fs-11">+{daysOverdue(i)}d</span>}</TD>
                 <TD align="right"><MoneyText paise={t.total} /></TD>
                 <TD align="right">{t.due ? <MoneyText paise={t.due} /> : <span className="text-ink-3">—</span>}</TD>
                 <TD><Pill tone={TONE[st]}>{LABEL[st]}</Pill></TD>
@@ -177,47 +177,47 @@ function InvoiceDetail({ inv }: { inv: Invoice }) {
         </p>
       )}
       <div className="flex items-baseline gap-2">
-        <span className={cn("font-serif text-[32px] leading-none tnum", inv.cancelled && "text-ink-3 line-through")}>{formatFull(t.total)}</span>
+        <span className={cn("font-serif fs-32 leading-none tnum", inv.cancelled && "text-ink-3 line-through")}>{formatFull(t.total)}</span>
         <Pill tone={TONE[st]} className="ml-auto self-center">{LABEL[st]}</Pill>
       </div>
       <div className="grid grid-cols-2 gap-4 t-dense">
         <div>
           <div className="t-eyebrow mb-1.5 text-ink-3">From</div>
           <div className="font-medium">{from.legalName || "—"}</div>
-          <div className="text-[12px] text-ink-2">{from.address}</div>
-          <div className="mt-1 font-mono text-[11.5px] text-ink-2">GSTIN {from.gstin || "—"}</div>
+          <div className="fs-12 text-ink-2">{from.address}</div>
+          <div className="mt-1 font-mono fs-11.5 text-ink-2">GSTIN {from.gstin || "—"}</div>
         </div>
         <div>
           <div className="t-eyebrow mb-1.5 text-ink-3">Bill to</div>
           <div className="font-medium">{co ? <Link to={`/clients/${co.id}`} className="hover:underline">{to.name}</Link> : to.name}</div>
-          {to.address && <div className="text-[12px] whitespace-pre-line text-ink-2">{to.address}</div>}
-          {!to.address && to.city && <div className="text-[12px] text-ink-2">{to.city}</div>}
-          <div className="mt-1 font-mono text-[11.5px] text-ink-2">GSTIN {to.gstin || "Unregistered"}</div>
+          {to.address && <div className="fs-12 whitespace-pre-line text-ink-2">{to.address}</div>}
+          {!to.address && to.city && <div className="fs-12 text-ink-2">{to.city}</div>}
+          <div className="mt-1 font-mono fs-11.5 text-ink-2">GSTIN {to.gstin || "Unregistered"}</div>
         </div>
       </div>
       <dl className="m-0 grid grid-cols-[110px_1fr] gap-y-2 t-dense">
-        <dt className="text-ink-3">Issued</dt><dd className="m-0 font-mono text-[12.5px]">{fmtDate(inv.issuedAt)}</dd>
-        <dt className="text-ink-3">Due</dt><dd className="m-0 font-mono text-[12.5px]">{fmtDate(inv.dueAt)}</dd>
+        <dt className="text-ink-3">Issued</dt><dd className="m-0 font-mono fs-12.5">{fmtDate(inv.issuedAt)}</dd>
+        <dt className="text-ink-3">Due</dt><dd className="m-0 font-mono fs-12.5">{fmtDate(inv.dueAt)}</dd>
         <dt className="text-ink-3">Supply</dt><dd className="m-0">{inv.supply === "intra" ? "Intra-state (Karnataka) · CGST + SGST" : "Inter-state · IGST"}</dd>
       </dl>
       <table className="w-full border-collapse t-dense">
         <thead>
           <tr className="border-b border-line">
-            <th className="py-2 text-left font-mono text-[10.5px] font-medium tracking-[0.08em] text-ink-3 uppercase">Item</th>
-            <th className="py-2 text-left font-mono text-[10.5px] font-medium tracking-[0.08em] text-ink-3 uppercase">SAC</th>
-            <th className="py-2 text-right font-mono text-[10.5px] font-medium tracking-[0.08em] text-ink-3 uppercase">Amount</th>
+            <th className="py-2 text-left font-mono fs-10.5 font-medium tracking-[0.08em] text-ink-3 uppercase">Item</th>
+            <th className="py-2 text-left font-mono fs-10.5 font-medium tracking-[0.08em] text-ink-3 uppercase">SAC</th>
+            <th className="py-2 text-right font-mono fs-10.5 font-medium tracking-[0.08em] text-ink-3 uppercase">Amount</th>
           </tr>
         </thead>
         <tbody>
           {inv.lines.map((l, k) => (
             <tr key={k} className="border-b border-line">
               <td className="py-2.5 pr-3">{l.desc}</td>
-              <td className="py-2.5 font-mono text-[12px] text-ink-2">{l.sac}</td>
+              <td className="py-2.5 font-mono fs-12 text-ink-2">{l.sac}</td>
               <td className="py-2.5 text-right font-mono tnum">{formatFull(l.qty * l.ratePaise)}</td>
             </tr>
           ))}
         </tbody>
-        <tfoot className="font-mono text-[12.5px] tnum">
+        <tfoot className="font-mono fs-12.5 tnum">
           <tr><td colSpan={2} className="pt-3 text-ink-2">Taxable value</td><td className="pt-3 text-right">{formatFull(t.subtotal)}</td></tr>
           {inv.supply === "intra" ? (
             <>

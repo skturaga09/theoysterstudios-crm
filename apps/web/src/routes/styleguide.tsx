@@ -44,7 +44,7 @@ function Section({ n, title, note, children }: { n: string; title: string; note?
   return (
     <section id={title.toLowerCase().replace(/\W+/g, "-")} className="scroll-mt-6 border-t border-ink pt-5 pb-14">
       <div className="mb-6 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <span className="font-mono text-[11px] text-ink-3">{n}</span>
+        <span className="font-mono fs-11 text-ink-3">{n}</span>
         <h2 className="t-sheet m-0">{title}</h2>
         {note && <p className="t-meta m-0 basis-full text-ink-2 md:ml-auto md:basis-auto">{note}</p>}
       </div>
@@ -68,7 +68,7 @@ function ThemePair({ children, className }: { children: ReactNode; className?: s
 }
 
 function Label({ children }: { children: ReactNode }) {
-  return <div className="font-mono text-[10.5px] tracking-[0.04em] text-ink-3">{children}</div>;
+  return <div className="font-mono fs-10.5 tracking-[0.04em] text-ink-3">{children}</div>;
 }
 
 /* ------------------------------------------------------------------ */
@@ -101,7 +101,7 @@ const TYPE: { name: string; cls: string; spec: string; sample: ReactNode }[] = [
   { name: "Dense UI", cls: "t-dense", spec: "Geist 13/1.45", sample: "Annual retainer · Negotiation · closes 22 Oct" },
   { name: "Meta", cls: "t-meta text-ink-2", spec: "Geist 12.5/1.45", sample: "Last activity 32m ago by Saksham" },
   { name: "Eyebrow", cls: "t-eyebrow text-ink-3", spec: "Geist Mono 11 · upper · +0.08em", sample: "Wednesday · 14 October 2026" },
-  { name: "Mono figure", cls: "font-mono text-[13px] tnum", spec: "Geist Mono 13 · tabular", sample: "₹13,00,000 · 14:20 IST" },
+  { name: "Mono figure", cls: "font-mono fs-13 tnum", spec: "Geist Mono 13 · tabular", sample: "₹13,00,000 · 14:20 IST" },
 ];
 
 const LEDGER: LedgerCell[] = [
@@ -143,10 +143,10 @@ function ColorSpecimen() {
             style={{ background: `var(--${c.token})` }}
           />
           <div className="min-w-0">
-            <div className="font-mono text-[12px]">--{c.token}</div>
-            <div className="truncate text-[11.5px] text-ink-3">{c.use}</div>
+            <div className="font-mono fs-12">--{c.token}</div>
+            <div className="truncate fs-11.5 text-ink-3">{c.use}</div>
           </div>
-          <span className="ml-auto font-mono text-[10.5px] text-ink-3 uppercase">
+          <span className="ml-auto font-mono fs-10.5 text-ink-3 uppercase">
             <span className="theme-hex-light">{c.light}</span>
             <span className="theme-hex-dark">{c.dark}</span>
           </span>
@@ -155,8 +155,8 @@ function ColorSpecimen() {
       <li className="col-span-full flex items-center gap-3 py-3">
         <span className="h-8 w-24 shrink-0 rounded-control bg-grad" />
         <div className="min-w-0">
-          <div className="font-mono text-[12px]">--grad</div>
-          <div className="text-[11.5px] text-ink-3">Highlights only: your name, logo mark, signal button, current stage</div>
+          <div className="font-mono fs-12">--grad</div>
+          <div className="fs-11.5 text-ink-3">Highlights only: your name, logo mark, signal button, current stage</div>
         </div>
       </li>
     </ul>
@@ -241,7 +241,7 @@ function AtomsSpecimen() {
       </div>
       <div className="flex flex-col gap-3">
         <Label>MoneyText — hover or focus for full</Label>
-        <div className="flex flex-wrap items-center gap-4 text-[13px]">
+        <div className="flex flex-wrap items-center gap-4 fs-13">
           <MoneyText paise={lakh(13)} />
           <MoneyText paise={crore(1.24)} />
           <MoneyText paise={lakh(0.85)} />
@@ -294,7 +294,7 @@ function TableSpecimen() {
           <TR key={d.id}>
             <TD>
               <div className="font-medium">{companyById(d.companyId)?.name}</div>
-              <div className="text-[11.5px] text-ink-3">{d.title}</div>
+              <div className="fs-11.5 text-ink-3">{d.title}</div>
             </TD>
             <TD>
               <StageMeter stage={d.stage} />
@@ -322,22 +322,22 @@ function DealCardSpecimen() {
   return (
     <div className="rounded-panel bg-sunken p-2.5">
       <div className="mb-2 flex items-center gap-2 px-1.5 pt-0.5">
-        <span className="text-[12.5px] font-medium">Negotiation</span>
-        <span className="font-mono text-[11px] text-ink-3">2</span>
-        <span className="ml-auto font-mono text-[11px] text-ink-2 tnum">₹17.8 L</span>
+        <span className="fs-12.5 font-medium">Negotiation</span>
+        <span className="font-mono fs-11 text-ink-3">2</span>
+        <span className="ml-auto font-mono fs-11 text-ink-2 tnum">₹17.8 L</span>
       </div>
       <div className="flex flex-col gap-2">
         {[d, DEALS.find((x) => x.id === "d-lumen")!].map((x) => (
           <Card key={x.id} lift className="cursor-pointer p-3">
             <div className="flex items-center gap-2">
               <HealthDot health={x.health} />
-              <span className="truncate text-[13px] font-medium">{companyById(x.companyId)?.name}</span>
+              <span className="truncate fs-13 font-medium">{companyById(x.companyId)?.name}</span>
               <ChannelChip channel={x.channel} className="ml-auto" />
             </div>
-            <div className="mt-0.5 pl-4 text-[12.5px] text-ink-2">{x.title}</div>
+            <div className="mt-0.5 pl-4 fs-12.5 text-ink-2">{x.title}</div>
             <div className="mt-3 flex items-center gap-2 pl-4">
-              <MoneyText paise={x.valuePaise} className="text-[13px]" />
-              <span className="font-mono text-[11px] text-ink-3">{fmtDay(x.closeAt)}</span>
+              <MoneyText paise={x.valuePaise} className="fs-13" />
+              <span className="font-mono fs-11 text-ink-3">{fmtDay(x.closeAt)}</span>
               <Avatar name={person(x.ownerId).name} me={person(x.ownerId).me} size="sm" className="ml-auto" />
             </div>
           </Card>
@@ -368,7 +368,7 @@ function TasksSpecimen() {
             <StrikeText done={!!done[t.id]} className="t-dense">
               {t.title}
             </StrikeText>
-            <div className="text-[11.5px] text-ink-3">{t.rec}</div>
+            <div className="fs-11.5 text-ink-3">{t.rec}</div>
           </div>
           <Pill tone={done[t.id] ? "mute" : t.tone}>{done[t.id] ? "Done" : t.due}</Pill>
         </li>
@@ -448,7 +448,7 @@ export function StyleguideRoute() {
           {TYPE.map((t) => (
             <li key={t.name} className="grid grid-cols-1 items-baseline gap-2 border-b border-line py-4 md:grid-cols-[180px_1fr]">
               <div>
-                <div className="text-[12.5px] font-medium">{t.name}</div>
+                <div className="fs-12.5 font-medium">{t.name}</div>
                 <Label>{t.spec}</Label>
               </div>
               <div className={cn(t.cls, "min-w-0")}>{t.sample}</div>
@@ -550,7 +550,7 @@ export function StyleguideRoute() {
             {MOTION.map(([m, s]) => (
               <TR key={m} interactive={false}>
                 <TD className="font-medium">{m}</TD>
-                <TD className="font-mono text-[12px] whitespace-normal text-ink-2">{s}</TD>
+                <TD className="font-mono fs-12 whitespace-normal text-ink-2">{s}</TD>
               </TR>
             ))}
           </TBody>
@@ -576,8 +576,8 @@ export function StyleguideRoute() {
         }
       >
         <div className="flex items-baseline gap-3">
-          <span className="font-serif text-[32px] leading-none tnum">₹13.0</span>
-          <span className="font-mono text-[13px] text-ink-2">L</span>
+          <span className="font-serif fs-32 leading-none tnum">₹13.0</span>
+          <span className="font-mono fs-13 text-ink-2">L</span>
           <Pill tone="ok" className="ml-auto">
             On track
           </Pill>
@@ -599,7 +599,7 @@ export function StyleguideRoute() {
             <Avatar name={ME.name} me size="sm" /> {ME.name}
           </dd>
           <dt className="text-ink-3">Close date</dt>
-          <dd className="m-0 font-mono text-[12.5px]">{fmtDay(atlas.closeAt)}</dd>
+          <dd className="m-0 font-mono fs-12.5">{fmtDay(atlas.closeAt)}</dd>
           <dt className="text-ink-3">City</dt>
           <dd className="m-0">Bengaluru</dd>
         </dl>

@@ -47,7 +47,7 @@ export function ContactsRoute() {
           <Avatar name={c.name} size="lg" />
           <span className="leading-tight">
             <span className="block font-medium">{c.name}</span>
-            <span className="text-[11.5px] text-ink-3">{c.title}</span>
+            <span className="fs-11.5 text-ink-3">{c.title}</span>
           </span>
         </span>
       ),
@@ -63,11 +63,11 @@ export function ContactsRoute() {
           <span className="text-ink-3">—</span>
         ),
     },
-    { id: "reach", header: "Email / phone", accessorKey: "reach", cell: ({ getValue }) => <span className="font-mono text-[12px] text-ink-2">{String(getValue())}</span> },
+    { id: "reach", header: "Email / phone", accessorKey: "reach", cell: ({ getValue }) => <span className="font-mono fs-12 text-ink-2">{String(getValue())}</span> },
     { id: "source", header: "Source", accessorKey: "source", cell: ({ row: { original: c } }) => <ChannelChip channel={c.source} /> },
     { id: "city", header: "City", accessorKey: "city", cell: ({ getValue }) => <span className="text-ink-2">{String(getValue())}</span> },
     { id: "owner", header: "Owner", accessorKey: "ownerName", cell: ({ row: { original: c } }) => <Avatar name={c.ownerName} me={c.ownerId === ME_ID} /> },
-    { id: "last", header: "Last activity", accessorKey: "last", cell: ({ row: { original: c } }) => <span className="font-mono text-[12px] text-ink-2">{fmtAgo(c.lastActivityAt)}</span> },
+    { id: "last", header: "Last activity", accessorKey: "last", cell: ({ row: { original: c } }) => <span className="font-mono fs-12 text-ink-2">{fmtAgo(c.lastActivityAt)}</span> },
   ];
 
   const open = rows.find((r) => r.id === openId);
@@ -127,9 +127,9 @@ export function ContactsRoute() {
             <dl className="m-0 grid grid-cols-[110px_1fr] gap-y-2.5 t-dense">
               <dt className="text-ink-3">Title</dt><dd className="m-0">{open.title}</dd>
               <dt className="text-ink-3">Client</dt><dd className="m-0">{open.companyId ? <Link to={`/clients/${open.companyId}`} className="hover:underline">{open.company}</Link> : "—"}</dd>
-              {open.email && <><dt className="text-ink-3">Email</dt><dd className="m-0 font-mono text-[12.5px]">{open.email}</dd></>}
-              {open.phone && <><dt className="text-ink-3">Phone</dt><dd className="m-0 font-mono text-[12.5px]">{open.phone}</dd></>}
-              {open.handle && <><dt className="text-ink-3">Handle</dt><dd className="m-0 font-mono text-[12.5px]">{open.handle}</dd></>}
+              {open.email && <><dt className="text-ink-3">Email</dt><dd className="m-0 font-mono fs-12.5">{open.email}</dd></>}
+              {open.phone && <><dt className="text-ink-3">Phone</dt><dd className="m-0 font-mono fs-12.5">{open.phone}</dd></>}
+              {open.handle && <><dt className="text-ink-3">Handle</dt><dd className="m-0 font-mono fs-12.5">{open.handle}</dd></>}
               <dt className="text-ink-3">City</dt><dd className="m-0">{open.city}</dd>
               <dt className="text-ink-3">Source</dt><dd className="m-0 flex items-center gap-2"><ChannelChip channel={open.source} />{CHANNEL_LABEL[open.source]}</dd>
               <dt className="text-ink-3">Consent</dt><dd className="m-0 text-ink-2">Captured from {CHANNEL_LABEL[open.source]} enquiry · {fmtAgo(open.lastActivityAt)}</dd>
@@ -150,7 +150,7 @@ export function ContactsRoute() {
                 <button key={c.id} onClick={() => { setOpenId(undefined); navigate(`/inbox/${c.id}`); }} className="flex w-full items-center gap-3 border-b border-line py-2.5 text-left hover:bg-hover">
                   <ChannelChip channel={c.channel} />
                   <span className="t-dense min-w-0 flex-1 truncate">{c.messages[c.messages.length - 1]?.body}</span>
-                  <span className="font-mono text-[11px] text-ink-3">{fmtAgo(c.lastMessageAt)}</span>
+                  <span className="font-mono fs-11 text-ink-3">{fmtAgo(c.lastMessageAt)}</span>
                 </button>
               ))}
               {!convs.length && <p className="t-meta m-0 text-ink-3">No linked conversations.</p>}

@@ -37,7 +37,7 @@ export function SettingsLayout() {
                   }
                 >
                   {s.label}
-                  {"admin" in s && <span className="font-mono text-[10px] text-ink-3">ADMIN</span>}
+                  {"admin" in s && <span className="font-mono fs-10 text-ink-3">ADMIN</span>}
                 </NavLink>
               </li>
             ))}

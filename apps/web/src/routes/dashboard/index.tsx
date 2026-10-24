@@ -56,8 +56,8 @@ export function DashboardRoute() {
         <ul className="m-0 mt-3 flex list-none flex-wrap gap-2 p-0" aria-label="Open leads by stage">
           {byStage.map((st) => (
             <li key={st.label} className="flex items-baseline gap-1.5 rounded-control bg-sunken px-2.5 py-1">
-              <span className="text-[12px] text-ink-2">{st.label}</span>
-              <span className="font-mono text-[12.5px] tnum">{st.n}</span>
+              <span className="fs-12 text-ink-2">{st.label}</span>
+              <span className="font-mono fs-12.5 tnum">{st.n}</span>
             </li>
           ))}
         </ul>
@@ -125,7 +125,7 @@ export function DashboardRoute() {
                 <TD>
                   <span className="flex items-center gap-2">
                     <Avatar name={m.name} me={m.id === ME_ID} size="sm" />
-                    <span>{m.name} <span className="text-[11.5px] text-ink-3">· {ROLE_LABEL[roleOf(m.role)]}</span></span>
+                    <span>{m.name} <span className="fs-11.5 text-ink-3">· {ROLE_LABEL[roleOf(m.role)]}</span></span>
                   </span>
                 </TD>
                 <TD className="hidden sm:table-cell">{t ? <Link to={`/projects/${t.id}`} className="text-warn hover:underline">On {t.name}</Link> : <span className="text-ok">Free</span>}</TD>

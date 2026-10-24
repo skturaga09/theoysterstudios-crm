@@ -73,8 +73,8 @@ export function ClientRoute() {
   const stat = (label: string, paise: number, hint?: string, tone?: string) => (
     <div className="flex flex-col gap-1 py-3 pr-4">
       <span className="t-eyebrow text-ink-3">{label}</span>
-      <MoneyText paise={paise} className={`text-[20px] ${tone ?? ""}`} />
-      {hint && <span className="font-mono text-[11px] text-ink-3">{hint}</span>}
+      <MoneyText paise={paise} className={`fs-20 ${tone ?? ""}`} />
+      {hint && <span className="font-mono fs-11 text-ink-3">{hint}</span>}
     </div>
   );
 
@@ -113,8 +113,8 @@ export function ClientRoute() {
               <ul className="m-0 list-none border-t border-line p-0">
                 {quotes.map((q) => (
                   <li key={q.id} className="flex flex-wrap items-center gap-3 border-b border-line py-2.5">
-                    <Link to={`/quotes/${q.id}`} className="font-mono text-[12.5px] hover:underline">{q.number}</Link>
-                    <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-3">
+                    <Link to={`/quotes/${q.id}`} className="font-mono fs-12.5 hover:underline">{q.number}</Link>
+                    <span className="min-w-0 flex-1 truncate fs-11.5 text-ink-3">
                       {q.signature ? `signed online by ${q.signature.name} · ${fmtDay(q.signature.at)}` : `valid until ${fmtDay(q.validUntil)}`}
                     </span>
                     <MoneyText paise={invoiceTotals({ ...q, payments: [] }).total} />
@@ -138,8 +138,8 @@ export function ClientRoute() {
                 {totals.map(({ i, t, st }) => (
                   <li key={i.id}>
                     <Link to={`/invoices?open=${i.id}`} className="flex flex-wrap items-center gap-3 border-b border-line py-2.5 hover:bg-hover">
-                      <span className="font-mono text-[12.5px]">{i.number}</span>
-                      <span className="font-mono text-[11.5px] text-ink-3">{fmtDay(i.issuedAt)}</span>
+                      <span className="font-mono fs-12.5">{i.number}</span>
+                      <span className="font-mono fs-11.5 text-ink-3">{fmtDay(i.issuedAt)}</span>
                       <span className="ml-auto"><MoneyText paise={t.total} /></span>
                       <span className="w-24 text-right">{t.due > 0 && i.sent ? <MoneyText paise={t.due} className="text-ink-2" /> : <span className="text-ink-3">—</span>}</span>
                       <Pill tone={st === "overdue" ? "risk" : st === "paid" ? "ok" : st === "partial" ? "warn" : "mute"}>{st[0]!.toUpperCase() + st.slice(1)}</Pill>
@@ -160,7 +160,7 @@ export function ClientRoute() {
                   return (
                     <li key={t.id} className="flex items-center gap-3 border-b border-line py-2">
                       <span className="t-dense min-w-0 flex-1 truncate">{t.title}</span>
-                      <span className={`font-mono text-[11.5px] ${+new Date(t.dueAt) < Date.now() ? "text-risk" : "text-ink-3"}`}>{fmtDay(t.dueAt)}</span>
+                      <span className={`font-mono fs-11.5 ${+new Date(t.dueAt) < Date.now() ? "text-risk" : "text-ink-3"}`}>{fmtDay(t.dueAt)}</span>
                       {who && <Avatar name={who.name} me={who.id === ME_ID} size="sm" />}
                     </li>
                   );
@@ -185,8 +185,8 @@ export function ClientRoute() {
                 <li key={p.id} className="flex items-start gap-2.5 border-b border-line py-2.5 last:border-0">
                   <Avatar name={p.name} />
                   <div className="min-w-0 flex-1 leading-tight">
-                    <div className="t-dense">{p.name} {p.title && p.title !== "—" && <span className="text-[11.5px] text-ink-3">· {p.title}</span>}</div>
-                    <div className="mt-0.5 flex flex-wrap gap-x-3 font-mono text-[11.5px] text-ink-2">
+                    <div className="t-dense">{p.name} {p.title && p.title !== "—" && <span className="fs-11.5 text-ink-3">· {p.title}</span>}</div>
+                    <div className="mt-0.5 flex flex-wrap gap-x-3 font-mono fs-11.5 text-ink-2">
                       {p.phone && <a href={`tel:${p.phone.replace(/\s/g, "")}`} className="hover:text-ink">{p.phone}</a>}
                       {p.email && <a href={`mailto:${p.email}`} className="hover:text-ink">{p.email}</a>}
                       {p.handle && <span>{p.handle}</span>}
@@ -208,7 +208,7 @@ export function ClientRoute() {
               {team.map((m) => (
                 <li key={m.id} className="flex items-center gap-1.5 rounded-control bg-sunken px-2 py-1">
                   <Avatar name={m.name} me={m.id === ME_ID} size="sm" />
-                  <span className="text-[12.5px]">{m.name}</span>
+                  <span className="fs-12.5">{m.name}</span>
                 </li>
               ))}
             </ul>
@@ -231,7 +231,7 @@ function DealList({ deals, empty }: { deals: import("../../data/types").Deal[]; 
               <span className="t-dense block truncate font-medium">{d.service || d.title}</span>
               <span className="flex flex-wrap items-center gap-x-3">
                 <DealStage deal={d} />
-                {d.eventDate && <span className="font-mono text-[11px] text-ink-3">event {fmtDate(d.eventDate)}</span>}
+                {d.eventDate && <span className="font-mono fs-11 text-ink-3">event {fmtDate(d.eventDate)}</span>}
               </span>
             </span>
             <ChannelChip channel={d.channel} />

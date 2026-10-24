@@ -38,10 +38,10 @@ export function QuotesRoute() {
             return (
               <li key={q.id}>
                 <Link to={`/quotes/${q.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line py-3 hover:bg-hover">
-                  <span className="w-[130px] font-mono text-[12px]">{q.number}</span>
+                  <span className="w-[130px] font-mono fs-12">{q.number}</span>
                   <span className="min-w-0 flex-1 basis-[200px]">
                     <span className="t-dense block truncate font-medium">{co?.name ?? "—"}</span>
-                    <span className="text-[11.5px] text-ink-3">{BUSINESS_SHORT[q.business]} · valid until {fmtDate(q.validUntil)}</span>
+                    <span className="fs-11.5 text-ink-3">{BUSINESS_SHORT[q.business]} · valid until {fmtDate(q.validUntil)}</span>
                   </span>
                   <MoneyText paise={invoiceTotals({ ...q, payments: [] }).total} />
                   <Pill tone={STATUS_TONE[q.status]}>{STATUS_LABEL[q.status]}</Pill>
@@ -88,7 +88,7 @@ function SignLink({ q, contactPhone }: { q: Quote; contactPhone?: string }) {
       {url && (
         <>
           <span className="flex gap-2">
-            <Input readOnly value={url} onFocus={(e) => e.target.select()} aria-label="Signing link" className="h-8 flex-1 font-mono text-[11px]" />
+            <Input readOnly value={url} onFocus={(e) => e.target.select()} aria-label="Signing link" className="h-8 flex-1 font-mono fs-11" />
             <Button size="sm" onClick={() => void navigator.clipboard.writeText(url).then(() => toast("Copied"))}>Copy</Button>
             {contactPhone && (
               <Button size="sm" variant="ink" asChild>
@@ -186,7 +186,7 @@ export function QuoteRoute() {
                   <Button size="sm" variant="ghost" onClick={() => setLines([...q.lines, { desc: "Custom item", sac: sacFor(q.business), qty: 1, ratePaise: 0 }])}><Plus strokeWidth={1.5} /> Custom line</Button>
                 </div>
               )}
-              <dl className="m-0 mt-4 ml-auto grid max-w-[320px] grid-cols-[1fr_auto] gap-x-6 gap-y-1 font-mono text-[12.5px]">
+              <dl className="m-0 mt-4 ml-auto grid max-w-[320px] grid-cols-[1fr_auto] gap-x-6 gap-y-1 font-mono fs-12.5">
                 <dt className="text-ink-2">Before GST</dt><dd className="m-0 text-right">{formatFull(t.subtotal)}</dd>
                 <dt className="text-ink-2">GST 18%</dt><dd className="m-0 text-right">{formatFull(t.cgst + t.sgst + t.igst)}</dd>
                 <dt className="border-t border-line pt-1 font-sans font-semibold">Total</dt><dd className="m-0 border-t border-line pt-1 text-right font-semibold">{formatFull(t.total)}</dd>
@@ -201,7 +201,7 @@ export function QuoteRoute() {
                     <Input aria-label="Stage" defaultValue={m.label} onBlur={(e) => e.target.value.trim() && set({ schedule: q.schedule.map((x, k) => (k === i ? { ...x, label: e.target.value.trim() } : x)) })} className="h-8 min-w-0 flex-1 basis-[160px]" />
                     <Input type="date" aria-label={`${m.label} due`} value={m.dueDate ?? ""} onChange={(e) => set({ schedule: q.schedule.map((x, k) => (k === i ? { ...x, dueDate: e.target.value || undefined } : x)) })} className="h-8 w-[150px]" />
                     <MoneyText paise={m.amountPaise} className="w-28 text-right" />
-                    <span className="w-12 text-right font-mono text-[11px] text-ink-3">{t.subtotal ? Math.round((m.amountPaise / t.subtotal) * 100) : 0}%</span>
+                    <span className="w-12 text-right font-mono fs-11 text-ink-3">{t.subtotal ? Math.round((m.amountPaise / t.subtotal) * 100) : 0}%</span>
                   </li>
                 ))}
                 {!q.schedule.length && <li className="t-dense py-2 text-ink-3">Add packages and the {q.business === "photography" ? "wedding" : "marketing"} payment plan fills in.</li>}

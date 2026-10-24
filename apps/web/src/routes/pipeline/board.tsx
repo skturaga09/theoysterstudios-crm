@@ -42,7 +42,7 @@ function TweenMoney({ paise }: { paise: number }) {
     prev.current = paise;
     return () => c.stop();
   }, [paise, reduce]);
-  return <span ref={ref} className="font-mono text-[11.5px] text-ink-2 tnum">{formatCompact(paise)}</span>;
+  return <span ref={ref} className="font-mono fs-11.5 text-ink-2 tnum">{formatCompact(paise)}</span>;
 }
 
 /** One business's pipeline: a column per stage, Lost folded at the end. */
@@ -134,8 +134,8 @@ function Column({ stage, name, business, deals, total, share, highlight }: { sta
     >
       <header className="px-1.5 pt-1 pb-2.5">
         <div className="flex items-center gap-2">
-          <h2 className={cn("m-0 text-[12.5px] font-medium", stage === "won" && "text-ok")}>{name}</h2>
-          <span className="font-mono text-[11px] text-ink-3 tnum">{deals.length}</span>
+          <h2 className={cn("m-0 fs-12.5 font-medium", stage === "won" && "text-ok")}>{name}</h2>
+          <span className="font-mono fs-11 text-ink-3 tnum">{deals.length}</span>
           <span className="ml-auto"><TweenMoney paise={total} /></span>
           <button
             aria-label={`New lead in ${name}`}
@@ -160,7 +160,7 @@ function Column({ stage, name, business, deals, total, share, highlight }: { sta
             <SortableCard key={d.id} deal={d} />
           ))}
           {!deals.length && (
-            <p className="m-0 rounded-card border border-dashed border-line-2 px-3 py-5 text-center text-[12px] text-ink-3">Drop a deal here</p>
+            <p className="m-0 rounded-card border border-dashed border-line-2 px-3 py-5 text-center fs-12 text-ink-3">Drop a deal here</p>
           )}
         </div>
       </SortableContext>
@@ -182,9 +182,9 @@ function LostColumn({ deals, open, onToggle, highlight, total }: { deals: Deal[]
     >
       <button onClick={onToggle} aria-expanded={open} className={cn("flex items-center gap-2 px-1 pt-1 pb-2 text-left", !open && "flex-col")}>
         {open ? <ChevronLeft size={14} strokeWidth={1.5} className="text-ink-3" /> : <ChevronRight size={14} strokeWidth={1.5} className="text-ink-3" />}
-        <span className={cn("text-[12.5px] font-medium text-ink-2", !open && "[writing-mode:vertical-rl]")}>Lost</span>
-        <span className="font-mono text-[11px] text-ink-3">{deals.length}</span>
-        {open && <span className="ml-auto font-mono text-[11.5px] text-ink-3">{formatCompact(total)}</span>}
+        <span className={cn("fs-12.5 font-medium text-ink-2", !open && "[writing-mode:vertical-rl]")}>Lost</span>
+        <span className="font-mono fs-11 text-ink-3">{deals.length}</span>
+        {open && <span className="ml-auto font-mono fs-11.5 text-ink-3">{formatCompact(total)}</span>}
       </button>
       {open && (
         <SortableContext items={deals.map((d) => d.id)} strategy={verticalListSortingStrategy}>
@@ -238,17 +238,17 @@ const DealCard = memo(function DealCard({ deal, lifted }: { deal: Deal; lifted?:
     >
       <div className="flex items-center gap-2">
         <HealthDot health={deal.health} />
-        <span className="truncate text-[13px] font-medium">{company?.name}</span>
+        <span className="truncate fs-13 font-medium">{company?.name}</span>
         <ChannelChip channel={deal.channel} className="ml-auto" />
       </div>
-      <div className="mt-0.5 truncate pl-4 text-[12.5px] text-ink-2">{deal.title}</div>
-      {showBusiness && deal.business && <div className="mt-1 pl-4 font-mono text-[10.5px] tracking-wide text-ink-3 uppercase">{BUSINESS_SHORT[deal.business]}</div>}
+      <div className="mt-0.5 truncate pl-4 fs-12.5 text-ink-2">{deal.title}</div>
+      {showBusiness && deal.business && <div className="mt-1 pl-4 font-mono fs-10.5 tracking-wide text-ink-3 uppercase">{BUSINESS_SHORT[deal.business]}</div>}
       <div className="mt-3 flex items-center gap-2 pl-4">
-        <MoneyText paise={deal.valuePaise} className="text-[13px]" />
-        <span className={cn("font-mono text-[11px]", overdue ? "text-risk" : "text-ink-3")}>{fmtDay(deal.eventDate ?? deal.closeAt)}</span>
+        <MoneyText paise={deal.valuePaise} className="fs-13" />
+        <span className={cn("font-mono fs-11", overdue ? "text-risk" : "text-ink-3")}>{fmtDay(deal.eventDate ?? deal.closeAt)}</span>
         {/* Due today or overdue, by calendar day in India. */}
         {deal.nextFollowUpAt && istDay(deal.nextFollowUpAt) <= istDay(new Date().toISOString()) && (
-          <span className={cn("font-mono text-[10.5px]", istDay(deal.nextFollowUpAt) < istDay(new Date().toISOString()) ? "text-risk" : "text-warn")} title={`Follow up ${fmtDay(deal.nextFollowUpAt)}`}>
+          <span className={cn("font-mono fs-10.5", istDay(deal.nextFollowUpAt) < istDay(new Date().toISOString()) ? "text-risk" : "text-warn")} title={`Follow up ${fmtDay(deal.nextFollowUpAt)}`}>
             follow up
           </span>
         )}

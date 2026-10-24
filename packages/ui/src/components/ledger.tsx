@@ -49,13 +49,13 @@ export function Ledger({ cells, countUp = false, className }: { cells: LedgerCel
             <dt className="t-eyebrow text-ink-3">{c.label}</dt>
             <dd className="m-0 flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
               <span className="flex items-baseline gap-1">
-                {c.paise !== undefined && <span className="mr-0.5 font-mono text-[15px] text-ink-2">₹</span>}
+                {c.paise !== undefined && <span className="mr-0.5 font-mono fs-15 text-ink-2">₹</span>}
                 <CountUp value={num} decimals={decimals} run={countUp} className="t-kpi" />
-                {unit && <span className="font-mono text-[13px] text-ink-2">{unit}</span>}
+                {unit && <span className="font-mono fs-13 text-ink-2">{unit}</span>}
               </span>
               {c.spark && <Sparkline data={c.spark} />}
             </dd>
-            {c.delta && <dd className={cn("m-0 font-mono text-[11.5px] tnum", deltaTone[c.deltaTone ?? "mute"])}>{c.delta}</dd>}
+            {c.delta && <dd className={cn("m-0 font-mono fs-11.5 tnum", deltaTone[c.deltaTone ?? "mute"])}>{c.delta}</dd>}
           </div>
         );
       })}
