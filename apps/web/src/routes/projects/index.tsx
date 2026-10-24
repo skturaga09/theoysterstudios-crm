@@ -45,6 +45,7 @@ import type { Project, ProjectEvent, Task } from "../../data/types";
 import { usePref } from "../../lib/hooks";
 import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
+import { trackSpotlight } from "../../lib/spotlight";
 
 const DELIVERABLE_LABEL: Record<DeliverableStatus, string> = { pending: "Pending", in_progress: "In progress", delivered: "Delivered" };
 const PRIORITY_TONE: Record<Priority, "mute" | "warn" | "risk"> = { low: "mute", normal: "mute", high: "warn", urgent: "risk" };
@@ -72,7 +73,7 @@ function ProjectCard({ p, index }: { p: Project; index: number }) {
   const bar = p.business === "marketing" ? "bg-ok" : "bg-signal";
   return (
     <motion.li initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index, 8) * 0.05, duration: 0.3 }} whileHover={{ y: -4 }}>
-      <Link to={`/projects/${p.id}`} className="block overflow-hidden rounded-card border border-line bg-surface shadow-rest transition-shadow duration-200 hover:shadow-pop">
+      <Link to={`/projects/${p.id}`} onMouseMove={trackSpotlight} className="spotlight block overflow-hidden rounded-card border border-line bg-surface shadow-rest transition-shadow duration-200 hover:shadow-pop">
         {client ? (
           <Cover company={client} canUpload={false} hoverZoom className="h-[150px]">
             <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pt-10 pb-3">

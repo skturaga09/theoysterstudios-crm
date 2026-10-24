@@ -1,4 +1,5 @@
-import { cn } from "@pinnacle/ui";
+import { cn, spring } from "@pinnacle/ui";
+import { motion } from "motion/react";
 import { ArrowDownUp, Bell, BookOpen, Building, KanbanSquare, ListChecks, Package, Plug, Route, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { NavLink, Outlet } from "react-router";
@@ -32,14 +33,19 @@ export function SettingsLayout() {
                   to={s.to}
                   className={({ isActive }) =>
                     cn(
-                      "flex h-8 items-center gap-2 rounded-control px-2.5 t-dense whitespace-nowrap transition-colors duration-150",
-                      isActive ? "bg-surface font-medium text-ink shadow-rest" : "text-ink-2 hover:bg-hover hover:text-ink",
+                      "relative isolate flex h-8 items-center gap-2 rounded-control px-2.5 t-dense whitespace-nowrap transition-colors duration-150",
+                      isActive ? "font-medium text-ink" : "text-ink-2 hover:bg-hover hover:text-ink",
                     )
                   }
                 >
-                  <s.icon size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-ink-3" />
-                  {s.label}
-                  {"admin" in s && <span className="font-mono fs-10 text-ink-3">ADMIN</span>}
+                  {({ isActive }) => (
+                    <>
+                      {isActive && <motion.span layoutId="settings-active" aria-hidden className="absolute inset-0 -z-[1] rounded-control bg-surface shadow-rest" transition={spring.snappy} />}
+                      <s.icon size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-ink-3" />
+                      {s.label}
+                      {"admin" in s && <span className="font-mono fs-10 text-ink-3">ADMIN</span>}
+                    </>
+                  )}
                 </NavLink>
               </li>
             ))}

@@ -1,9 +1,10 @@
 import { ROLE_LABEL, roleOf } from "@pinnacle/shared";
 import { HEALTH_LABEL } from "@pinnacle/shared";
-import { Avatar, Button, cn, Tooltip, useTheme, ChannelChip, Menu, MenuContent, MenuItem, MenuTrigger, TEXT_SIZE_LABEL, TEXT_SIZES, useTextSize, type TextSize } from "@pinnacle/ui";
+import { Avatar, Button, cn, spring, Tooltip, useTheme, ChannelChip, Menu, MenuContent, MenuItem, MenuTrigger, TEXT_SIZE_LABEL, TEXT_SIZES, useTextSize, type TextSize } from "@pinnacle/ui";
 import { signOut } from "firebase/auth";
 import { ALargeSmall, LogOut, Moon, Sun } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, LayoutGroup, motion } from "motion/react";
+import { useId } from "react";
 import { NavLink } from "react-router";
 import { invoiceStatus, isOpen, taskGroup } from "../data/derive";
 import { useCrm, useMe } from "../data/store";
@@ -32,7 +33,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const channels = useCrm((s) => s.channels);
   const counts = useCounts();
   const nav = useNav();
+  // The phone drawer is a second sidebar; its highlight glides on its own.
+  const group = useId();
   return (
+    <LayoutGroup id={group}>
     <div className="flex h-full flex-col bg-bg">
       <div className="flex h-[52px] items-center gap-2.5 px-4">
         <img src="/logo-mark.png" alt="" className="size-[28px] shrink-0 object-contain" />
@@ -57,11 +61,14 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                       onClick={onNavigate}
                       className={({ isActive }) =>
                         cn(
-                          "flex h-8 items-center gap-2.5 rounded-control px-2.5 t-dense transition-colors duration-150",
-                          isActive ? "bg-surface font-medium text-ink shadow-rest" : "text-ink-2 hover:bg-hover hover:text-ink",
+                          "relative isolate flex h-8 items-center gap-2.5 rounded-control px-2.5 t-dense transition-colors duration-150",
+                          isActive ? "font-medium text-ink" : "text-ink-2 hover:bg-hover hover:text-ink",
                         )
                       }
                     >
+                      {({ isActive }) => (<>
+                      {/* One highlight that glides to whichever item is open. */}
+                      {isActive && <motion.span layoutId="nav-active" aria-hidden className="absolute inset-0 -z-[1] rounded-control bg-surface shadow-rest" transition={spring.snappy} />}
                       <Icon size={16} strokeWidth={1.5} className="shrink-0" aria-hidden />
                       <span className="flex-1 truncate">{label}</span>
                       {n !== undefined && n > 0 && (
@@ -83,6 +90,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                           </AnimatePresence>
                         </span>
                       )}
+                      </>)}
                     </NavLink>
                   </li>
                 );
@@ -133,6 +141,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </Button>
       </div>
     </div>
+    </LayoutGroup>
   );
 }
 

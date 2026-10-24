@@ -18,11 +18,12 @@
 }
 
 /* New-item flash: signal-wash that clears (SSE arrivals, converted rows). */
+/* A new message: a rose wash and a bar down its left edge that fade out over a few seconds. */
 @keyframes flash-new {
-  from { background-color: var(--signal-wash); }
-  to { background-color: transparent; }
+  0%, 35% { background-color: var(--signal-wash); box-shadow: inset 3px 0 0 var(--signal); }
+  to { background-color: transparent; box-shadow: inset 3px 0 0 transparent; }
 }
-.flash-new { animation: flash-new 1.8s var(--ease-out) both; }
+.flash-new { animation: flash-new 3.2s var(--ease-out) both; }
 /* Deal → Won: a single ok ring pulse. */
 @keyframes won-pulse {
   0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent); }

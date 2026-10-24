@@ -1,7 +1,7 @@
 import { accessOf } from "@pinnacle/shared";
 import { Navigate } from "react-router";
 import { fmtAgo, fmtDay, fmtEyebrow, greeting, type Health } from "@pinnacle/shared";
-import { Avatar, ChannelChip, Checkbox, cn, HealthDot, Ledger, MoneyText, Pill, rise, spring, StrikeText, Table, TBody, TD, TH, THead, TR, type LedgerCell } from "@pinnacle/ui";
+import { Avatar, ChannelChip, Checkbox, cn, HealthDot, Ledger, MoneyText, Pill, rise, StrikeText, Table, TBody, TD, TH, THead, TR, type LedgerCell } from "@pinnacle/ui";
 import { ArrowRight, Waypoints } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo } from "react";
@@ -165,9 +165,10 @@ function FeedRow({ c, fresh, onOpen }: { c: Conversation; fresh: boolean; onOpen
   return (
     <motion.li
       layout
-      initial={{ opacity: 0, y: -14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={spring.soft}
+      initial={{ opacity: 0, y: -28, scale: 0.94 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: "spring", stiffness: 380, damping: 24 }}
+      style={{ originY: 0 }}
       className={cn("border-b border-line", fresh && "flash-new")}
     >
       <button onClick={onOpen} className="flex w-full items-start gap-3 px-1 py-3 text-left transition-colors duration-150 hover:bg-hover">

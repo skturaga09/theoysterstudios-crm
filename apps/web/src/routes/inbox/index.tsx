@@ -147,10 +147,11 @@ function ConvRow({ c, index, selected, active, onOpen }: { c: Conversation; inde
   return (
     <motion.li
       layout
-      initial={{ opacity: 0, y: -14 }}
-      animate={{ opacity: 1, y: 0, height: "auto" }}
+      initial={{ opacity: 0, y: -28, scale: 0.94 }}
+      animate={{ opacity: 1, y: 0, scale: 1, height: "auto" }}
       exit={{ opacity: 0, height: 0, transition: { duration: 0.4, ease: [0.2, 0.8, 0.2, 1] } }}
-      transition={{ type: "spring", stiffness: 260, damping: 30 }}
+      transition={{ type: "spring", stiffness: 380, damping: 24 }}
+      style={{ originY: 0 }}
       className={cn("overflow-hidden border-b border-line", fresh && "flash-new")}
     >
       <button

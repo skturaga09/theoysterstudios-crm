@@ -419,3 +419,8 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   screen; it replaced the browser View Transitions that only the sidebar and shortcuts used). Headline numbers count
   up from zero, money included. Ticking a task strikes it through on a green glow for a moment, then it slides
   out and lands in Done; the Tasks header counts "Done today". All of it follows the device's reduce-motion setting.
+- **Inspired by 21st.dev (our own versions, built with Motion and our colours, no pasted code).** Client and
+  project cards have a soft spotlight that follows the pointer (`spotlight` utility + `trackSpotlight`). The
+  sidebar, the Settings menu and every switch have one highlight that glides to the chosen item (Motion
+  `layoutId`, namespaced per menu so the phone drawer and each switch move on their own). New messages on Home and
+  in the Inbox spring in from the top and carry a rose bar down their left edge that fades over about 3 seconds.

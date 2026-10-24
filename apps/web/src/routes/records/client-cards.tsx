@@ -4,6 +4,7 @@ import { ArrowRight, Camera, Check, ExternalLink, Flag, FolderKanban, MessageCir
 import { motion } from "motion/react";
 import { useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router";
+import { trackSpotlight } from "../../lib/spotlight";
 import { taskGroup } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
 import { DoneBy } from "../../components/done-by";
@@ -198,13 +199,14 @@ export function ClientCard({ company, onOpen, index = 0 }: { company: Company; o
       role="button"
       tabIndex={0}
       onClick={onOpen}
+      onMouseMove={trackSpotlight}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1], delay: Math.min(index, 12) * 0.05 }}
       whileHover={{ y: -4 }}
       className={cn(
-        "group/card flex cursor-pointer flex-col overflow-hidden rounded-[16px] border border-line bg-surface text-left shadow-rest transition-shadow duration-300 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
+        "spotlight group/card flex cursor-pointer flex-col overflow-hidden rounded-[16px] border border-line bg-surface text-left shadow-rest transition-shadow duration-300 hover:shadow-pop focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink",
         x.delivered && "opacity-85",
       )}
     >
