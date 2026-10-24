@@ -30,6 +30,8 @@ import { ArrowLeft, ChevronDown, ExternalLink, FolderKanban, FolderPlus, Message
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { EmptyState } from "../../components/empty-state";
+import { Cover } from "../records/client-cards";
+import { motion } from "motion/react";
 import { BUSINESS_TEXT, BusinessIcon } from "../../components/business-icon";
 import { PageHeader } from "../../components/page-header";
 import { DoneBy } from "../../components/done-by";
@@ -56,22 +58,84 @@ function progress(tasks: Task[]) {
   return { done, total: tasks.length, pct: tasks.length ? Math.round((done / tasks.length) * 100) : 0 };
 }
 
+/** A project as a card: the client's photo on top, then progress, the next function and who runs it. */
+function ProjectCard({ p, index }: { p: Project; index: number }) {
+  const s = useCrm();
+  const tasks = s.tasks.filter((t) => t.projectId === p.id);
+  const pr = progress(tasks);
+  const late = tasks.filter(overdue).length;
+  const client = s.companies.find((c) => c.id === p.companyId);
+  const manager = s.members.find((m) => m.id === p.managerId);
+  const today = istDay(new Date());
+  const next = p.events.filter((e) => e.date && e.date >= today).sort((a, b) => a.date!.localeCompare(b.date!))[0];
+  const bar = p.business === "marketing" ? "bg-ok" : "bg-signal";
+  return (
+    <motion.li initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index, 8) * 0.05, duration: 0.3 }} whileHover={{ y: -4 }}>
+      <Link to={`/projects/${p.id}`} className="block overflow-hidden rounded-card border border-line bg-surface shadow-rest transition-shadow duration-200 hover:shadow-pop">
+        {client ? (
+          <Cover company={client} canUpload={false} hoverZoom className="h-[150px]">
+            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-4 pt-10 pb-3">
+              <span className="block truncate font-serif fs-22 leading-tight text-white">{client.name}</span>
+            </span>
+            <BusinessIcon business={p.business} size="sm" className="absolute top-3 left-3 bg-surface/90" />
+          </Cover>
+        ) : (
+          <div className="h-[150px] bg-sunken" />
+        )}
+        <div className="flex flex-col gap-3 p-4">
+          <div className="flex items-center gap-2">
+            <span className="t-dense min-w-0 flex-1 truncate font-medium">{p.name}</span>
+            <Pill tone={STATUS_TONE[p.status]}>{PROJECT_STATUS_LABEL[p.status]}</Pill>
+          </div>
+          <span className="flex items-center gap-2">
+            <span className="h-2 flex-1 overflow-hidden rounded-full bg-sunken"><span className={cn("block h-full rounded-full", bar)} style={{ width: `${pr.pct}%` }} /></span>
+            <span className="font-mono fs-11 text-ink-3">{pr.done}/{pr.total}</span>
+          </span>
+          <div className="flex items-center gap-2 fs-12 text-ink-2">
+            <span className="min-w-0 flex-1 truncate">
+              {next ? <>Next: <b className="font-medium text-ink">{next.name}</b> · {fmtDate(next.date!)}</> : p.dueDate ? `${p.business === "photography" ? "Event" : "Due"} ${fmtDate(p.dueDate)}` : "No dates yet"}
+            </span>
+            {late > 0 && <Pill tone="risk">{late} overdue</Pill>}
+            {manager && <Avatar name={manager.name} me={manager.id === ME_ID} size="sm" />}
+          </div>
+        </div>
+      </Link>
+    </motion.li>
+  );
+}
+
 /** All projects, started automatically when a lead is confirmed. */
 export function ProjectsRoute() {
   const s = useCrm();
   const [show, setShow] = usePref<"open" | "all">("projects.show", "open");
+  const [layout, setLayout] = usePref<"cards" | "list">("projects.layout", "cards");
   const projects = s.projects
     .filter((p) => show === "all" || p.status === "planning" || p.status === "active")
     .sort((a, b) => (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999"));
   return (
     <>
       <PageHeader
+        banner
         eyebrow={`${s.projects.filter((p) => p.status === "active").length} active`}
         title="Projects"
-        actions={<Segmented label="Show" value={show} onChange={setShow} options={[{ value: "open", label: "In progress" }, { value: "all", label: "All" }]} />}
+        stats={[
+          { label: "Weddings", value: projects.filter((p) => p.business === "photography").length, tone: "signal" },
+          { label: "Marketing", value: projects.filter((p) => p.business === "marketing").length, tone: "ok" },
+          { label: "Overdue tasks", value: s.tasks.filter((t) => projects.some((p) => p.id === t.projectId) && overdue(t)).length, tone: "risk" },
+        ]}
+        actions={
+          <>
+            <Segmented label="Layout" value={layout} onChange={setLayout} options={[{ value: "cards", label: "Cards" }, { value: "list", label: "List" }]} />
+            <Segmented label="Show" value={show} onChange={setShow} options={[{ value: "open", label: "In progress" }, { value: "all", label: "All" }]} />
+          </>
+        }
       />
       {!projects.length ? (
         <EmptyState icon={FolderKanban} title="No projects yet" body="When a lead is moved to Confirmed, its project starts here with the standard checklist for that business." />
+      ) : layout === "cards" ? (
+        <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-5 p-0">
+          {projects.map((p, i) => <ProjectCard key={p.id} p={p} index={i} />)}
+        </ul>
       ) : (
         <ul className="m-0 list-none border-t border-line p-0">
           {projects.map((p) => {
