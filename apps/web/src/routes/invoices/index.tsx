@@ -53,8 +53,8 @@ export function InvoicesRoute() {
       <PageHeader
         title="Invoices"
         stats={[
-          { label: "Outstanding", value: formatCompact(sum(outstanding.map((i) => invoiceTotals(i).due))), tone: "signal" },
-          { label: `Overdue · ${overdue.length}`, value: formatCompact(totalOverdue), tone: totalOverdue ? "risk" : undefined },
+          { label: "Outstanding", value: sum(outstanding.map((i) => invoiceTotals(i).due)), format: formatCompact, tone: "signal" },
+          { label: `Overdue · ${overdue.length}`, value: totalOverdue, format: formatCompact, tone: totalOverdue ? "risk" : undefined },
         ]}
         actions={
           <>

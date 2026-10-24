@@ -23,7 +23,7 @@ export function DealRoute() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center">
-        <Link to="/pipeline" viewTransition className="inline-flex items-center gap-1.5 fs-12.5 text-ink-2 hover:text-ink">
+        <Link to="/pipeline" className="inline-flex items-center gap-1.5 fs-12.5 text-ink-2 hover:text-ink">
           <ArrowLeft size={14} strokeWidth={1.5} /> Pipeline
         </Link>
         <span className="ml-auto"><DealMenu deal={deal} /></span>

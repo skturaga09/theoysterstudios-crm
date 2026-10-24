@@ -1,7 +1,7 @@
 import { CommandMenu, dur, ease } from "@pinnacle/ui";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
-import { Outlet } from "react-router";
+import { Outlet, useLocation } from "react-router";
 import { Composers } from "../components/composers";
 import { DealSheet } from "../components/deal/deal-sheet";
 import { useLiveArrivals } from "../data/live";
@@ -10,7 +10,13 @@ import { Sidebar } from "./sidebar";
 import { TopBar } from "./top-bar";
 import { useGlobalShortcuts } from "./use-shortcuts";
 
+const pageKey = (path: string) => {
+  const first = path.split("/")[1] ?? "";
+  return first === "inbox" || first === "settings" ? first : path;
+};
+
 export function AppShell() {
+  const { pathname } = useLocation();
   useGlobalShortcuts();
   useLiveArrivals();
   const groups = useCommandGroups();
@@ -57,9 +63,12 @@ export function AppShell() {
 
       <div className="flex min-w-0 flex-col overflow-hidden print:overflow-visible">
         <div className="contents print:hidden"><TopBar onMenu={() => setDrawer(true)} /></div>
-        <main id="main" className="min-h-0 flex-1 overflow-y-auto print:overflow-visible" style={{ viewTransitionName: "main" }}>
+        <main id="main" className="min-h-0 flex-1 overflow-y-auto print:overflow-visible">
           <div className="mx-auto w-full max-w-[1320px] px-4 pt-7 pb-16 md:px-8">
-            <Outlet />
+            {/* Each screen fades and rises in. Keyed by screen, so moving between conversations or settings sections doesn't replay it. */}
+            <motion.div key={pageKey(pathname)} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: dur.base, ease: ease.out }}>
+              <Outlet />
+            </motion.div>
           </div>
         </main>
       </div>

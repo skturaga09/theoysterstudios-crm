@@ -415,3 +415,7 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   instead of the small grey line. Client photos (or initials on the business colour) now appear on pipeline cards,
   project cards and the project page, task groups by client, invoices and quotations. Projects default to cards
   with the client's photo; a list is one click away. The Settings menu has icons like the main menu.
+- **Motion for page changes, numbers and ticking tasks.** Every screen change fades and rises in (Motion, keyed by
+  screen; it replaced the browser View Transitions that only the sidebar and shortcuts used). Headline numbers count
+  up from zero, money included. Ticking a task strikes it through on a green glow for a moment, then it slides
+  out and lands in Done; the Tasks header counts "Done today". All of it follows the device's reduce-motion setting.

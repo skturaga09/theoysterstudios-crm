@@ -36,7 +36,7 @@ export function useGlobalShortcuts() {
       if (gAt && Date.now() - gAt < 1000 && GO[k]) {
         e.preventDefault();
         gAt = 0;
-        navigate(GO[k]!, { viewTransition: true });
+        navigate(GO[k]!);
       }
       gAt = 0;
     };

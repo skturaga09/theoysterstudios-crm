@@ -124,7 +124,7 @@ function SectionHead({ title, meta, to, linkLabel }: { title: string; meta?: Rea
       <h2 className="t-eyebrow m-0 text-ink-2">{title}</h2>
       {meta && <span className="t-meta text-ink-3">{meta}</span>}
       {to && (
-        <Link to={to} viewTransition className="ml-auto inline-flex items-center gap-1 fs-12.5 text-ink-2 hover:text-ink">
+        <Link to={to} className="ml-auto inline-flex items-center gap-1 fs-12.5 text-ink-2 hover:text-ink">
           {linkLabel} <ArrowRight size={13} strokeWidth={1.5} />
         </Link>
       )}
@@ -145,14 +145,14 @@ function ArrivingNow() {
           <span className="relative size-2 rounded-full bg-signal" />
         </span>
         <h2 id="arriving-h" className="t-eyebrow m-0 text-ink-2">Arriving now</h2>
-        <Link to="/inbox" viewTransition className="ml-auto inline-flex items-center gap-1 fs-12.5 text-ink-2 hover:text-ink">
+        <Link to="/inbox" className="ml-auto inline-flex items-center gap-1 fs-12.5 text-ink-2 hover:text-ink">
           Inbox <ArrowRight size={13} strokeWidth={1.5} />
         </Link>
       </header>
       <ul className="m-0 list-none border-t border-line p-0">
         <AnimatePresence initial={false}>
           {rows.map((c) => (
-            <FeedRow key={c.id} c={c} fresh={lastArrival?.conversationId === c.id} onOpen={() => navigate(`/inbox/${c.id}`, { viewTransition: true })} />
+            <FeedRow key={c.id} c={c} fresh={lastArrival?.conversationId === c.id} onOpen={() => navigate(`/inbox/${c.id}`)} />
           ))}
         </AnimatePresence>
       </ul>

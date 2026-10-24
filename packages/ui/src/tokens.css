@@ -285,36 +285,3 @@
   }
 }
 
-/* Route transitions (View Transitions API).
-   Old: fade + 4px up, 180ms. New: fade in + 6px rise, 320ms. */
-::view-transition-old(main) {
-  animation: 180ms var(--ease-out) both vt-out;
-}
-::view-transition-new(main) {
-  animation: 320ms var(--ease-out) both vt-in;
-}
-@keyframes vt-out {
-  to {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-}
-@keyframes vt-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(main),
-  ::view-transition-new(main) {
-    animation-duration: 100ms;
-    animation-name: vt-fade;
-    transform: none;
-  }
-  @keyframes vt-fade {
-    from {
-      opacity: 0;
-    }
-  }
-}

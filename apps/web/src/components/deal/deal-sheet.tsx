@@ -26,7 +26,7 @@ export function DealSheet() {
               className="ml-auto"
               onClick={() => {
                 close();
-                navigate(`/deals/${deal.id}`, { viewTransition: true });
+                navigate(`/deals/${deal.id}`);
               }}
             >
               Open full record <ArrowUpRight strokeWidth={1.5} />

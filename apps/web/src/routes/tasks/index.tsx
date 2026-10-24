@@ -1,7 +1,8 @@
-import { BUSINESS_SHORT, fmtDay } from "@pinnacle/shared";
+import { BUSINESS_SHORT, fmtDay, istDay } from "@pinnacle/shared";
 import { Avatar, Button, Checkbox, cn, Pill, Segmented, StrikeText, toast, Tooltip } from "@pinnacle/ui";
 import { Bell, BellOff, CheckSquare, Columns3, List, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
 import { ClientPhoto } from "../../components/client-photo";
 import { PageHeader } from "../../components/page-header";
 import { DoneBy } from "../../components/done-by";
@@ -69,6 +70,7 @@ export function TasksRoute() {
         stats={[
           { label: "Overdue", value: overdue, tone: overdue ? "risk" : undefined },
           { label: "Due today", value: today, tone: "signal" },
+          { label: "Done today", value: visible.filter((t) => t.done && t.doneAt && istDay(t.doneAt) === istDay(new Date().toISOString())).length, tone: "ok" },
         ]}
         actions={
           <>
@@ -122,7 +124,7 @@ export function TasksRoute() {
               {clients.map((g) => (
                 <section key={g.id || "internal"} className="w-[280px] rounded-panel bg-sunken p-2">
                   <div className="px-1.5 pt-1 pb-2.5"><ClientHeader g={g} compact /></div>
-                  <ul className="m-0 flex list-none flex-col gap-2 p-0">{g.open.map((t) => <TaskCard key={t.id} t={t} />)}{showDone === "yes" && g.doneTasks.map((t) => <TaskCard key={t.id} t={t} />)}</ul>
+                  <ul className="m-0 flex list-none flex-col gap-2 p-0"><AnimatePresence initial={false}>{g.open.map((t) => <TaskCard key={t.id} t={t} />)}{showDone === "yes" && g.doneTasks.map((t) => <TaskCard key={t.id} t={t} />)}</AnimatePresence></ul>
                 </section>
               ))}
             </div>
@@ -154,7 +156,7 @@ export function TasksRoute() {
                   {g.label} <span className="font-mono fs-11 font-normal text-ink-3">{g.items.length}</span>
                 </h2>
                 <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                  {g.items.map((t) => <TaskCard key={t.id} t={t} />)}
+                  <AnimatePresence initial={false}>{g.items.map((t) => <TaskCard key={t.id} t={t} />)}</AnimatePresence>
                   {!g.items.length && <li className="rounded-card border border-dashed border-line-2 px-3 py-5 text-center fs-12 text-ink-3">Nothing here</li>}
                 </ul>
               </section>
@@ -184,8 +186,17 @@ function ClientHeader({ g, compact }: { g: ClientGroup; compact?: boolean }) {
 function useTaskBits(t: Task) {
   const s = useCrm();
   const clientOf = useClientOf();
+  // Ticking a task: the line strikes through and the row glows for a moment, then it moves to Done.
+  const [finishing, setFinishing] = useState(false);
   return {
-    toggle: () => s.toggleTask(t.id),
+    finishing,
+    done: t.done || finishing,
+    toggle: () => {
+      if (t.done) return s.toggleTask(t.id);
+      if (finishing) return;
+      setFinishing(true);
+      window.setTimeout(() => s.toggleTask(t.id), 650);
+    },
     assignee: s.members.find((m) => m.id === t.assigneeId),
     company: s.companies.find((c) => c.id === clientOf(t)),
     deal: s.deals.find((d) => d.id === t.dealId),
@@ -213,20 +224,20 @@ function RemindToggle({ t }: { t: Task }) {
 }
 
 function TaskRow({ t }: { t: Task }) {
-  const { toggle, assignee, company, deal, project } = useTaskBits(t);
+  const { toggle, finishing, done, assignee, company, deal, project } = useTaskBits(t);
   const g = taskGroup(t);
   return (
     <motion.li
       layout
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0, height: 0 }}
-      transition={{ duration: 0.25 }}
-      className="flex min-h-12 items-center gap-3 border-b border-line py-2"
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, x: 40, height: 0, paddingTop: 0, paddingBottom: 0 }}
+      transition={{ duration: 0.3, ease: [0.2, 0.8, 0.2, 1] }}
+      className={cn("flex min-h-12 items-center gap-3 overflow-hidden border-b border-line px-1 py-2 transition-colors duration-300", finishing && "bg-ok-wash")}
     >
-      <Checkbox checked={t.done} label={t.title} onCheckedChange={toggle} />
+      <Checkbox checked={done} label={t.title} onCheckedChange={toggle} />
       <div className="min-w-0 flex-1 leading-tight">
-        <StrikeText done={t.done} className="t-dense">{t.title}</StrikeText>
+        <StrikeText done={done} className="t-dense">{t.title}</StrikeText>
         <div className="fs-11.5 text-ink-3">
           {project ? (
             <Link to={`/projects/${project.id}`} className="hover:text-ink hover:underline">{project.name}</Link>
@@ -251,14 +262,21 @@ function TaskRow({ t }: { t: Task }) {
 }
 
 function TaskCard({ t }: { t: Task }) {
-  const { toggle, assignee, company } = useTaskBits(t);
+  const { toggle, finishing, done, assignee, company } = useTaskBits(t);
   const g = taskGroup(t);
   return (
-    <li className="rounded-card bg-surface p-3 shadow-rest">
+    <motion.li
+      layout
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: 0.3 }}
+      className={cn("rounded-card p-3 shadow-rest transition-colors duration-300", finishing ? "bg-ok-wash" : "bg-surface")}
+    >
       <div className="flex items-start gap-2.5">
-        <Checkbox checked={t.done} label={t.title} onCheckedChange={toggle} className="mt-0.5" />
+        <Checkbox checked={done} label={t.title} onCheckedChange={toggle} className="mt-0.5" />
         <div className="min-w-0 flex-1">
-          <StrikeText done={t.done} className="t-dense">{t.title}</StrikeText>
+          <StrikeText done={done} className="t-dense">{t.title}</StrikeText>
           <div className="mt-0.5 fs-11.5 text-ink-3">{company?.name ?? "Internal"}</div>
         </div>
       </div>
@@ -266,6 +284,6 @@ function TaskCard({ t }: { t: Task }) {
         {t.done ? <DoneBy t={t} short /> : <Pill tone={g === "overdue" ? "risk" : g === "today" ? "warn" : "mute"}>{dueLabel(t)}</Pill>}
         {assignee && <Avatar name={assignee.name} me={assignee.id === ME_ID} size="sm" className="ml-auto" />}
       </div>
-    </li>
+    </motion.li>
   );
 }

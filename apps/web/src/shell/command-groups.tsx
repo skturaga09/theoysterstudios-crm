@@ -11,7 +11,7 @@ export function useCommandGroups(): CommandGroup[] {
   const navigate = useNavigate();
   const s = useCrm();
   const nav = useNav();
-  const go = (to: string) => navigate(to, { viewTransition: true });
+  const go = (to: string) => navigate(to);
   const coName = (id?: string) => s.companies.find((c) => c.id === id)?.name ?? "";
   return [
     {

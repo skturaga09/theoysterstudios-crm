@@ -365,7 +365,7 @@ export function DealMenu({ deal }: { deal: Deal }) {
         <MenuItem
           onSelect={() => {
             useUi.getState().closeDeal();
-            navigate(`/deals/${deal.id}`, { viewTransition: true });
+            navigate(`/deals/${deal.id}`);
           }}
         >
           Open full record

@@ -121,8 +121,8 @@ export function PipelineRoute() {
         title="Pipeline"
         stats={[
           { label: "Open leads", value: open.length },
-          { label: "Pipeline", value: formatCompact(pipeline), tone: "signal" },
-          { label: "Weighted", value: formatCompact(Math.round(weighted)), tone: "ok" },
+          { label: "Pipeline", value: pipeline, format: formatCompact, tone: "signal" },
+          { label: "Weighted", value: Math.round(weighted), format: formatCompact, tone: "ok" },
         ]}
         actions={
           <>

@@ -54,7 +54,6 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                     <NavLink
                       to={to}
                       end={to === "/"}
-                      viewTransition
                       onClick={onNavigate}
                       className={({ isActive }) =>
                         cn(

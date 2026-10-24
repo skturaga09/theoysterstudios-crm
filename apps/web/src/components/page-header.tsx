@@ -1,7 +1,8 @@
-import { cn } from "@pinnacle/ui";
+import { cn, CountUp } from "@pinnacle/ui";
 import type { ReactNode } from "react";
 
-type Stat = { label: string; value: ReactNode; tone?: "signal" | "ok" | "risk" };
+/** A number counts up from zero; `format` turns it into text (e.g. ₹75.7 L). */
+type Stat = { label: string; value: number; format?: (v: number) => string; tone?: "signal" | "ok" | "risk" };
 const STAT_TONE = { signal: "text-signal", ok: "text-ok", risk: "text-risk" } as const;
 
 /** Page title, on a coloured band by default (`banner={false}` for a plain one) (studio rose into marketing teal) with optional headline numbers. */
@@ -21,7 +22,7 @@ export function PageHeader({ eyebrow, title, sub, actions, banner = true, stats,
             {stats.map((s) => (
               <div key={s.label}>
                 <dt className="t-eyebrow text-ink-2">{s.label}</dt>
-                <dd className={cn("m-0 mt-1 font-serif fs-30 leading-none tnum", s.tone && STAT_TONE[s.tone])}>{s.value}</dd>
+                <dd className={cn("m-0 mt-1 font-serif fs-30 leading-none tnum", s.tone && STAT_TONE[s.tone])}><CountUp value={s.value} format={s.format} /></dd>
               </div>
             ))}
           </dl>

@@ -30,7 +30,7 @@ export function ExpensesRoute() {
       <PageHeader
         title="Expenses"
         stats={[
-          { label: "Spent, before GST", value: formatFull(total), tone: "risk" },
+          { label: "Spent, before GST", value: total, format: formatFull, tone: "risk" },
           { label: "Expenses", value: shown.length },
         ]}
         actions={
