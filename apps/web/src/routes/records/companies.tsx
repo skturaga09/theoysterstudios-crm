@@ -103,8 +103,11 @@ export function CompaniesRoute() {
   return (
     <>
       <PageHeader
-        eyebrow={`${rows.filter((r) => r.isClient).length} clients · ${rows.filter((r) => !r.isClient).length} prospects`}
         title="Clients"
+        stats={[
+          { label: "Clients", value: rows.filter((r) => r.isClient).length, tone: "signal" },
+          { label: "Prospects", value: rows.filter((r) => !r.isClient).length, tone: "ok" },
+        ]}
         actions={
           <>
             <Segmented label="Show" value={show} onChange={setShow} options={[{ value: "clients", label: "Clients" }, { value: "prospects", label: "Prospects" }, { value: "all", label: "All" }]} />

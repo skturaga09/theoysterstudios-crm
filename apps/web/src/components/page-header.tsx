@@ -4,13 +4,14 @@ import type { ReactNode } from "react";
 type Stat = { label: string; value: ReactNode; tone?: "signal" | "ok" | "risk" };
 const STAT_TONE = { signal: "text-signal", ok: "text-ok", risk: "text-risk" } as const;
 
-/** Page title. `banner` sets it on a coloured band (studio rose into marketing teal) with optional headline numbers. */
-export function PageHeader({ eyebrow, title, sub, actions, banner, stats }: { eyebrow?: ReactNode; title: ReactNode; sub?: ReactNode; actions?: ReactNode; banner?: boolean; stats?: Stat[] }) {
+/** Page title, on a coloured band by default (`banner={false}` for a plain one) (studio rose into marketing teal) with optional headline numbers. */
+export function PageHeader({ eyebrow, title, sub, actions, banner = true, stats, media }: { eyebrow?: ReactNode; title: ReactNode; sub?: ReactNode; actions?: ReactNode; banner?: boolean; stats?: Stat[]; media?: ReactNode }) {
   return (
     <header
       className={cn("mb-8 flex flex-wrap items-end gap-4", banner && "relative overflow-hidden rounded-card px-6 py-6 md:px-8")}
       style={banner ? { background: "linear-gradient(120deg, color-mix(in srgb, var(--signal) 22%, var(--surface)), color-mix(in srgb, var(--ok) 18%, var(--surface)))" } : undefined}
     >
+      {media}
       <div className="min-w-0 flex-1 basis-[280px]">
         {eyebrow && <p className={cn("t-eyebrow m-0 mb-3", banner ? "text-ink-2" : "text-ink-3")}>{eyebrow}</p>}
         <h1 className="t-title m-0">{title}</h1>

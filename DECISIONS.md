@@ -410,3 +410,8 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   on the project template (Settings → Project templates → Function columns: rename, reorder, remove, up to 12);
   each function keeps its values by column id, so renaming keeps the data and removing only hides it. Anyone who
   can change projects (owners, project managers) can add one.
+- **Bolder look (approved 24 Oct 2026).** Page titles sit on a rose-to-teal band, and list pages lead with
+  headline numbers (Pipeline, Projects, Tasks, Invoices, Clients, Quotations, Expenses, Contacts, Calendar)
+  instead of the small grey line. Client photos (or initials on the business colour) now appear on pipeline cards,
+  project cards and the project page, task groups by client, invoices and quotations. Projects default to cards
+  with the client's photo; a list is one click away. The Settings menu has icons like the main menu.

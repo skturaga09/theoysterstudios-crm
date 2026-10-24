@@ -29,6 +29,7 @@ import { Avatar, Button, Checkbox, cn, Input, Pill, Segmented, Select, StrikeTex
 import { ArrowLeft, ChevronDown, ExternalLink, FolderKanban, FolderPlus, MessageSquare, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
+import { ClientPhoto } from "../../components/client-photo";
 import { EmptyState } from "../../components/empty-state";
 import { Cover } from "../records/client-cards";
 import { motion } from "motion/react";
@@ -210,6 +211,7 @@ export function ProjectRoute() {
       <PageHeader
         eyebrow={<span className="inline-flex flex-wrap items-center gap-x-2"><BusinessIcon business={p.business} size="sm" />{BUSINESS_LABEL[p.business]} · {client ? <Link to={`/clients/${client.id}`} className={cn("hover:underline", BUSINESS_TEXT[p.business])}>{client.name}</Link> : "—"} · {pr.done}/{pr.total} tasks done</span>}
         title={p.name}
+        media={client && <ClientPhoto company={client} size="lg" />}
         actions={
           <Select aria-label="Project status" disabled={!canEdit} value={p.status} onChange={(e) => set({ status: e.target.value as ProjectStatus })} className="w-[140px]">
             {PROJECT_STATUSES.map((x) => <option key={x} value={x}>{PROJECT_STATUS_LABEL[x]}</option>)}

@@ -1,20 +1,21 @@
 import { cn } from "@pinnacle/ui";
+import { ArrowDownUp, Bell, BookOpen, Building, KanbanSquare, ListChecks, Package, Plug, Route, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { NavLink, Outlet } from "react-router";
 import { PageHeader } from "../../components/page-header";
 import { useWorkspace } from "../../data/store";
 
 export const SECTIONS = [
-  { to: "playbook", label: "Playbook" },
-  { to: "workspace", label: "Workspace" },
-  { to: "team", label: "Team & access", admin: true },
-  { to: "pipeline", label: "Pipelines & stages" },
-  { to: "templates", label: "Project templates" },
-  { to: "packages", label: "Packages & payments" },
-  { to: "integrations", label: "Integrations", admin: true },
-  { to: "routing", label: "Lead routing" },
-  { to: "notifications", label: "Notifications" },
-  { to: "data", label: "Import & export", admin: true },
+  { to: "playbook", label: "Playbook", icon: BookOpen },
+  { to: "workspace", label: "Workspace", icon: Building },
+  { to: "team", label: "Team & access", icon: Users, admin: true },
+  { to: "pipeline", label: "Pipelines & stages", icon: KanbanSquare },
+  { to: "templates", label: "Project templates", icon: ListChecks },
+  { to: "packages", label: "Packages & payments", icon: Package },
+  { to: "integrations", label: "Integrations", icon: Plug, admin: true },
+  { to: "routing", label: "Lead routing", icon: Route },
+  { to: "notifications", label: "Notifications", icon: Bell },
+  { to: "data", label: "Import & export", icon: ArrowDownUp, admin: true },
 ] as const;
 
 export function SettingsLayout() {
@@ -36,6 +37,7 @@ export function SettingsLayout() {
                     )
                   }
                 >
+                  <s.icon size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-ink-3" />
                   {s.label}
                   {"admin" in s && <span className="font-mono fs-10 text-ink-3">ADMIN</span>}
                 </NavLink>

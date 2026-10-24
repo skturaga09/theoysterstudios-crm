@@ -77,8 +77,8 @@ export function ContactsRoute() {
   return (
     <>
       <PageHeader
-        eyebrow={`${rows.length} people`}
         title="Contacts"
+        stats={[{ label: "People", value: rows.length, tone: "signal" }]}
         actions={
           <>
             <Button onClick={() => useUi.getState().openComposer("deal")}>New lead</Button>

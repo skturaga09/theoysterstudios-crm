@@ -118,8 +118,12 @@ export function PipelineRoute() {
   return (
     <>
       <PageHeader
-        eyebrow={<>{open.length} open · <MoneyText paise={pipeline} /> pipeline · <MoneyText paise={Math.round(weighted)} /> weighted</>}
         title="Pipeline"
+        stats={[
+          { label: "Open leads", value: open.length },
+          { label: "Pipeline", value: formatCompact(pipeline), tone: "signal" },
+          { label: "Weighted", value: formatCompact(Math.round(weighted)), tone: "ok" },
+        ]}
         actions={
           <>
             <Segmented

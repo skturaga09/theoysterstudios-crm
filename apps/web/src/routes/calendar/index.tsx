@@ -116,8 +116,11 @@ export function CalendarRoute() {
   return (
     <>
       <PageHeader
-        eyebrow={`${items.filter((i) => i.day >= today && i.day <= addDays(today, 6)).length} things in the next 7 days`}
         title="Calendar"
+        stats={[
+          { label: "Next 7 days", value: items.filter((i) => i.day >= today && i.day <= addDays(today, 6)).length, tone: "signal" },
+          { label: "Functions this month", value: items.filter((i) => i.kind === "event" && i.day.startsWith(month)).length, tone: "ok" },
+        ]}
         actions={
           <>
             <Segmented label="Whose" value={who} onChange={setWho} options={[{ value: "all", label: "Everyone" }, { value: "me", label: "Mine" }]} />

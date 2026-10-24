@@ -28,8 +28,11 @@ export function ExpensesRoute() {
   return (
     <>
       <PageHeader
-        eyebrow={`${formatFull(total)} before GST · ${shown.length} ${shown.length === 1 ? "expense" : "expenses"}`}
         title="Expenses"
+        stats={[
+          { label: "Spent, before GST", value: formatFull(total), tone: "risk" },
+          { label: "Expenses", value: shown.length },
+        ]}
         actions={
           <>
             <Select aria-label="Month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-[180px]">

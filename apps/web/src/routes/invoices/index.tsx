@@ -3,6 +3,7 @@ import { Button, cn, Input, MoneyText, Pill, Segmented, Sheet, Table, TBody, TD,
 import { Ban, Download, FileDown, FileText, Link2, Pencil, Plus, ReceiptText, Send } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
+import { ClientPhoto } from "../../components/client-photo";
 import { PaymentsDue } from "../../components/payments-due";
 import { PageHeader } from "../../components/page-header";
 import { agingBucket, daysOverdue, invoiceStatus, invoiceTotals, sum } from "../../data/derive";
@@ -50,8 +51,11 @@ export function InvoicesRoute() {
   return (
     <>
       <PageHeader
-        eyebrow={<><MoneyText paise={sum(outstanding.map((i) => invoiceTotals(i).due))} mono={false} /> outstanding · <span className="text-risk"><MoneyText paise={totalOverdue} mono={false} /> overdue across {overdue.length}</span></>}
         title="Invoices"
+        stats={[
+          { label: "Outstanding", value: formatCompact(sum(outstanding.map((i) => invoiceTotals(i).due))), tone: "signal" },
+          { label: `Overdue · ${overdue.length}`, value: formatCompact(totalOverdue), tone: totalOverdue ? "risk" : undefined },
+        ]}
         actions={
           <>
             <Segmented
@@ -134,7 +138,7 @@ export function InvoicesRoute() {
             {rows.map(({ i, st, t, co }, k) => (
               <TR key={i.id} data-nav-index={k} onClick={() => setOpenId(i.id)} className={cn(active === k && "bg-hover")}>
                 <TD className="font-mono fs-12.5">{i.number}</TD>
-                <TD><div className="font-medium">{co?.name}</div><div className="font-mono fs-11 text-ink-3">{co?.gstin || "Unregistered"}</div></TD>
+                <TD><div className="flex items-center gap-2.5"><ClientPhoto company={co} size="sm" /><div className="min-w-0"><div className="font-medium">{co?.name}</div><div className="font-mono fs-11 text-ink-3">{co?.gstin || "Unregistered"}</div></div></div></TD>
                 <TD numeric className="hidden text-ink-2 md:table-cell">{fmtDay(i.issuedAt)}</TD>
                 <TD numeric className={st === "overdue" ? "text-risk" : "text-ink-2"}>{fmtDay(i.dueAt)}{st === "overdue" && <span className="ml-1.5 fs-11">+{daysOverdue(i)}d</span>}</TD>
                 <TD align="right"><MoneyText paise={t.total} /></TD>

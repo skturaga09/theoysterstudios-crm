@@ -2,6 +2,7 @@ import { BUSINESS_SHORT, fmtDay } from "@pinnacle/shared";
 import { Avatar, Button, Checkbox, cn, Pill, Segmented, StrikeText, toast, Tooltip } from "@pinnacle/ui";
 import { Bell, BellOff, CheckSquare, Columns3, List, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { ClientPhoto } from "../../components/client-photo";
 import { PageHeader } from "../../components/page-header";
 import { DoneBy } from "../../components/done-by";
 import { taskGroup, type TaskGroup } from "../../data/derive";
@@ -64,8 +65,11 @@ export function TasksRoute() {
   return (
     <>
       <PageHeader
-        eyebrow={<><span className={overdue ? "text-risk" : ""}>{overdue} overdue</span> · {today} due today</>}
         title="Tasks"
+        stats={[
+          { label: "Overdue", value: overdue, tone: overdue ? "risk" : undefined },
+          { label: "Due today", value: today, tone: "signal" },
+        ]}
         actions={
           <>
             <Segmented label="Whose" value={who} onChange={setWho} options={[{ value: "all", label: "Everyone" }, { value: "me", label: "My work" }]} />
@@ -164,8 +168,10 @@ export function TasksRoute() {
 
 /** A client's heading on the Tasks page: name (to their page), business, and how much is open, late and done. */
 function ClientHeader({ g, compact }: { g: ClientGroup; compact?: boolean }) {
+  const company = useCrm((s) => s.companies.find((c) => c.id === g.id));
   return (
-    <h2 className={cn("m-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5", compact ? "fs-12.5 font-medium" : "t-dense mb-2 font-medium")}>
+    <h2 className={cn("m-0 flex flex-wrap items-center gap-x-2 gap-y-0.5", compact ? "fs-12.5 font-medium" : "t-dense mb-2 font-medium")}>
+      <ClientPhoto company={company} size={compact ? "sm" : "md"} />
       {g.id ? <Link to={`/clients/${g.id}`} className="hover:underline">{g.name}</Link> : <span className="text-ink-2">{g.name}</span>}
       {g.business && <span className="fs-11 font-normal text-ink-3">{BUSINESS_SHORT[g.business as keyof typeof BUSINESS_SHORT]}</span>}
       <span className="font-mono fs-11 font-normal text-ink-3">{g.open.length} open</span>

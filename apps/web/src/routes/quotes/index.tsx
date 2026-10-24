@@ -3,6 +3,7 @@ import { Button, Input, MoneyText, Pill, Segmented, Select, Textarea, toast } fr
 import { ArrowLeft, FileSignature, Plus, Printer, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
+import { ClientPhoto } from "../../components/client-photo";
 import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
 import { EmptyState } from "../../components/empty-state";
@@ -25,8 +26,11 @@ export function QuotesRoute() {
   return (
     <>
       <PageHeader
-        eyebrow={`${s.quotes.filter((q) => q.status === "sent").length} awaiting the client`}
         title="Quotations"
+        stats={[
+          { label: "Awaiting the client", value: s.quotes.filter((q) => q.status === "sent").length, tone: "signal" },
+          { label: "Drafts", value: s.quotes.filter((q) => q.status === "draft").length },
+        ]}
         actions={<Segmented label="Show" value={show} onChange={setShow} options={[{ value: "open", label: "Open" }, { value: "all", label: "All" }]} />}
       />
       {!quotes.length ? (
@@ -39,6 +43,7 @@ export function QuotesRoute() {
               <li key={q.id}>
                 <Link to={`/quotes/${q.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line py-3 hover:bg-hover">
                   <span className="w-[130px] font-mono fs-12">{q.number}</span>
+                  <ClientPhoto company={co} />
                   <span className="min-w-0 flex-1 basis-[200px]">
                     <span className="t-dense block truncate font-medium">{co?.name ?? "—"}</span>
                     <span className="fs-11.5 text-ink-3">{BUSINESS_SHORT[q.business]} · valid until {fmtDate(q.validUntil)}</span>

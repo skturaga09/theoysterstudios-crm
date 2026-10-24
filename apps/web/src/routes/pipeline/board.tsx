@@ -18,6 +18,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { animate, motion, useReducedMotion } from "motion/react";
 import { memo, useEffect, useRef, useState } from "react";
+import { ClientPhoto } from "../../components/client-photo";
 import { ME_ID } from "../../data/seed";
 import { useCrm } from "../../data/store";
 import type { Deal } from "../../data/types";
@@ -238,6 +239,7 @@ const DealCard = memo(function DealCard({ deal, lifted }: { deal: Deal; lifted?:
     >
       <div className="flex items-center gap-2">
         <HealthDot health={deal.health} />
+        <ClientPhoto company={company} size="sm" />
         <span className="truncate fs-13 font-medium">{company?.name}</span>
         <ChannelChip channel={deal.channel} className="ml-auto" />
       </div>
