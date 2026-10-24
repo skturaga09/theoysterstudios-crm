@@ -288,4 +288,5 @@ export type ProjectEvent = {
   video?: number;
   videoCrew?: string[];
   addOns?: string;
+  extra?: Record<string, string>;
 };

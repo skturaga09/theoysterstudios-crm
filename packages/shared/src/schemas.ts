@@ -267,6 +267,7 @@ const link = z.object({
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date");
 const smallId = z.string().trim().min(1).max(40);
 
+const MAX_COLUMNS = 12;
 const crewNames = z.array(z.string().trim().min(1).max(60)).max(20).optional();
 const crewCount = z.number().int().min(0).max(20).optional();
 /** A function (haldi, wedding, reception…) and who covers it: photo and video crew by name, add-ons, duration. */
@@ -281,6 +282,8 @@ export const ProjectEventSchema = z.object({
   video: crewCount,
   videoCrew: crewNames,
   addOns: optionalText(200),
+  /** Values for the studio's own columns, by column id. */
+  extra: z.record(smallId, z.string().trim().max(200)).refine((o) => Object.keys(o).length <= MAX_COLUMNS, "Too many columns").optional(),
 });
 export const CrewSchema = z.object({ memberId: id, role: z.string().trim().min(1).max(60) });
 export const DeliverableSchema = z.object({
@@ -329,16 +332,12 @@ export const EnquirySchema = z.object({
 
 export const TaskCommentSchema = z.object({ body: z.string().trim().min(1, "Write a comment").max(2000) });
 
-export const TemplatesSchema = z.object({
-  photography: z.object({
-    tasks: z.array(z.object({ title: z.string().trim().min(1).max(160), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365), priority: z.enum(PRIORITIES), approval: z.boolean().optional() })).max(60),
-    deliverables: z.array(z.object({ name: z.string().trim().min(1).max(120), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365) })).max(30),
-  }),
-  marketing: z.object({
-    tasks: z.array(z.object({ title: z.string().trim().min(1).max(160), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365), priority: z.enum(PRIORITIES), approval: z.boolean().optional() })).max(60),
-    deliverables: z.array(z.object({ name: z.string().trim().min(1).max(120), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365) })).max(30),
-  }),
+const TemplateSchema = z.object({
+  tasks: z.array(z.object({ title: z.string().trim().min(1).max(160), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365), priority: z.enum(PRIORITIES), approval: z.boolean().optional() })).max(60),
+  deliverables: z.array(z.object({ name: z.string().trim().min(1).max(120), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365) })).max(30),
+  columns: z.array(z.object({ id: smallId, label: z.string().trim().min(1, "Name the column").max(40) })).max(MAX_COLUMNS).optional(),
 });
+export const TemplatesSchema = z.object({ photography: TemplateSchema, marketing: TemplateSchema });
 
 /* ---------- Finance ---------- */
 const money = z.number().int().nonnegative();

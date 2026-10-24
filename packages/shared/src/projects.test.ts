@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_TEMPLATES } from "./domain";
 import { istDay, planProject, splitNames } from "./projects";
-import { UpdateProjectSchema } from "./schemas";
+import { TemplatesSchema, UpdateProjectSchema } from "./schemas";
 
 describe("planProject", () => {
   it("dates wedding tasks from the event and falls back to the confirmation day", () => {
@@ -30,5 +30,18 @@ describe("function crew", () => {
   it("keeps the lineup when a project is saved", () => {
     const e = { id: "e1", name: "Wedding", photo: 2, photoCrew: ["Aniketh", "Arun"], video: 2, videoCrew: ["Bobby", "Teju"], addOns: "Drone", duration: "4 pm – 11 pm" };
     expect(UpdateProjectSchema.parse({ events: [e] }).events?.[0]).toEqual(e);
+  });
+});
+
+describe("custom function columns", () => {
+  it("saves the studio's columns and each function's values", () => {
+    const columns = [{ id: "col-1", label: "Makeup artist" }];
+    expect(TemplatesSchema.parse({ ...DEFAULT_TEMPLATES, photography: { ...DEFAULT_TEMPLATES.photography, columns } }).photography.columns).toEqual(columns);
+    expect(UpdateProjectSchema.parse({ events: [{ id: "e1", name: "Haldi", extra: { "col-1": "Priya" } }] }).events?.[0]?.extra).toEqual({ "col-1": "Priya" });
+  });
+  it("rejects nameless columns and too many values", () => {
+    expect(() => TemplatesSchema.parse({ ...DEFAULT_TEMPLATES, photography: { ...DEFAULT_TEMPLATES.photography, columns: [{ id: "c", label: " " }] } })).toThrow();
+    const extra = Object.fromEntries(Array.from({ length: 13 }, (_, i) => [`c${i}`, "x"]));
+    expect(() => UpdateProjectSchema.parse({ events: [{ id: "e1", name: "Haldi", extra }] })).toThrow();
   });
 });

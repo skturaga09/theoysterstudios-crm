@@ -405,3 +405,8 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   freelancers outside the CRM fit; the number can run ahead of the names until the crew is fixed. The Calendar
   shows the line-up and warns when the same name is on two projects the same day. The client portal still
   doesn't show crew. The project-level Crew list still decides who on the team can open the project.
+- **The studio's own function columns.** "+ Add column" beside "+ Add function" adds a column (e.g. "Makeup
+  artist") to every function on every project of that business, like a column in their Excel sheet. Columns live
+  on the project template (Settings → Project templates → Function columns: rename, reorder, remove, up to 12);
+  each function keeps its values by column id, so renaming keeps the data and removing only hides it. Anyone who
+  can change projects (owners, project managers) can add one.

@@ -151,7 +151,12 @@ export const CREW_ROLES: Record<Business, string[]> = {
  * `from` is what a due date counts from — the event (wedding) date or the day the deal was confirmed.
  */
 export type TemplateItem = { title: string; from: "event" | "confirmed"; days: number; priority: Priority; approval?: boolean };
-export type ProjectTemplate = { tasks: TemplateItem[]; deliverables: { name: string; from: "event" | "confirmed"; days: number }[] };
+export type ProjectTemplate = {
+  tasks: TemplateItem[];
+  deliverables: { name: string; from: "event" | "confirmed"; days: number }[];
+  /** The studio's own columns on every function (e.g. "Makeup artist", "Shoot time"); values live on each function. */
+  columns?: { id: string; label: string }[];
+};
 export type Templates = Record<Business, ProjectTemplate>;
 
 export const DEFAULT_TEMPLATES: Templates = {

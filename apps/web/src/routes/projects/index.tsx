@@ -306,7 +306,7 @@ function CrewSlot({ label, count, names, onChange }: { label: string; count?: nu
   const shown = Math.max(count ?? 0, names?.length ?? 0);
   return (
     <label className="flex min-w-0 items-center gap-2">
-      <span className="t-meta w-[120px] shrink-0 text-ink-3">{label}</span>
+      <span className="t-meta w-[9em] shrink-0 text-ink-3">{label}</span>
       <Input
         aria-label={`${label}: how many`}
         inputMode="numeric"
@@ -334,7 +334,19 @@ function CrewSlot({ label, count, names, onChange }: { label: string; count?: nu
   );
 }
 
+/** Adds one of the studio's own function columns; it shows on every project of this business. */
+async function addColumn(business: Project["business"], label: string) {
+  const templates = useCrm.getState().templates;
+  const t = templates[business];
+  const draft = { ...templates, [business]: { ...t, columns: [...(t.columns ?? []), { id: newId("col"), label }] } };
+  const next = IS_DEMO ? draft : await api<typeof templates>("/project-templates", { method: "PUT", body: draft });
+  useCrm.setState({ templates: next });
+}
+
 function Functions({ p, set }: { p: Project; set: (patch: Partial<Project>) => void }) {
+  const columns = useCrm((s) => s.templates[p.business].columns) ?? [];
+  const canAddColumn = useAccess("projects") === "edit";
+  const [column, setColumn] = useState<string>();
   const change = (id: string, patch: Partial<ProjectEvent>) => set({ events: p.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
   const text = (e: ProjectEvent, key: "venue" | "duration" | "addOns") => ({
     defaultValue: e[key] ?? "",
@@ -357,9 +369,26 @@ function Functions({ p, set }: { p: Project; set: (patch: Partial<Project>) => v
               <CrewSlot label="Photographers" count={e.photo} names={e.photoCrew} onChange={(photo, photoCrew) => change(e.id, { photo, photoCrew })} />
               <CrewSlot label="Cinematographers" count={e.video} names={e.videoCrew} onChange={(video, videoCrew) => change(e.id, { video, videoCrew })} />
               <label className="flex min-w-0 items-center gap-2">
-                <span className="t-meta w-[120px] shrink-0 text-ink-3">Add-ons</span>
+                <span className="t-meta w-[9em] shrink-0 text-ink-3">Add-ons</span>
                 <Input aria-label={`${e.name} add-ons`} placeholder="Drone, LED wall, same-day edit…" {...text(e, "addOns")} className="h-8 min-w-0 flex-1" />
               </label>
+              {columns.map((c) => (
+                <label key={c.id} className="flex min-w-0 items-center gap-2">
+                  <span className="t-meta w-[9em] shrink-0 truncate text-ink-3" title={c.label}>{c.label}</span>
+                  <Input
+                    aria-label={`${e.name} ${c.label}`}
+                    defaultValue={e.extra?.[c.id] ?? ""}
+                    maxLength={200}
+                    onBlur={(x) => {
+                      const v = x.target.value.trim();
+                      if (v === (e.extra?.[c.id] ?? "")) return;
+                      const { [c.id]: _, ...rest } = e.extra ?? {};
+                      change(e.id, { extra: v ? { ...rest, [c.id]: v } : rest });
+                    }}
+                    className="h-8 min-w-0 flex-1"
+                  />
+                </label>
+              ))}
             </div>
           </li>
         ))}
@@ -367,7 +396,35 @@ function Functions({ p, set }: { p: Project; set: (patch: Partial<Project>) => v
       <Button size="sm" variant="ghost" className="mt-2" onClick={() => set({ events: [...p.events, { id: newId("e"), name: p.events.length ? "Function" : "Wedding" }] })}>
         <Plus strokeWidth={1.5} /> Add function
       </Button>
+      {canAddColumn && column === undefined && (
+        <Button size="sm" variant="ghost" className="mt-2" onClick={() => setColumn("")}>
+          <Plus strokeWidth={1.5} /> Add column
+        </Button>
+      )}
       <span className="t-meta ml-2 text-ink-3">Haldi, mehendi, sangeet, reception…</span>
+      {column !== undefined && (
+        <form
+          className="mt-2 flex flex-wrap items-center gap-2"
+          onSubmit={async (x) => {
+            x.preventDefault();
+            const label = column.trim();
+            if (!label) return;
+            if (columns.some((c) => c.label.toLowerCase() === label.toLowerCase())) return toast(`There's already a ${label} column`);
+            try {
+              await addColumn(p.business, label);
+              setColumn(undefined);
+              toast(`${label} added to every ${BUSINESS_LABEL[p.business]} project`);
+            } catch (e) {
+              toast((e as Error).message);
+            }
+          }}
+        >
+          <Input autoFocus aria-label="New column name" value={column} maxLength={40} placeholder="Column name, e.g. Makeup artist" onChange={(x) => setColumn(x.target.value)} className="h-8 w-[240px]" />
+          <Button size="sm" variant="ink" type="submit" disabled={!column.trim()}>Add</Button>
+          <Button size="sm" variant="ghost" type="button" onClick={() => setColumn(undefined)}>Cancel</Button>
+          <span className="t-meta text-ink-3">Shows on every project; rename or remove in Settings → Project templates.</span>
+        </form>
+      )}
     </section>
   );
 }

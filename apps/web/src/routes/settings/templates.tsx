@@ -97,6 +97,30 @@ export function TemplatesRoute() {
           <Button size="sm" variant="ghost" className="mt-2" onClick={() => put({ deliverables: [...t.deliverables, { name: "New deliverable", from: fromLabel, days: 0 }] })}>
             <Plus strokeWidth={1.5} /> Add deliverable
           </Button>
+        </>
+      )}
+
+      <h2 className="t-eyebrow m-0 mt-8 mb-1 text-ink-3">Function columns · {(t.columns ?? []).length}</h2>
+      <p className="t-meta m-0 mb-2 text-ink-3">Your own columns on every function, beside photographers, cinematographers and add-ons. Removing one hides it; what was typed is kept.</p>
+      <ol className="m-0 list-none p-0">
+        {(t.columns ?? []).map((c, i) => (
+          <li key={c.id} className="flex items-center gap-2 border-b border-line py-2.5">
+            <Input aria-label="Column name" value={c.label} maxLength={40} disabled={!canEdit} onChange={(e) => put({ columns: t.columns!.map((x, k) => (k === i ? { ...x, label: e.target.value } : x)) })} className="h-8 min-w-0 flex-1" />
+            {canEdit && (
+              <span className="flex">
+                <Button size="icon-sm" variant="ghost" aria-label={`Move ${c.label} up`} disabled={i === 0} onClick={() => put({ columns: swap(t.columns!, i, i - 1) })}><ArrowUp strokeWidth={1.5} /></Button>
+                <Button size="icon-sm" variant="ghost" aria-label={`Move ${c.label} down`} disabled={i === t.columns!.length - 1} onClick={() => put({ columns: swap(t.columns!, i, i + 1) })}><ArrowDown strokeWidth={1.5} /></Button>
+                <Button size="icon-sm" variant="ghost" aria-label={`Remove ${c.label}`} onClick={() => put({ columns: t.columns!.filter((_, k) => k !== i) })}><Trash2 strokeWidth={1.5} /></Button>
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+      {canEdit && (
+        <>
+          <Button size="sm" variant="ghost" className="mt-2" disabled={(t.columns ?? []).length >= 12} onClick={() => put({ columns: [...(t.columns ?? []), { id: `col-${Date.now().toString(36)}`, label: "New column" }] })}>
+            <Plus strokeWidth={1.5} /> Add column
+          </Button>
           {error && <p role="alert" className="t-meta mt-3 text-risk">{error}</p>}
           <div className="flex justify-end gap-2 pt-4">
             {dirty && <Button variant="ghost" onClick={() => { setDraft(saved); setError(undefined); }}>Discard</Button>}
@@ -104,7 +128,7 @@ export function TemplatesRoute() {
               variant="ink"
               disabled={!dirty || busy}
               onClick={async () => {
-                if (Object.values(draft).some((x) => x.tasks.some((y) => !y.title.trim()) || x.deliverables.some((y) => !y.name.trim()))) return setError("Every task and deliverable needs a name.");
+                if (Object.values(draft).some((x) => x.tasks.some((y) => !y.title.trim()) || x.deliverables.some((y) => !y.name.trim()) || x.columns?.some((y) => !y.label.trim()))) return setError("Every task, deliverable and column needs a name.");
                 setBusy(true);
                 try {
                   const next = IS_DEMO ? draft : await api<Templates>("/project-templates", { method: "PUT", body: draft });
