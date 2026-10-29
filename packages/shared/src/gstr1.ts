@@ -73,7 +73,8 @@ function rows(d: Doc, type: RegisterRow["type"], sign: 1 | -1, against?: string)
 export function salesRegister({ invoices, creditNotes }: { invoices: Doc[]; creditNotes: Note[] }, from: string, to: string): RegisterRow[] {
   const inRange = (d: Doc) => istDay(d.issuedAt) >= from && istDay(d.issuedAt) <= to;
   return [
-    ...invoices.filter((i) => i.sent && !i.cancelled && inRange(i)).flatMap((i) => rows(i, "Invoice", 1)),
+    // Cash bills carry no GST, so they stay out of the GST register.
+    ...invoices.filter((i) => i.sent && !i.cancelled && i.kind !== "cash" && inRange(i)).flatMap((i) => rows(i, "Invoice", 1)),
     ...creditNotes.filter(inRange).flatMap((c) => rows(c, "Credit note", -1, c.invoiceNumber)),
   ].sort((a, b) => a.date.localeCompare(b.date) || a.number.localeCompare(b.number));
 }

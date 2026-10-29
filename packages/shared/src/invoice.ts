@@ -1,6 +1,8 @@
 import type { Paise } from "./money";
 
 export type InvoiceMath = {
+  /** "cash": a bill without GST, in its own number series. Missing = a GST tax invoice. */
+  kind?: "tax" | "cash";
   supply: "intra" | "inter";
   lines: { qty: number; ratePaise: Paise }[];
   payments: { amountPaise: Paise }[];
@@ -11,7 +13,7 @@ export type InvoiceMath = {
 /** 18% GST: intra-state splits into CGST + SGST, inter-state is IGST. Shared so web and API agree to the paisa. */
 export function invoiceTotals(inv: InvoiceMath) {
   const subtotal = inv.lines.reduce((a, l) => a + Math.round(l.qty * l.ratePaise), 0);
-  const gst = Math.round(subtotal * 0.18);
+  const gst = inv.kind === "cash" ? 0 : Math.round(subtotal * 0.18);
   const total = subtotal + gst;
   const paid = inv.payments.reduce((a, p) => a + p.amountPaise, 0);
   const credited = (inv.credits ?? []).reduce((a, c) => a + c.totalPaise, 0);

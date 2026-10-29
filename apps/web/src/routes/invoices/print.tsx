@@ -185,6 +185,8 @@ export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; c
   const seller = inv.seller ?? workspace;
   const buyer = inv.buyer ?? { name: co?.name ?? "—", gstin: co?.gstin ?? "", address: co?.address ?? "", city: co?.city ?? "" };
   const t = invoiceTotals(inv);
+  // A cash bill has its own layout: no GSTINs, SAC, place of supply or tax rows.
+  const cash = (inv as { kind?: string }).kind === "cash";
   const st = credit || quote ? "sent" : invoiceStatus(inv as Invoice);
   const stamp = st === "draft" ? "DRAFT — NOT ISSUED" : st === "cancelled" ? "CANCELLED" : undefined;
   // Place of supply is where the client is: their GSTIN's state, or ours for an intra-state supply.
@@ -199,16 +201,16 @@ export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; c
         <Button variant="ink" size="sm" className="ml-auto" onClick={() => window.print()}><Printer strokeWidth={1.5} /> Print / Save as PDF</Button>
       </div>
 
-      <article className="inv relative mx-auto w-[210mm] max-w-full p-[14mm] fs-11.5 leading-relaxed shadow-pop" aria-label={`${quote ? "Quotation" : credit ? "Credit note" : "Tax invoice"} ${inv.number}`}>
+      <article className="inv relative mx-auto w-[210mm] max-w-full p-[14mm] fs-11.5 leading-relaxed shadow-pop" aria-label={`${quote ? "Quotation" : credit ? "Credit note" : cash ? "Cash bill" : "Tax invoice"} ${inv.number}`}>
         {stamp && <div className="absolute top-[14mm] left-1/2 -translate-x-1/2 rounded border-2 border-current px-3 py-1 fs-13 font-semibold tracking-wider text-[#b42318]">{stamp}</div>}
 
         <header className="bl flex items-start gap-6 border-b pb-5">
           <img src="/logo.png" alt="" className="h-20 w-auto object-contain" />
           <div className="ml-auto text-right">
-            <h1 className="m-0 fs-20 font-semibold tracking-wide">{quote ? "QUOTATION" : credit ? "CREDIT NOTE" : "TAX INVOICE"}</h1>
-            {!quote && <p className="i3 m-0 fs-10">Original for recipient</p>}
+            <h1 className="m-0 fs-20 font-semibold tracking-wide">{quote ? "QUOTATION" : credit ? "CREDIT NOTE" : cash ? "CASH BILL" : "TAX INVOICE"}</h1>
+            {!quote && !cash && <p className="i3 m-0 fs-10">Original for recipient</p>}
             <dl className="m-0 mt-2 grid grid-cols-[auto_auto] justify-end gap-x-3 font-mono fs-11">
-              <dt className="i3">{quote ? "Quotation no." : credit ? "Credit note no." : "Invoice no."}</dt><dd className="m-0 font-semibold">{inv.number}</dd>
+              <dt className="i3">{quote ? "Quotation no." : credit ? "Credit note no." : cash ? "Bill no." : "Invoice no."}</dt><dd className="m-0 font-semibold">{inv.number}</dd>
               <dt className="i3">Date</dt><dd className="m-0">{fmtDate(inv.issuedAt)}</dd>
               {quote ? (
                 <><dt className="i3">Valid until</dt><dd className="m-0">{fmtDate(quote.validUntil)}</dd></>
@@ -223,33 +225,33 @@ export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; c
 
         <section className="bl grid grid-cols-2 gap-6 border-b py-5">
           <div>
-            <h2 className="i3 m-0 mb-1 fs-10 font-medium tracking-wider uppercase">Supplier</h2>
+            <h2 className="i3 m-0 mb-1 fs-10 font-medium tracking-wider uppercase">{cash ? "From" : "Supplier"}</h2>
             <p className="m-0 font-semibold">{seller.legalName || "—"}</p>
             <p className="i2 m-0 whitespace-pre-line">{seller.address}</p>
-            <p className="m-0 mt-1 font-mono">GSTIN {seller.gstin || "—"}</p>
-            {stateWithCode(seller.gstin) && <p className="i2 m-0">State: {stateWithCode(seller.gstin)}</p>}
+            {!cash && <p className="m-0 mt-1 font-mono">GSTIN {seller.gstin || "—"}</p>}
+            {!cash && stateWithCode(seller.gstin) && <p className="i2 m-0">State: {stateWithCode(seller.gstin)}</p>}
           </div>
           <div>
             <h2 className="i3 m-0 mb-1 fs-10 font-medium tracking-wider uppercase">{quote ? "Prepared for" : "Bill to"}</h2>
             <p className="m-0 font-semibold">{buyer.name}</p>
             {buyer.address ? <p className="i2 m-0 whitespace-pre-line">{buyer.address}</p> : buyer.city && <p className="i2 m-0">{buyer.city}</p>}
-            <p className="m-0 mt-1 font-mono">GSTIN {buyer.gstin || "Unregistered"}</p>
-            {stateWithCode(buyer.gstin) && <p className="i2 m-0">State: {stateWithCode(buyer.gstin)}</p>}
+            {!cash && <p className="m-0 mt-1 font-mono">GSTIN {buyer.gstin || "Unregistered"}</p>}
+            {!cash && stateWithCode(buyer.gstin) && <p className="i2 m-0">State: {stateWithCode(buyer.gstin)}</p>}
           </div>
         </section>
 
         {credit && <p className="m-0 pt-3">Reason for credit: <span className="i2">{credit.reason}</span></p>}
-        <p className="i2 m-0 py-3">Place of supply: <span className="text-[var(--i-ink)]">{placeOfSupply}</span> · {inv.supply === "intra" ? "Intra-state supply (CGST + SGST)" : "Inter-state supply (IGST)"}</p>
+        {cash ? <div className="py-2" /> : <p className="i2 m-0 py-3">Place of supply: <span className="text-[var(--i-ink)]">{placeOfSupply}</span> · {inv.supply === "intra" ? "Intra-state supply (CGST + SGST)" : "Inter-state supply (IGST)"}</p>}
 
         <table className="w-full border-collapse">
           <thead>
             <tr className="bl border-y text-left fs-10 tracking-wider uppercase">
               <th className="i3 py-2 pr-2 font-medium">#</th>
               <th className="i3 py-2 pr-2 font-medium">Description</th>
-              <th className="i3 py-2 pr-2 font-medium">SAC</th>
+              {!cash && <th className="i3 py-2 pr-2 font-medium">SAC</th>}
               <th className="i3 py-2 pr-2 text-right font-medium">Qty</th>
               <th className="i3 py-2 pr-2 text-right font-medium">Rate (₹)</th>
-              <th className="i3 py-2 text-right font-medium">Taxable value (₹)</th>
+              <th className="i3 py-2 text-right font-medium">{cash ? "Amount (₹)" : "Taxable value (₹)"}</th>
             </tr>
           </thead>
           <tbody>
@@ -257,7 +259,7 @@ export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; c
               <tr key={k} className="bl border-b align-top">
                 <td className="i3 py-2 pr-2">{k + 1}</td>
                 <td className="py-2 pr-2">{l.desc}</td>
-                <td className="py-2 pr-2 font-mono">{l.sac}</td>
+                {!cash && <td className="py-2 pr-2 font-mono">{l.sac}</td>}
                 <td className="py-2 pr-2 text-right font-mono">{l.qty}</td>
                 <td className="py-2 pr-2 text-right font-mono">{inr(l.ratePaise)}</td>
                 <td className="py-2 text-right font-mono">{inr(Math.round(l.qty * l.ratePaise))}</td>
@@ -272,8 +274,8 @@ export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; c
             <p className="m-0 font-medium">{rupeesInWords(t.total)}</p>
           </div>
           <dl className="m-0 grid min-w-[62mm] grid-cols-[1fr_auto] gap-x-6 gap-y-1 font-mono">
-            <dt className="i2">Taxable value</dt><dd className="m-0 text-right">{inr(t.subtotal)}</dd>
-            {inv.supply === "intra" ? (
+            {!cash && <><dt className="i2">Taxable value</dt><dd className="m-0 text-right">{inr(t.subtotal)}</dd></>}
+            {cash ? null : inv.supply === "intra" ? (
               <>
                 <dt className="i2">CGST @ 9%</dt><dd className="m-0 text-right">{inr(t.cgst)}</dd>
                 <dt className="i2">SGST @ 9%</dt><dd className="m-0 text-right">{inr(t.sgst)}</dd>
@@ -316,7 +318,7 @@ export function TaxDocument({ doc: inv, credit, quote }: { doc?: PrintableDoc; c
         )}
 
         <footer className="bl mt-10 flex items-end justify-between border-t pt-4">
-          <p className="i3 m-0 max-w-[90mm] fs-10">{quote ? "This is a quotation, not a tax invoice. A GST invoice is issued for each payment." : "This is a computer-generated invoice. Tax is not payable on reverse charge basis."}</p>
+          <p className="i3 m-0 max-w-[90mm] fs-10">{quote ? "This is a quotation, not a tax invoice. A GST invoice is issued for each payment." : cash ? "This is a computer-generated cash bill. It is not a tax invoice." : "This is a computer-generated invoice. Tax is not payable on reverse charge basis."}</p>
           <div className="text-right">
             <p className="m-0">For {seller.legalName || "—"}</p>
             <p className="i3 m-0 mt-10 fs-10">Authorised signatory</p>

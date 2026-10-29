@@ -98,7 +98,7 @@ export function DealPayments({ deal }: { deal: Deal }) {
                     <Input type="date" aria-label={`${m.label} due`} disabled={!canPlan} value={m.dueDate ?? ""} onChange={(e) => change(m.id, { dueDate: e.target.value || undefined })} className="h-7 w-[140px] fs-12" />
                   )}
                   <span className="ml-auto flex items-center gap-1">
-                    {!inv && canInvoice && <Button size="sm" onClick={() => void invoiceStage(deal.id, m.id)}>Invoice</Button>}
+                    {!inv && canInvoice && <><Button size="sm" onClick={() => void invoiceStage(deal.id, m.id)}>GST invoice</Button><Button size="sm" variant="ghost" onClick={() => void invoiceStage(deal.id, m.id, "cash")}>Cash bill</Button></>}
                     {st !== "paid" && st !== "planned" && contact?.phone && (whatsappConnected ? (
                       <Button
                         size="sm"

@@ -253,6 +253,8 @@ export type InvoiceLine = { desc: string; sac: string; qty: number; ratePaise: P
 export type Invoice = {
   /** Which of the two businesses it belongs to; unset = not decided yet (shown in every view). */
   business?: Business;
+  /** "cash": a bill without GST in its own series (TOS/CB/…). Missing = GST tax invoice. */
+  kind?: "tax" | "cash";
   id: ID;
   number: string;
   dealId?: ID;

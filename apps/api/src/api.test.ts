@@ -536,6 +536,19 @@ describe("api", () => {
     expect((await call("POST", `/invoices/${inv.id}/payments`, { amountPaise: 18000 })).json().payments).toHaveLength(2);
   });
 
+  it("raises cash bills without GST in their own series, out of the GST register", async () => {
+    const tax = (await call("POST", "/invoices", { companyId: c1, dueAt: "2026-11-13T00:00:00+05:30", supply: "intra", lines: [{ desc: "Shoot", sac: "998391", qty: 1, ratePaise: 100000 }] })).json();
+    const cash = (await call("POST", "/invoices", { kind: "cash", companyId: c1, dueAt: "2026-11-13T00:00:00+05:30", supply: "intra", lines: [{ desc: "Photo prints", sac: "998391", qty: 1, ratePaise: 58_950_00 }] })).json();
+    expect(cash.number).toMatch(/^TOS\/CB\/\d{2}-\d{2}\/\d{3}$/);
+    expect(tax.number).not.toContain("/CB/");
+    expect(cash.seller.gstin).toBe("");
+    expect((await call("POST", `/invoices/${cash.id}/send`)).json().seller.gstin).toBe(""); // still none once issued
+    // Paid in full at ₹58,950: no GST on top.
+    expect((await call("POST", `/invoices/${cash.id}/payments`, { amountPaise: 58_950_01 })).statusCode).toBe(409);
+    expect((await call("POST", `/invoices/${cash.id}/payments`, { amountPaise: 58_950_00 })).json().payments).toHaveLength(1);
+    expect((await call("POST", `/invoices/${cash.id}/credit-notes`, { amountPaise: 100, reason: "x" })).statusCode).toBe(409);
+  });
+
   it("cancels drafts only, keeping them on record", async () => {
     const inv = { companyId: c1, dueAt: "2026-11-13T00:00:00+05:30", supply: "intra", lines: [{ desc: "x", sac: "998391", qty: 1, ratePaise: 100 }] };
     const draft = (await call("POST", "/invoices", inv)).json();

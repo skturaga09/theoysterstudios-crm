@@ -14,6 +14,7 @@ it("lists sent invoices and credit notes for the period, ready for GSTR-1", () =
         { number: "TOS/26-27/003", issuedAt: "2026-10-06T06:00:00Z", sent: false, supply: "intra", seller, lines: [{ sac: "998383", qty: 1, ratePaise: 1 }] }, // draft
         { number: "TOS/26-27/000", issuedAt: "2026-09-30T19:00:00Z", sent: true, supply: "intra", seller, lines: [{ sac: "998383", qty: 1, ratePaise: 1 }] }, // 1 Oct IST
         { number: "TOS/26-27/099", issuedAt: "2026-11-01T06:00:00Z", sent: true, supply: "intra", seller, lines: [{ sac: "998383", qty: 1, ratePaise: 1 }] }, // next month
+        { kind: "cash", number: "TOS/CB/26-27/001", issuedAt: "2026-10-07T06:00:00Z", sent: true, supply: "intra", seller, lines: [{ sac: "998383", qty: 1, ratePaise: 1 }] }, // cash bill: no GST
       ],
       creditNotes: [{ number: "TOS/CN/26-27/001", invoiceNumber: "TOS/26-27/002", issuedAt: "2026-10-20T06:00:00Z", supply: "inter", seller, buyer: { name: "Atlas", gstin: "27ABCDE1234F1Z5" }, lines: [{ sac: "998361", qty: 1, ratePaise: 10_000_00 }] }],
     },

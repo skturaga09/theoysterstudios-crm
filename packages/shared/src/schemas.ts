@@ -129,6 +129,8 @@ export const CreateInvoiceSchema = z.object({
   supply: z.enum(["intra", "inter"]),
   /** Which business the work was for; taken from the deal when there is one. One legal entity and series either way. */
   business: BusinessSchema.optional(),
+  /** A GST tax invoice (default) or a cash bill without GST, numbered in its own series. Fixed once created. */
+  kind: z.enum(["tax", "cash"]).optional(),
   lines: z
     .array(z.object({ desc: z.string().trim().min(1).max(240), sac: z.string().trim().regex(/^\d{4,8}$/), qty: z.number().positive(), ratePaise: paise }))
     .min(1)

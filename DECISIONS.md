@@ -436,3 +436,8 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   confirm crew · <function>" task a week before it.
 - **Client portal** shows each function's duration, how many photographers and cinematographers (never names),
   add-ons, and the guest count.
+- **Cash bills (no GST).** Invoices have a type: GST invoice (default, TOS/…) or cash bill (TOS/CB/…, its own
+  series so GST invoice numbers stay consecutive). A cash bill charges no GST, carries no GSTINs, SAC or place of
+  supply, prints as "CASH BILL" in its own layout, takes no credit notes, and is left out of the GST sales
+  register. Chosen on the new-invoice form and on each payment stage (GST invoice / Cash bill); the type is fixed
+  once created. Whether the studio may issue non-GST bills while GST-registered is for their CA to confirm.

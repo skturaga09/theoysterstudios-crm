@@ -37,7 +37,7 @@ export function PaymentsDue({ limit = 8 }: { limit?: number }) {
                 </span>
                 <MoneyText paise={amountPaise} />
                 <Pill tone={STAGE_TONE[state]}>{state[0]!.toUpperCase() + state.slice(1)}</Pill>
-                {!inv && canInvoice && <Button size="sm" onClick={() => void invoiceStage(deal.id, item.id)}>Invoice</Button>}
+                {!inv && canInvoice && <><Button size="sm" onClick={() => void invoiceStage(deal.id, item.id)}>GST invoice</Button><Button size="sm" variant="ghost" onClick={() => void invoiceStage(deal.id, item.id, "cash")}>Cash bill</Button></>}
                 {contact?.phone && (whatsappConnected ? (
                   <Button
                     size="sm"

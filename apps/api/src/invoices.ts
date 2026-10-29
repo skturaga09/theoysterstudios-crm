@@ -6,6 +6,8 @@ import type { Doc } from "./db";
 
 export const INVOICE_PREFIX = "TOS";
 export const CREDIT_NOTE_PREFIX = "TOS/CN";
+/** Cash bills (no GST) run in their own series so the GST invoice numbers stay consecutive. */
+export const CASH_BILL_PREFIX = "TOS/CB";
 
 /** Indian financial year (April–March, in IST) as "26-27". */
 export function financialYear(at: Date): string {
@@ -44,6 +46,7 @@ export async function createCreditNote(db: Db, client: MongoClient, invoiceId: s
       const inv = await invoices.findOne({ _id: invoiceId }, { session });
       if (!inv) return { error: "Not found" as const };
       if (!inv.sent || inv.cancelled) return { error: "Only a sent invoice can have a credit note" };
+      if (inv.kind === "cash") return { error: "Cash bills have no GST, so they take no credit notes. Record a refund as an expense instead." };
       const lines = inv.lines as { sac: string; qty: number; ratePaise: number }[];
       const credits = (inv.credits as { taxablePaise: number }[] | undefined) ?? [];
       const creditable = invoiceTotals({ supply: inv.supply as "intra" | "inter", lines, payments: [] }).subtotal - credits.reduce((a, c) => a + c.taxablePaise, 0);
@@ -90,7 +93,7 @@ export async function createInvoice(db: Db, client: MongoClient, input: z.infer<
     return await session.withTransaction(async () => {
       const doc: Doc = {
         _id: new ObjectId().toHexString(),
-        number: await nextNumber(db, "invoice", INVOICE_PREFIX, fy, session),
+        number: input.kind === "cash" ? await nextNumber(db, "cashbill", CASH_BILL_PREFIX, fy, session) : await nextNumber(db, "invoice", INVOICE_PREFIX, fy, session),
         ...input,
         issuedAt,
         payments: [],

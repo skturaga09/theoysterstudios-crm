@@ -73,12 +73,12 @@ export function setSchedule(dealId: string, schedule: ScheduleItem[]) {
 }
 
 /** Raises the invoice for one payment stage (the API numbers it and links it to the stage). */
-export async function invoiceStage(dealId: string, itemId: string) {
+export async function invoiceStage(dealId: string, itemId: string, kind: "tax" | "cash" = "tax") {
   if (IS_DEMO) return void toast("Invoices are numbered by the server — sign in to raise one");
   try {
-    const { invoice, deal } = await api<{ invoice: Invoice; deal: Deal }>(`/deals/${dealId}/schedule/${itemId}/invoice`, { method: "POST" });
+    const { invoice, deal } = await api<{ invoice: Invoice; deal: Deal }>(`/deals/${dealId}/schedule/${itemId}/invoice`, { method: "POST", body: { kind } });
     set((s) => ({ invoices: [invoice, ...s.invoices], deals: s.deals.map((d) => (d.id === deal.id ? deal : d)) }));
-    toast(`Invoice ${invoice.number} raised as a draft — check it and mark it sent`);
+    toast(`${kind === "cash" ? "Cash bill" : "Invoice"} ${invoice.number} raised as a draft — check it and mark it sent`);
     return invoice;
   } catch (e) {
     toast(`Couldn't raise the invoice — ${(e as Error).message}`);

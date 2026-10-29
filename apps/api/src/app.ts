@@ -1176,8 +1176,9 @@ export function buildApp({
 
   /** Raises the invoice for one stage of a deal's payment schedule (Finance and admins). */
   app.post<{ Params: { id: string; item: string } }>("/deals/:id/schedule/:item/invoice", { preHandler: mayChange("finance", false) }, async (req, reply) => {
+    const { kind } = z.object({ kind: z.enum(["tax", "cash"]).optional() }).parse(req.body ?? {});
     const { legalName, gstin } = await getWorkspace();
-    if (!legalName || !gstin) return reply.code(422).send({ error: "Add the studio's legal name and GSTIN in Settings → Workspace first" });
+    if (!legalName || (kind !== "cash" && !gstin)) return reply.code(422).send({ error: "Add the studio's legal name and GSTIN in Settings → Workspace first" });
     const deals = db.collection<Doc>("deals");
     const deal = await deals.findOne({ _id: req.params.id });
     const schedule = (deal?.schedule as { id: string; label: string; amountPaise: number; dueDate?: string; invoiceId?: string }[] | undefined) ?? [];
@@ -1186,12 +1187,13 @@ export function buildApp({
     if (item.invoiceId) return reply.code(409).send({ error: "This stage already has an invoice" });
     if (!item.amountPaise) return reply.code(422).send({ error: "This stage has no amount" });
     const business = (deal.business ?? "photography") as Business;
-    const p = await parties(String(deal.companyId));
+    const p = await parties(String(deal.companyId), kind);
     // Inter-state only when the client's GSTIN is from another state; unregistered clients are billed as local.
     const supply = p.buyer.gstin && gstState(p.buyer.gstin) && p.buyer.gstin.slice(0, 2) !== gstin.slice(0, 2) ? "inter" : "intra";
     const today = istDay(new Date());
     const dueDay = item.dueDate && item.dueDate > today ? item.dueDate : today;
     const invoice = await createInvoice(db, client, {
+      ...(kind && { kind }),
       companyId: String(deal.companyId),
       dealId: deal._id,
       business,
@@ -1361,28 +1363,31 @@ export function buildApp({
   app.post("/invoices", { preHandler: mayChange("finance") }, async (req, reply) => {
     const input = CreateInvoiceSchema.parse(req.body);
     const { legalName, gstin } = await getWorkspace();
-    if (!legalName || !gstin) return reply.code(422).send({ error: "Add the studio's legal name and GSTIN in Settings → Workspace first" });
+    if (!legalName) return reply.code(422).send({ error: "Add the studio's legal name in Settings → Workspace first" });
+    if (input.kind !== "cash" && !gstin) return reply.code(422).send({ error: "Add the studio's GSTIN in Settings → Workspace first" });
     if (!(await db.collection<Doc>("companies").countDocuments({ _id: input.companyId }, { limit: 1 }))) return reply.code(422).send({ error: "That company doesn't exist" });
     const deal = input.dealId ? await db.collection<Doc>("deals").findOne({ _id: input.dealId, companyId: input.companyId }) : null;
     if (input.dealId && !deal) return reply.code(422).send({ error: "That deal doesn't belong to this company" });
     // The business comes from the deal when there is one (one legal entity and number series either way).
     const business = input.business ?? (deal?.business as typeof input.business);
     // Our and the client's details are copied onto the invoice, so later edits don't change issued invoices.
-    return reply.code(201).send(out(await createInvoice(db, client, { ...input, ...(business && { business }), ...(await parties(input.companyId)) })));
+    return reply.code(201).send(out(await createInvoice(db, client, { ...input, ...(business && { business }), ...(await parties(input.companyId, input.kind)) })));
   });
 
   /** Our and the client's details as they are now — copied onto an invoice when it's created and when it's issued. */
-  const parties = async (companyId: string) => {
+  const parties = async (companyId: string, kind?: unknown) => {
     const { legalName, gstin, address } = await getWorkspace();
     const company = await db.collection<Doc>("companies").findOne({ _id: companyId });
     const str = (v: unknown) => (typeof v === "string" ? v : "");
-    return { seller: { legalName, gstin, address }, buyer: { name: str(company?.name), gstin: str(company?.gstin), address: str(company?.address), city: str(company?.city) } };
+    // A cash bill carries no GSTINs.
+    const cash = kind === "cash";
+    return { seller: { legalName, gstin: cash ? "" : gstin, address }, buyer: { name: str(company?.name), gstin: cash ? "" : str(company?.gstin), address: str(company?.address), city: str(company?.city) } };
   };
   app.post<{ Params: { id: string } }>("/invoices/:id/send", { preHandler: mayChange("finance") }, async (req, reply) => {
     const inv = await invoices.findOne({ _id: req.params.id, cancelled: { $ne: true } });
     if (!inv) return reply.code(404).send({ error: "Not found, or cancelled" });
     // Issuing is the moment that counts: refresh the copies in case details were corrected while it was a draft.
-    const snapshot = inv.sent ? {} : await parties(String(inv.companyId));
+    const snapshot = inv.sent ? {} : await parties(String(inv.companyId), inv.kind);
     return out((await invoices.findOneAndUpdate({ _id: inv._id }, { $set: { sent: true, ...snapshot } }, { returnDocument: "after" }))!);
   });
   /** Edit a draft. Sent invoices can't change — that's what credit notes are for. */

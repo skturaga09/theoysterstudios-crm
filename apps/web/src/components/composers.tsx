@@ -1,5 +1,5 @@
 import { parseRupees, ROLE_LABEL, roleOf, BUSINESS_LABEL, BUSINESSES, CHANNEL_LABEL, CHANNELS, formatCompact, formatFull, gstState, invoiceTotals, rupees, type Business, type Channel, type Stage, SERVICES, stageIn } from "@pinnacle/shared";
-import { Button, Input, Select, Sheet, Textarea, toast } from "@pinnacle/ui";
+import { Segmented, Button, Input, Select, Sheet, Textarea, toast } from "@pinnacle/ui";
 import { Plus, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
@@ -296,6 +296,8 @@ function NewInvoiceForm({ dealId, invoiceId, onDone }: { dealId?: string; invoic
         : [blankLine()],
   );
   const [supplyChoice, setSupplyChoice] = useState<"intra" | "inter" | undefined>(editing?.supply);
+  const [kind, setKind] = useState<"tax" | "cash">(editing?.kind ?? "tax");
+  const cash = kind === "cash";
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
 
@@ -304,7 +306,7 @@ function NewInvoiceForm({ dealId, invoiceId, onDone }: { dealId?: string; invoic
   const autoSupply = co?.gstin && ws.gstin ? (co.gstin.slice(0, 2) === ws.gstin.slice(0, 2) ? "intra" : "inter") : undefined;
   const supply = supplyChoice ?? autoSupply ?? "intra";
   const parsed = lines.map((l) => ({ desc: l.desc.trim(), sac: l.sac.trim(), qty: num(l.qty), ratePaise: rupees(num(l.rate)) }));
-  const t = invoiceTotals({ supply, lines: parsed.map((l) => ({ qty: l.qty || 0, ratePaise: l.ratePaise || 0 })), payments: [] });
+  const t = invoiceTotals({ kind, supply, lines: parsed.map((l) => ({ qty: l.qty || 0, ratePaise: l.ratePaise || 0 })), payments: [] });
   const setLine = (i: number, patch: Partial<LineDraft>) => setLines((xs) => xs.map((l, k) => (k === i ? { ...l, ...patch } : l)));
 
   return (
@@ -314,7 +316,7 @@ function NewInvoiceForm({ dealId, invoiceId, onDone }: { dealId?: string; invoic
       onSubmit={async (e) => {
         e.preventDefault();
         if (busy) return;
-        if (!ws.legalName || !ws.gstin) return setError("Add the studio's legal name and GSTIN in Settings → Workspace first.");
+        if (!ws.legalName || (!cash && !ws.gstin)) return setError("Add the studio's legal name and GSTIN in Settings → Workspace first.");
         if (!co) return setError("Choose the company you're billing.");
         const bad = parsed.findIndex((l) => !l.desc || !/^\d{4,8}$/.test(l.sac) || !(l.qty > 0) || !(l.ratePaise >= 0));
         if (bad >= 0) return setError(`Line ${bad + 1}: add a description, a 4–8 digit SAC code, a quantity above 0 and a rate in rupees.`);
@@ -332,6 +334,7 @@ function NewInvoiceForm({ dealId, invoiceId, onDone }: { dealId?: string; invoic
           const inv = await api<Invoice>("/invoices", {
             method: "POST",
             body: {
+              kind,
               companyId: co.id,
               dealId: deal || undefined,
               issuedAt: `${issued}T12:00:00+05:30`,
@@ -352,7 +355,10 @@ function NewInvoiceForm({ dealId, invoiceId, onDone }: { dealId?: string; invoic
         }
       }}
     >
-      {(!ws.legalName || !ws.gstin) && (
+      <Field label="Type" hint={editing ? "Fixed once created: each type has its own number series." : cash ? "No GST. Numbered TOS/CB/…, separate from GST invoices, and left out of the GST register." : "A GST tax invoice, numbered TOS/…"}>
+        <Segmented label="Bill type" value={kind} onChange={editing ? () => {} : setKind} options={[{ value: "tax", label: "GST invoice" }, { value: "cash", label: "Cash bill (no GST)" }]} />
+      </Field>
+      {(!ws.legalName || (!cash && !ws.gstin)) && (
         <p className="t-meta m-0 rounded-card bg-warn-wash px-3 py-2 text-ink">
           Invoices need the studio's legal name and GSTIN.{" "}
           <Link to="/settings/workspace" onClick={onDone} className="font-medium underline">Add them in Settings → Workspace</Link>
@@ -406,16 +412,18 @@ function NewInvoiceForm({ dealId, invoiceId, onDone }: { dealId?: string; invoic
         </Button>
       </fieldset>
 
-      <Field label="Tax" hint={autoSupply ? "Set from the client's GSTIN state." : "No client GSTIN — choose where the client is."}>
-        <Select value={supply} onChange={(e) => setSupplyChoice(e.target.value as "intra" | "inter")}>
-          <option value="intra">Same state{ourState ? ` (${ourState})` : ""} — CGST 9% + SGST 9%</option>
-          <option value="inter">Other state — IGST 18%</option>
-        </Select>
-      </Field>
+      {!cash && (
+        <Field label="Tax" hint={autoSupply ? "Set from the client's GSTIN state." : "No client GSTIN — choose where the client is."}>
+          <Select value={supply} onChange={(e) => setSupplyChoice(e.target.value as "intra" | "inter")}>
+            <option value="intra">Same state{ourState ? ` (${ourState})` : ""} — CGST 9% + SGST 9%</option>
+            <option value="inter">Other state — IGST 18%</option>
+          </Select>
+        </Field>
+      )}
 
       <dl className="m-0 grid grid-cols-[1fr_auto] gap-y-1 border-t border-line pt-3 font-mono fs-12.5">
-        <dt className="text-ink-2">Taxable value</dt><dd className="m-0 text-right">{formatFull(t.subtotal)}</dd>
-        {supply === "intra" ? (
+        {!cash && <><dt className="text-ink-2">Taxable value</dt><dd className="m-0 text-right">{formatFull(t.subtotal)}</dd></>}
+        {cash ? null : supply === "intra" ? (
           <>
             <dt className="text-ink-2">CGST 9%</dt><dd className="m-0 text-right">{formatFull(t.cgst)}</dd>
             <dt className="text-ink-2">SGST 9%</dt><dd className="m-0 text-right">{formatFull(t.sgst)}</dd>
@@ -425,7 +433,7 @@ function NewInvoiceForm({ dealId, invoiceId, onDone }: { dealId?: string; invoic
         )}
         <dt className="font-sans font-medium">Total</dt><dd className="m-0 text-right font-medium">{formatFull(t.total)}</dd>
       </dl>
-      <p className="t-meta m-0 text-ink-3">Saved as a draft with the next invoice number. Mark it sent when it goes to the client.</p>
+      <p className="t-meta m-0 text-ink-3">Saved as a draft with the next {cash ? "cash bill" : "invoice"} number. Mark it sent when it goes to the client.</p>
       {error && <p role="alert" className="t-meta m-0 text-risk">{error}</p>}
     </form>
   );

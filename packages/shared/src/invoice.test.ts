@@ -10,3 +10,7 @@ it("splits 18% GST and tracks the balance", () => {
   // A credit note lowers what's due, like a payment.
   expect(invoiceTotals({ supply: "intra", lines, payments: [{ amountPaise: 50000 }], credits: [{ totalPaise: 11800 }] })).toMatchObject({ credited: 11800, due: 56201 });
 });
+
+it("charges no GST on a cash bill", () => {
+  expect(invoiceTotals({ kind: "cash", supply: "intra", lines: [{ qty: 2, ratePaise: 29_475_00 }], payments: [{ amountPaise: 10_000_00 }] })).toMatchObject({ subtotal: 58_950_00, cgst: 0, sgst: 0, igst: 0, total: 58_950_00, due: 48_950_00 });
+});

@@ -137,7 +137,7 @@ export function InvoicesRoute() {
           <TBody>
             {rows.map(({ i, st, t, co }, k) => (
               <TR key={i.id} data-nav-index={k} onClick={() => setOpenId(i.id)} className={cn(active === k && "bg-hover")}>
-                <TD className="font-mono fs-12.5">{i.number}</TD>
+                <TD className="font-mono fs-12.5">{i.number}{i.kind === "cash" && <Pill tone="mute" className="ml-2 font-sans">Cash</Pill>}</TD>
                 <TD><div className="flex items-center gap-2.5"><ClientPhoto company={co} size="sm" /><div className="min-w-0"><div className="font-medium">{co?.name}</div><div className="font-mono fs-11 text-ink-3">{co?.gstin || "Unregistered"}</div></div></div></TD>
                 <TD numeric className="hidden text-ink-2 md:table-cell">{fmtDay(i.issuedAt)}</TD>
                 <TD numeric className={st === "overdue" ? "text-risk" : "text-ink-2"}>{fmtDay(i.dueAt)}{st === "overdue" && <span className="ml-1.5 fs-11">+{daysOverdue(i)}d</span>}</TD>
@@ -311,7 +311,7 @@ function InvoiceActions({ inv }: { inv: Invoice }) {
           </Button>
         )
       )}
-      {isManager && inv.sent && !inv.cancelled && creditable > 0 && !crediting && (
+      {isManager && inv.sent && !inv.cancelled && inv.kind !== "cash" && creditable > 0 && !crediting && (
         <Button variant="ghost" size="sm" onClick={() => setCrediting(true)}>
           <ReceiptText strokeWidth={1.5} /> Credit note
         </Button>
