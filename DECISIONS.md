@@ -481,3 +481,7 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   every minute, and today's functions pinned above. "Coming up this week" shows each function in the next 7 days
   as a photo card with a countdown and crew count. The numbers, lead follow-ups, lead flow, live arrivals, deals
   closing and tasks due follow, in tiles.
+- **Logo intro.** A 5-second animation of the studio's logo (made with Higgsfield, Seedance 2.5, ending on the exact
+  logo; re-encoded to H.264 for every browser, ~800 KB, `public/intro.mp4`) plays full screen once per browser
+  session before sign-in, or before Home when already signed in, then fades away. Skippable; reduced-motion users
+  and any load error go straight in. The client portal, signing and enquiry pages don't show it.

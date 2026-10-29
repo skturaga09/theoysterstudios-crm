@@ -4,6 +4,7 @@ import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { AuthGate } from "./shell/auth-gate";
+import { Intro } from "./shell/intro";
 import { reloadForNewVersion } from "./lib/stale";
 
 bootTheme();
@@ -33,7 +34,7 @@ createRoot(document.getElementById("root")!).render(
     <MotionConfig reducedMotion="user">
       <TooltipProvider>
         {/* The single-file demo build (`--mode preview`) has no server, so it skips sign-in. */}
-        <Suspense>{isPrivacy ? <Privacy /> : isPortal ? <Portal /> : isSign ? <Sign /> : isEnquire ? <Enquire /> : import.meta.env.MODE === "preview" ? <App /> : <AuthGate><App /></AuthGate>}</Suspense>
+        <Suspense>{isPrivacy ? <Privacy /> : isPortal ? <Portal /> : isSign ? <Sign /> : isEnquire ? <Enquire /> : import.meta.env.MODE === "preview" ? <Intro><App /></Intro> : <Intro><AuthGate><App /></AuthGate></Intro>}</Suspense>
         <Toaster />
       </TooltipProvider>
     </MotionConfig>
