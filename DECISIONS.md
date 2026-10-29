@@ -468,3 +468,9 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   chart (revenue and expense bars, profit line, oldest to newest); photography / marketing / combined with
   revenue share bars; where the money goes (expense categories as bars); projects ranked by profit, labelled by
   client. The by-client table (now with client photos), the every-month table and the GST register follow.
+- **Expenses and Reports, bento style.** Expenses: the month's spend as the orange tile, GST paid (input credit),
+  and "where it went" as category bars that filter the list when clicked; the add form and the list sit in tiles,
+  with a category filter and a dot per business. Reports: weighted forecast as the orange tile, a win-rate dial,
+  average booking and sales cycle; revenue, channel conversion (with channel icons), the stage funnel, the rep
+  leaderboard (with won-value bars), sources, the season chart, lost reasons (as bars) and ad spend, each in a
+  tile in the studio's orange.

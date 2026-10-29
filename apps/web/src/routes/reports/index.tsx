@@ -1,5 +1,7 @@
 import { CHANNEL_LABEL, CHANNELS, formatCompact, formatFull, lakh } from "@pinnacle/shared";
-import { Avatar, Button, Ledger, Segmented, Table, TBody, TD, TH, THead, TR, Tooltip as Tip, type LedgerCell } from "@pinnacle/ui";
+import { Avatar, Button, ChannelChip, cn, Segmented, Table, TBody, TD, TH, THead, TR, Tooltip as Tip, type LedgerCell } from "@pinnacle/ui";
+import { motion } from "motion/react";
+import { Big, Dial, Label, Tile, tile } from "../../components/bento";
 import { Download } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -117,7 +119,7 @@ export function ReportsRoute() {
     .sort((a, b) => b.wonValue - a.wonValue);
 
   return (
-    <div className="flex flex-col gap-12">
+    <div className="flex flex-col gap-6">
       <PageHeader
         eyebrow="Pipeline & revenue"
         title="Reports"
@@ -134,18 +136,37 @@ export function ReportsRoute() {
           />
         }
       />
-      <div className="-mt-12">
-        <Ledger key={range} cells={ledger} />
+      <div key={range} className="-mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Tile i={0} className="border-transparent bg-signal text-white">
+          <Label light>Weighted forecast</Label>
+          <Big paise={forecast} />
+          <p className="m-0 mt-3 fs-12.5 text-white/85">open deals × how likely each stage is to close</p>
+        </Tile>
+        <Tile i={1}>
+          <Label>Win rate</Label>
+          <div className="mt-2 flex justify-center"><Dial pct={winRate} label={`${winRate}% win rate`} /></div>
+          <p className="t-meta m-0 mt-1 text-center text-ink-3">{ledger[0]?.delta}</p>
+        </Tile>
+        <Tile i={2}>
+          <Label>Average booking</Label>
+          <Big paise={avgDeal} className="fs-30" />
+          <p className="t-meta m-0 mt-2 text-ink-3">{basis.length} won {basis.length === 1 ? "deal" : "deals"}</p>
+        </Tile>
+        <Tile i={3}>
+          <Label>Sales cycle</Label>
+          <p className="m-0 mt-2 font-serif fs-30 leading-none tnum">{cycle}<span className="fs-16 text-ink-3"> days</span></p>
+          <p className="t-meta m-0 mt-2 text-ink-3">from enquiry to confirmed, on average</p>
+        </Tile>
       </div>
 
-      <section>
+      <section className={tile}>
         <ChartHead
           title={IS_DEMO ? "Revenue collected vs target" : "Revenue collected"}
           meta={IS_DEMO ? `${formatCompact(lakh(collected))} of ${formatCompact(lakh(target))} · ${Math.round((collected / target) * 100)}%` : `${formatCompact(lakh(collected))} received from invoice payments`}
           onExport={() => downloadCsv("revenue", [["Month", "Collected (₹)", "Target (₹)"], ...revenue.map((r) => [r.month, r.collected * 1e5, r.target * 1e5])])}
         />
         <div className="flex items-center gap-5 pb-3 fs-12 text-ink-2">
-          <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-[2px] bg-ink" /> Collected</span>
+          <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-[2px] bg-signal" /> Collected</span>
           {IS_DEMO && <span className="flex items-center gap-2"><span className="h-0 w-4 border-t-2 border-dashed border-ink-3" /> Target</span>}
         </div>
         <div className="h-[280px] w-full">
@@ -172,27 +193,29 @@ export function ReportsRoute() {
                   ) : null
                 }
               />
-              <Bar dataKey="collected" fill="var(--ink)" radius={[4, 4, 0, 0]} maxBarSize={36} isAnimationActive={false} />
+              <Bar dataKey="collected" fill="var(--signal)" radius={[8, 8, 0, 0]} maxBarSize={36} />
               {IS_DEMO && <Line dataKey="target" stroke="var(--ink-3)" strokeWidth={2} strokeDasharray="4 4" dot={false} type="linear" isAnimationActive={false} />}
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-12 xl:grid-cols-2">
-        <section>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <section className={tile}>
           <ChartHead
             title="Conversion by channel"
             meta="Leads won ÷ leads received"
             onExport={() => downloadCsv("conversion-by-channel", [["Channel", "Leads", "Won", "Win %"], ...byChannel.map((r) => [CHANNEL_LABEL[r.c], r.n, r.won, Math.round(r.rate * 100)])])}
           />
-          <ul className="m-0 flex list-none flex-col gap-2.5 border-t border-line p-0 pt-4">
-            {byChannel.map((r) => (
+          <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+            {byChannel.map((r, k) => (
               <li key={r.c}>
                 <Tip content={`${CHANNEL_LABEL[r.c]}: ${r.won} won of ${r.n} leads (${Math.round(r.rate * 100)}%)`}>
-                  <div tabIndex={0} className="grid grid-cols-[112px_minmax(0,1fr)_72px] items-center gap-3 rounded-[4px] py-1 hover:bg-hover">
-                    <span className="truncate fs-12.5 text-ink-2">{CHANNEL_LABEL[r.c].replace(" Lead Ads", "")}</span>
-                    <span className="h-3 rounded-r-[4px] bg-ink" style={{ width: `${Math.max(1.5, (r.rate / maxRate) * 100)}%` }} />
+                  <div tabIndex={0} className="grid grid-cols-[10em_minmax(0,1fr)_72px] items-center gap-3 rounded-[4px] py-1 hover:bg-hover">
+                    <span className="flex items-center gap-2 truncate fs-12.5 text-ink-2"><ChannelChip channel={r.c} />{CHANNEL_LABEL[r.c].replace(" Lead Ads", "")}</span>
+                    <span className="h-3 overflow-hidden rounded-full bg-sunken">
+                      <motion.span className="block h-full rounded-full bg-signal" initial={{ width: 0 }} animate={{ width: `${Math.max(1.5, (r.rate / maxRate) * 100)}%` }} transition={{ duration: 0.7, delay: 0.2 + k * 0.05 }} />
+                    </span>
                     <span className="text-right font-mono fs-12 tnum">{Math.round(r.rate * 100)}% <span className="text-ink-3">· {r.n}</span></span>
                   </div>
                 </Tip>
@@ -201,13 +224,13 @@ export function ReportsRoute() {
           </ul>
         </section>
 
-        <section>
+        <section className={tile}>
           <ChartHead
             title="Stage funnel"
             meta="Leads that reached each stage"
             onExport={() => downloadCsv("stage-funnel", [["Stage", "Leads"], ...funnel.map((f) => [f.label, f.n])])}
           />
-          <ol className="m-0 flex list-none flex-col gap-1 border-t border-line p-0 pt-4">
+          <ol className="m-0 flex list-none flex-col gap-1 p-0">
             {funnel.map((f, i) => {
               const prev = funnel[i - 1];
               const drop = prev && prev.n ? Math.round((1 - f.n / prev.n) * 100) : null;
@@ -221,7 +244,13 @@ export function ReportsRoute() {
                   )}
                   <div className="grid grid-cols-[112px_minmax(0,1fr)_48px] items-center gap-3">
                     <span className="fs-12.5 text-ink-2">{f.label}</span>
-                    <span className={f.st === "won" ? "h-5 rounded-r-[4px] bg-ok" : "h-5 rounded-r-[4px] bg-ink"} style={{ width: `${Math.max(1.5, (f.n / (funnel[0]!.n || 1)) * 100)}%`, opacity: f.st === "won" ? 1 : 1 - i * 0.14 }} />
+                    <motion.span
+                      className={cn("h-5 rounded-full", f.st === "won" ? "bg-ok" : "bg-signal")}
+                      style={{ opacity: f.st === "won" ? 1 : 1 - i * 0.12 }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.max(1.5, (f.n / (funnel[0]!.n || 1)) * 100)}%` }}
+                      transition={{ duration: 0.7, delay: 0.2 + i * 0.06 }}
+                    />
                     <span className="text-right font-mono fs-12 tnum">{f.n}</span>
                   </div>
                 </li>
@@ -231,13 +260,13 @@ export function ReportsRoute() {
         </section>
       </div>
 
-      <section>
+      <section className={tile}>
         <ChartHead
           title="Rep leaderboard"
           meta="All time · won value"
           onExport={() => downloadCsv("leaderboard", [["Rep", "Won (₹)", "Won deals", "Open (₹)", "Win %", "Median first reply (min)"], ...reps.map((r) => [r.m.name, r.wonValue / 100, r.wonCount, r.open / 100, r.rate ?? "", r.reply ?? ""])])}
         />
-        <Table className="border-t border-line">
+        <Table>
           <THead>
             <tr>
               <TH>Rep</TH>
@@ -252,7 +281,12 @@ export function ReportsRoute() {
             {reps.map((r) => (
               <TR key={r.m.id} interactive={false}>
                 <TD><span className="flex items-center gap-2.5"><Avatar name={r.m.name} me={r.m.id === ME_ID} /> {r.m.name}</span></TD>
-                <TD align="right" numeric>{formatCompact(r.wonValue)}</TD>
+                <TD align="right" numeric>
+                  <span className="inline-flex items-center gap-2">
+                    <span className="hidden h-2 w-24 overflow-hidden rounded-full bg-sunken sm:inline-block"><span className="block h-full rounded-full bg-signal" style={{ width: `${(r.wonValue / Math.max(1, reps[0]?.wonValue ?? 1)) * 100}%` }} /></span>
+                    {formatCompact(r.wonValue)}
+                  </span>
+                </TD>
                 <TD align="right" numeric>{r.wonCount}</TD>
                 <TD align="right" numeric className="text-ink-2">{formatCompact(r.open)}</TD>
                 <TD align="right" numeric>{r.rate === null ? "—" : `${r.rate}%`}</TD>
