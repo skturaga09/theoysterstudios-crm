@@ -463,3 +463,8 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   this month" highlight; a conversion dial; orange bars for open leads by stage; profit with invoiced, received and
   expense bars; project counts; money to collect; who's free today. Numbers count up and tiles rise in; the
   payments-due list, the by-business table and the team table stay below.
+- **Profit & loss, bento style** (matches the Owner dashboard; tile pieces shared in `components/bento.tsx`): this
+  financial year as an orange profit tile (red for a loss), revenue, expenses and a margin dial; a month-by-month
+  chart (revenue and expense bars, profit line, oldest to newest); photography / marketing / combined with
+  revenue share bars; where the money goes (expense categories as bars); projects ranked by profit, labelled by
+  client. The by-client table (now with client photos), the every-month table and the GST register follow.
