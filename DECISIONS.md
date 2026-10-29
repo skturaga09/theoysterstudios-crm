@@ -441,3 +441,12 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   supply, prints as "CASH BILL" in its own layout, takes no credit notes, and is left out of the GST sales
   register. Chosen on the new-invoice form and on each payment stage (GST invoice / Cash bill); the type is fixed
   once created. Whether the studio may issue non-GST bills while GST-registered is for their CA to confirm.
+- **Team & freelancers** (new page; owners, project managers, Finance). Freelancers have a profile: name, phone,
+  skill, ID type and number (personal data: shown in full only to owners, everyone else sees the last four;
+  crew can't see the list), notes. A project's Team takes team members or freelancers, a freelancer with the fee
+  agreed for that project. Payments to a freelancer are "Freelancers & crew" expenses linked to them and the
+  project, so their profile shows each project's fee, paid and pending, and the full payment history across
+  projects. Salaries: a monthly amount per team member (own `salaries` collection, owners and Finance only);
+  "Mark paid" for a month records a Salary expense for that member and month, so payroll counts in Profit & loss.
+  Function crew names suggest freelancers and team members, and freelancers count in the calendar's double-booking
+  check.

@@ -117,8 +117,15 @@ export type Expense = {
   /** The client it was spent for (from the project when not chosen). */
   companyId?: ID;
   receiptUrl?: string;
+  /** A payment to a freelancer, or a team member's salary for a month ("2026-10"). */
+  freelancerId?: ID;
+  memberId?: ID;
+  salaryMonth?: string;
   createdAt: ISO;
 };
+
+/** Outside crew. Only owners see a full ID number; everyone else gets the last four digits. */
+export type Freelancer = { id: ID; name: string; phone?: string; skill?: string; idType?: string; idNumber?: string; notes?: string; createdAt: ISO };
 
 export type Intent = "quote" | "meeting" | "question" | "other";
 
@@ -213,7 +220,8 @@ export type Project = {
   guests?: number;
   /** The day the couple finished choosing their photos. */
   selectionDate?: string;
-  crew: { memberId: ID; role: string }[];
+  /** A team member (memberId) or an outside freelancer (freelancerId) with the fee agreed for this project. */
+  crew: { memberId?: ID; freelancerId?: ID; role: string; feePaise?: Paise }[];
   deliverables: { id: string; name: string; dueDate?: string; status: DeliverableStatus; url?: string }[];
   retainerPaise?: number;
   calendarUrl?: string;

@@ -1,4 +1,4 @@
-import { accessOf, roleOf, type Area } from "@pinnacle/shared";
+import { accessOf, roleOf, type Area, type Role } from "@pinnacle/shared";
 import { useMe } from "../data/store";
 import {
   BarChart3,
@@ -16,11 +16,12 @@ import {
   KanbanSquare,
   Settings,
   Users,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 
 export type CountKey = "inbox" | "pipeline" | "tasks" | "companies" | "contacts" | "invoices";
-export type NavItem = { to: string; label: string; icon: LucideIcon; count?: CountKey; shortcut?: string; /** Hidden from roles with no access to it. */ area?: Area; /** Only roles that can change this area (e.g. expenses: owners and Finance). */ edit?: boolean; /** Owners / admins only. */ admin?: boolean };
+export type NavItem = { to: string; label: string; icon: LucideIcon; count?: CountKey; shortcut?: string; /** Hidden from roles with no access to it. */ area?: Area; /** Only roles that can change this area (e.g. expenses: owners and Finance). */ edit?: boolean; /** Owners / admins only. */ admin?: boolean; /** Only these roles. */ roles?: Role[] };
 export type NavSection = { label?: string; items: NavItem[] };
 
 export const NAV: NavSection[] = [
@@ -47,6 +48,7 @@ export const NAV: NavSection[] = [
     label: "Insights",
     items: [
       { to: "/dashboard", label: "Owner dashboard", icon: Gauge, admin: true },
+      { to: "/team", label: "Team & freelancers", icon: UsersRound, roles: ["admin", "pm", "finance"] },
       { to: "/expenses", label: "Expenses", icon: Receipt, area: "finance", edit: true },
       { to: "/profit", label: "Profit & loss", icon: TrendingUp, area: "finance", edit: true },
       { to: "/reports", label: "Reports", icon: BarChart3, area: "sales" },
@@ -61,5 +63,5 @@ export const SIGNAL_COUNT = new Set(["/inbox"]);
 /** The menu for my role: sections without anything I can open are left out. */
 export function useNav(): NavSection[] {
   const role = useMe().role;
-  return NAV.map((s) => ({ ...s, items: s.items.filter((i) => (!i.area || accessOf(role, i.area) !== "none") && (!i.edit || !i.area || accessOf(role, i.area) === "edit") && (!i.admin || roleOf(role) === "admin")) })).filter((s) => s.items.length);
+  return NAV.map((s) => ({ ...s, items: s.items.filter((i) => (!i.area || accessOf(role, i.area) !== "none") && (!i.edit || !i.area || accessOf(role, i.area) === "edit") && (!i.admin || roleOf(role) === "admin") && (!i.roles || i.roles.includes(roleOf(role)))) })).filter((s) => s.items.length);
 }

@@ -34,6 +34,9 @@ import {
   CreateQuoteSchema,
   UpdateQuoteSchema,
   CreateExpenseSchema,
+  CreateFreelancerSchema,
+  UpdateFreelancerSchema,
+  SalarySchema,
   UpdateExpenseSchema,
   CreateProjectSchema,
   UpdateProjectSchema,
@@ -550,6 +553,7 @@ export function buildApp({
       check,
       after,
       afterDelete,
+      view,
     }: {
       area: Area;
       owned?: boolean;
@@ -561,9 +565,12 @@ export function buildApp({
       after?: (saved: Doc, req: FastifyRequest, existing?: Doc) => Promise<void>;
       /** Runs after a record is deleted (e.g. its photo goes too). */
       afterDelete?: (deleted: Doc) => Promise<void>;
+      /** What this reader may see of a record (e.g. an ID number masked). */
+      view?: (doc: Doc, req: FastifyRequest) => Doc;
     },
   ) {
     const col = db.collection<Doc>(name);
+    const show = (doc: Doc, req: FastifyRequest) => out(view ? view(doc, req) : doc);
     const visible = async (req: FastifyRequest): Promise<Filter<Doc>> => (await scope?.(req)) ?? (access(req, area) === "none" ? NOTHING : {});
     const writeError =
       write ??
@@ -577,11 +584,11 @@ export function buildApp({
       });
     app.get(`/${name}`, async (req) => {
       const { limit, ...filter } = ListQuery.parse(req.query);
-      return (await col.find({ ...filter, ...(await visible(req)) }).sort({ _id: -1 }).limit(limit).toArray()).map(out);
+      return (await col.find({ ...filter, ...(await visible(req)) }).sort({ _id: -1 }).limit(limit).toArray()).map((d) => show(d, req));
     });
     app.get<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
       const doc = await col.findOne({ $and: [{ _id: req.params.id }, await visible(req)] });
-      return doc ? out(doc) : reply.code(404).send({ error: "Not found" });
+      return doc ? show(doc, req) : reply.code(404).send({ error: "Not found" });
     });
     app.post(`/${name}`, async (req, reply) => {
       const body = create.parse(req.body);
@@ -592,7 +599,7 @@ export function buildApp({
       const doc: Doc = { _id: new ObjectId().toHexString(), ...(await defaults()), ...body };
       await col.insertOne(doc);
       await after?.(doc, req);
-      return reply.code(201).send(out(doc));
+      return reply.code(201).send(show(doc, req));
     });
     app.patch<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
       const changes = update.parse(req.body);
@@ -610,7 +617,7 @@ export function buildApp({
       if (unset.length) mod.$unset = Object.fromEntries(unset.map(([k]) => [k, true as const]));
       const saved = (await col.findOneAndUpdate({ _id: existing._id }, mod, { returnDocument: "after" }))!;
       await after?.(saved, req, existing);
-      return out(saved);
+      return show(saved, req);
     });
     app.delete<{ Params: { id: string } }>(`/${name}/:id`, async (req, reply) => {
       const existing = await col.findOne({ _id: req.params.id });
@@ -792,8 +799,8 @@ export function buildApp({
     // Tell people when they're put on a project (in the crew or as its manager).
     after: async (p, req, existing) => {
       const was = new Set([existing?.managerId, ...((existing?.crew as { memberId: string }[] | undefined) ?? []).map((c) => c.memberId)]);
-      const now_ = [p.managerId as string | undefined, ...((p.crew as { memberId: string }[] | undefined) ?? []).map((c) => c.memberId)];
-      await notify(db, now_.filter((m) => !was.has(m)), { kind: "project", text: `${req.member.name} put you on the project “${p.name}”`, link: `/projects/${p._id}` }, req.member._id);
+      const now_ = [p.managerId as string | undefined, ...((p.crew as { memberId?: string }[] | undefined) ?? []).map((c) => c.memberId)];
+      await notify(db, now_.filter((m): m is string => !!m && !was.has(m)), { kind: "project", text: `${req.member.name} put you on the project “${p.name}”`, link: `/projects/${p._id}` }, req.member._id);
     },
     scope: async (req) => {
       const mine = await crewProjects(req);
@@ -1276,6 +1283,29 @@ export function buildApp({
       return undefined;
     },
     scope: async (req) => (access(req, "finance") === "edit" ? undefined : NOTHING),
+  });
+
+  /* ---------- Freelancers: outside crew, with their ID and payments across projects ---------- */
+  records("freelancers", CreateFreelancerSchema, UpdateFreelancerSchema, () => ({ createdAt: now() }), {
+    area: "projects", // owners and project managers keep the list; Finance and Sales can look; crew can't
+    scope: async (req) => (roleOf(req.member.role) === "crew" ? NOTHING : undefined),
+    // An ID number is personal data: only owners see it in full.
+    view: (f, req) => (roleOf(req.member.role) === "admin" || typeof f.idNumber !== "string" ? f : { ...f, idNumber: `•••• ${f.idNumber.slice(-4)}` }),
+    // A masked number sent back unchanged isn't a new number.
+    check: async (next) => {
+      if (typeof next.idNumber === "string" && next.idNumber.startsWith("•")) delete next.idNumber;
+      return undefined;
+    },
+  });
+
+  /* ---------- Salaries (owners and Finance): a monthly amount per team member; payments are Salary expenses ---------- */
+  const salaries = db.collection<{ _id: string; monthlyPaise: number; updatedAt: string }>("salaries");
+  app.get("/salaries", { preHandler: mayChange("finance") }, async () => (await salaries.find().toArray()).map(({ _id, monthlyPaise }) => ({ memberId: _id, monthlyPaise })));
+  app.put<{ Params: { memberId: string } }>("/salaries/:memberId", { preHandler: mayChange("finance") }, async (req, reply) => {
+    const { monthlyPaise } = SalarySchema.parse(req.body);
+    if (!(await db.collection<Doc>("members").countDocuments({ _id: req.params.memberId }, { limit: 1 }))) return reply.code(404).send({ error: "Not found" });
+    await salaries.updateOne({ _id: req.params.memberId }, { $set: { monthlyPaise, updatedAt: now() } }, { upsert: true });
+    return { memberId: req.params.memberId, monthlyPaise };
   });
 
   /* ---------- Import (admins): CSV rows already mapped to field names ---------- */

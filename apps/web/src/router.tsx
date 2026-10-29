@@ -36,6 +36,7 @@ const routes: RouteObject[] = [
       { path: "expenses", lazy: async () => ({ Component: (await import("./routes/money/expenses")).ExpensesRoute }) },
       { path: "profit", lazy: async () => ({ Component: (await import("./routes/money/profit")).ProfitRoute }) },
       { path: "invoices", lazy: async () => ({ Component: (await import("./routes/invoices/index")).InvoicesRoute }) },
+      { path: "team", lazy: async () => ({ Component: (await import("./routes/team/index")).TeamRoute }) },
       { path: "dashboard", lazy: async () => ({ Component: (await import("./routes/dashboard/index")).DashboardRoute }) },
       { path: "reports", lazy: async () => ({ Component: (await import("./routes/reports/index")).ReportsRoute }) },
       {

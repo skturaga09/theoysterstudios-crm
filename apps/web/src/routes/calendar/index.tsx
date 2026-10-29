@@ -11,6 +11,7 @@ import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
 import { usePref } from "../../lib/hooks";
 import type { ProjectEvent } from "../../data/types";
+import { useFreelancers } from "../../data/people";
 
 type Kind = "event" | "enquiry" | "meeting" | "task" | "followup" | "payment" | "deliverable";
 type Item = { id: string; kind: Kind; day: string; title: string; link: string; time?: string; clash?: boolean };
@@ -43,12 +44,13 @@ export function CalendarRoute() {
   // photographers and cinematographers named on that function.
   // shortcut: crew are matched by the name as typed ("Arun" ≠ "Arun K"); link names to team members if that misleads.
   const memberName = (id?: string) => s.members.find((m) => m.id === id)?.name;
+  const freelancers = useFreelancers();
   const firstName = (id: string) => memberName(id)?.split(" ")[0];
   const people = (p: (typeof s.projects)[number]) => [...new Set([p.managerId, ...p.crew.map((c) => c.memberId)].filter((x): x is string => !!x))];
   const booked = new Map<string, Map<string, { name: string; projects: Set<string> }>>(); // day → person → projects
   for (const p of s.projects.filter((x) => x.status === "planning" || x.status === "active"))
     for (const e of p.events.filter((x) => x.date))
-      for (const name of [...people(p).map(memberName), ...(e.photoCrew ?? []), ...(e.videoCrew ?? [])]) {
+      for (const name of [...people(p).map(memberName), ...p.crew.map((c) => freelancers.find((f) => f.id === c.freelancerId)?.name), ...(e.photoCrew ?? []), ...(e.videoCrew ?? [])]) {
         if (!name || ROLE_WORDS.test(name)) continue; // "Lead photographer", "TBD" aren't people
         const day = booked.get(e.date!) ?? new Map<string, { name: string; projects: Set<string> }>();
         const who = day.get(name.toLowerCase()) ?? { name, projects: new Set<string>() };

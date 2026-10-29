@@ -287,7 +287,10 @@ export const ProjectEventSchema = z.object({
   /** Values for the studio's own columns, by column id. */
   extra: z.record(smallId, z.string().trim().max(200)).refine((o) => Object.keys(o).length <= MAX_COLUMNS, "Too many columns").optional(),
 });
-export const CrewSchema = z.object({ memberId: id, role: z.string().trim().min(1).max(60) });
+/** Someone on a project: a team member (who can sign in) or an outside freelancer, with what they're paid for it. */
+export const CrewSchema = z
+  .object({ memberId: id.optional(), freelancerId: id.optional(), role: z.string().trim().min(1).max(60), feePaise: z.number().int().nonnegative().optional() })
+  .refine((c) => !!c.memberId !== !!c.freelancerId, "Pick a team member or a freelancer");
 export const DeliverableSchema = z.object({
   id: smallId,
   name: z.string().trim().min(1).max(120),
@@ -389,6 +392,25 @@ export const CreateExpenseSchema = z.object({
   projectId: id.optional(),
   /** The client it was spent for, when there is one (taken from the project when not chosen). */
   companyId: id.optional(),
+  /** A payment to a freelancer, or a team member's salary for a month ("2026-10"). */
+  freelancerId: id.optional(),
+  memberId: id.optional(),
+  salaryMonth: z.string().regex(/^\d{4}-\d{2}$/).optional(),
   receiptUrl: z.string().trim().url("Enter a full web address, starting https://").max(2000).optional(),
 });
 export const UpdateExpenseSchema = patchOf(CreateExpenseSchema);
+
+/* ---------- Freelancers and salaries ---------- */
+export const ID_TYPES = ["Aadhaar", "PAN", "Driving licence", "Voter ID", "Passport", "Other"] as const;
+export const CreateFreelancerSchema = z.object({
+  name: z.string().trim().min(1, "Add their name").max(80),
+  phone: optionalText(20),
+  /** What they do: Photographer, Cinematographer, Editor, Drone… */
+  skill: optionalText(60),
+  idType: z.enum(ID_TYPES).optional(),
+  idNumber: z.string().trim().max(30).optional(),
+  notes: optionalText(1000),
+});
+export const UpdateFreelancerSchema = patchOf(CreateFreelancerSchema);
+/** A team member's monthly salary (owners and Finance only). */
+export const SalarySchema = z.object({ monthlyPaise: z.number().int().nonnegative() });

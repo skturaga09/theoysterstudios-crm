@@ -46,6 +46,7 @@ import type { Project, ProjectEvent, Task } from "../../data/types";
 import { usePref } from "../../lib/hooks";
 import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
+import { useFreelancers, usePeople } from "../../data/people";
 import { trackSpotlight } from "../../lib/spotlight";
 
 const DELIVERABLE_LABEL: Record<DeliverableStatus, string> = { pending: "Pending", in_progress: "In progress", delivered: "Delivered" };
@@ -333,7 +334,7 @@ export function ProjectRoute() {
               )}
             </div>
           </section>
-          <Fold id="team" title={`Team · ${p.crew.length}`} summary={p.crew.length ? p.crew.map((c) => `${s.members.find((m) => m.id === c.memberId)?.name.split(" ")[0] ?? "?"} (${c.role})`).join(", ") : "Nobody added yet"}>
+          <Fold id="team" title={`Team · ${p.crew.length}`} summary={p.crew.length ? p.crew.map((c) => `${(s.members.find((m) => m.id === c.memberId) ?? usePeople.getState().freelancers.find((f) => f.id === c.freelancerId))?.name.split(" ")[0] ?? "?"} (${c.role})`).join(", ") : "Nobody added yet"}>
             <Crew p={p} set={set} />
           </Fold>
           {canSeeFinance && <ProjectFinance p={p} />}
@@ -466,6 +467,7 @@ function CrewSlot({ label, count, names, onChange }: { label: string; count?: nu
         defaultValue={names?.join(", ") ?? ""}
         key={`c${names?.join()}`}
         placeholder="Names, e.g. Aniketh, Arun"
+        list="crew-names"
         onBlur={(x) => {
           const list = splitNames(x.target.value);
           if (list.join() !== (names ?? []).join()) onChange(Math.max(count ?? 0, list.length) || undefined, list.length ? list : undefined);
@@ -508,6 +510,8 @@ function Functions({ p, set, tasks }: { p: Project; set: (patch: Partial<Project
   const columns = useCrm((s) => s.templates[p.business].columns) ?? [];
   const canAddColumn = useAccess("projects") === "edit";
   const [column, setColumn] = useState<string>();
+  const freelancers = useFreelancers();
+  const crewNames = [...new Set([...freelancers.map((f) => f.name), ...useCrm.getState().members.map((m) => m.name.split(" ")[0]!)])];
   const change = (id: string, patch: Partial<ProjectEvent>) => {
     const before = p.events.find((e) => e.id === id);
     set({ events: p.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
@@ -530,6 +534,7 @@ function Functions({ p, set, tasks }: { p: Project; set: (patch: Partial<Project
   return (
     <Fold id="events" title={`Functions · ${p.events.length}`} summary={summary}>
     <section>
+      <datalist id="crew-names">{crewNames.map((n) => <option key={n} value={n} />)}</datalist>
       <ul className="m-0 list-none border-t border-line p-0">
         {p.events.map((e) => (
           <li key={e.id} className="border-b border-line py-3">
@@ -753,20 +758,41 @@ function Deliverables({ p, set }: { p: Project; set: (patch: Partial<Project>) =
 
 function Crew({ p, set }: { p: Project; set: (patch: Partial<Project>) => void }) {
   const members = useCrm((s) => s.members);
-  const [memberId, setMemberId] = useState("");
+  const freelancers = useFreelancers();
+  // "m:<id>" a team member, "f:<id>" a freelancer.
+  const [who, setWho] = useState("");
   const [role, setRole] = useState("");
+  const [fee, setFee] = useState("");
   const roles = CREW_ROLES[p.business];
+  const isFreelancer = who.startsWith("f:");
   return (
     <section>
-      <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Crew · {p.crew.length}</h2>
       <ul className="m-0 list-none p-0">
         {p.crew.map((c, i) => {
-          const m = members.find((x) => x.id === c.memberId);
+          const m = c.memberId ? members.find((x) => x.id === c.memberId) : undefined;
+          const f = c.freelancerId ? freelancers.find((x) => x.id === c.freelancerId) : undefined;
+          const name = m?.name ?? f?.name ?? (c.freelancerId ? "Freelancer" : "Former teammate");
           return (
-            <li key={`${c.memberId}-${i}`} className="flex items-center gap-2.5 border-b border-line py-2 last:border-0">
-              <Avatar name={m?.name ?? "?"} me={c.memberId === ME_ID} size="sm" />
-              <span className="t-dense min-w-0 flex-1 truncate">{m?.name ?? "Former teammate"} <span className="fs-11.5 text-ink-3">· {c.role}</span></span>
-              <Button size="icon-sm" variant="ghost" aria-label={`Remove ${m?.name ?? "crew member"}`} onClick={() => set({ crew: p.crew.filter((_, k) => k !== i) })}><Trash2 strokeWidth={1.5} /></Button>
+            <li key={`${c.memberId ?? c.freelancerId}-${i}`} className="flex items-center gap-2.5 border-b border-line py-2 last:border-0">
+              <Avatar name={name} me={c.memberId === ME_ID} size="sm" />
+              <span className="t-dense min-w-0 flex-1 truncate">
+                {name} <span className="fs-11.5 text-ink-3">· {c.role}{c.freelancerId ? " · freelancer" : ""}</span>
+              </span>
+              {c.freelancerId && (
+                <Input
+                  aria-label={`${name}'s fee for this project`}
+                  inputMode="decimal"
+                  key={`fee${c.feePaise ?? ""}`}
+                  defaultValue={c.feePaise ? String(c.feePaise / 100) : ""}
+                  placeholder="Fee ₹"
+                  onBlur={(e) => {
+                    const v = e.target.value.trim() ? parseRupees(e.target.value) : undefined;
+                    if (v !== c.feePaise) set({ crew: p.crew.map((x, k) => (k === i ? { ...x, feePaise: v } : x)) });
+                  }}
+                  className="h-8 w-[110px] font-mono"
+                />
+              )}
+              <Button size="icon-sm" variant="ghost" aria-label={`Remove ${name}`} onClick={() => set({ crew: p.crew.filter((_, k) => k !== i) })}><Trash2 strokeWidth={1.5} /></Button>
             </li>
           );
         })}
@@ -775,23 +801,29 @@ function Crew({ p, set }: { p: Project; set: (patch: Partial<Project>) => void }
         className="mt-2 flex flex-col gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!memberId || !role.trim()) return toast("Pick a person and their role");
-          set({ crew: [...p.crew, { memberId, role: role.trim() }] });
-          setMemberId("");
+          if (!who || !role.trim()) return toast("Pick a person and their role");
+          const [kind, id] = who.split(":") as ["m" | "f", string];
+          const feePaise = kind === "f" && fee.trim() ? parseRupees(fee) : undefined;
+          set({ crew: [...p.crew, kind === "m" ? { memberId: id, role: role.trim() } : { freelancerId: id, role: role.trim(), ...(feePaise && { feePaise }) }] });
+          setWho("");
           setRole("");
+          setFee("");
         }}
       >
-        <Select aria-label="Person" value={memberId} onChange={(e) => setMemberId(e.target.value)}>
+        <Select aria-label="Person" value={who} onChange={(e) => setWho(e.target.value)}>
           <option value="">Add someone…</option>
-          {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          <optgroup label="Team">{members.map((m) => <option key={m.id} value={`m:${m.id}`}>{m.name}</option>)}</optgroup>
+          {!!freelancers.length && <optgroup label="Freelancers">{freelancers.map((f) => <option key={f.id} value={`f:${f.id}`}>{f.name}{f.skill ? ` · ${f.skill}` : ""}</option>)}</optgroup>}
         </Select>
-        {memberId && (
-          <span className="flex gap-2">
-            <Input aria-label="Role" list={`roles-${p.business}`} value={role} onChange={(e) => setRole(e.target.value)} placeholder="Role" className="flex-1" />
+        {who && (
+          <span className="flex flex-wrap gap-2">
+            <Input aria-label="Role" list={`roles-${p.business}`} value={role} onChange={(e) => setRole(e.target.value)} placeholder="Role" className="min-w-0 flex-1" />
             <datalist id={`roles-${p.business}`}>{roles.map((r) => <option key={r} value={r} />)}</datalist>
+            {isFreelancer && <Input aria-label="Fee for this project" inputMode="decimal" value={fee} onChange={(e) => setFee(e.target.value)} placeholder="Fee ₹" className="w-[110px] font-mono" />}
             <Button type="submit" size="sm" variant="ink">Add</Button>
           </span>
         )}
+        <Link to="/team" className="t-meta text-ink-3 hover:text-ink">New freelancer? Add them under Team &amp; freelancers.</Link>
       </form>
     </section>
   );

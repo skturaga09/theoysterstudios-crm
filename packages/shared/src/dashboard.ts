@@ -4,7 +4,7 @@ import { istDay } from "./projects";
 
 type DealIn = { business?: Business; stage: string; valuePaise: number; createdAt: string; wonAt?: string; lostAt?: string; ownerId: string; nextFollowUpAt?: string | null };
 type ExpenseIn = { business?: Business; date: string; amountPaise: number };
-type ProjectIn = { id: string; business: Business; status: string; managerId?: string; dueDate?: string; crew: { memberId: string }[]; deliverables: { status: string; dueDate?: string }[] };
+type ProjectIn = { id: string; business: Business; status: string; managerId?: string; dueDate?: string; crew: { memberId?: string }[]; deliverables: { status: string; dueDate?: string }[] };
 type TaskIn = { business?: Business; projectId?: string; done: boolean; dueAt: string; assigneeId: string; approval?: string };
 type InvoiceIn = Omit<InvoiceMath, "payments"> & { business?: Business; sent: boolean; cancelled?: boolean; issuedAt: string; dueAt: string; payments: { at: string; amountPaise: number }[] };
 export type DashboardInput = { deals: DealIn[]; projects: ProjectIn[]; tasks: TaskIn[]; invoices: InvoiceIn[]; expenses?: ExpenseIn[] };

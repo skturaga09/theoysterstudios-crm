@@ -88,7 +88,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "notificationPreferences", "calendarFeeds", "portalLinks", "signLinks", "photos"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "notificationPreferences", "calendarFeeds", "portalLinks", "signLinks", "photos", "freelancers", "salaries"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify, fetch: fakeGoogle });
@@ -548,6 +548,35 @@ describe("api", () => {
     expect((await call("POST", `/invoices/${cash.id}/payments`, { amountPaise: 58_950_00 })).json().payments).toHaveLength(1);
     expect((await call("POST", `/invoices/${cash.id}/credit-notes`, { amountPaise: 100, reason: "x" })).statusCode).toBe(409);
   });
+
+  it("keeps freelancers with masked ID numbers, their fees and payments; salaries stay with owners and Finance", async () => {
+    const pm = (await call("POST", "/members", { email: "pm1@gmail.com", role: "pm" })).json();
+    await call("POST", "/members", { email: "crew1@gmail.com", role: "crew" });
+    await call("POST", "/members", { email: "fin1@gmail.com", role: "finance" });
+    const f = (await call("POST", "/freelancers", { name: "Aniketh", phone: "+919876543210", skill: "Photographer", idType: "Aadhaar", idNumber: "1234 5678 9012" })).json();
+    expect(f.idNumber).toBe("1234 5678 9012"); // the owner sees it all
+    const asPm = (await call("GET", "/freelancers", undefined, "ok:pm1@gmail.com")).json();
+    expect(asPm.find((x: { id: string }) => x.id === f.id).idNumber).toBe("•••• 9012");
+    // A PM saving the form with the masked number leaves the real one alone.
+    await call("PATCH", `/freelancers/${f.id}`, { idNumber: "•••• 9012", phone: "+919800000000" }, "ok:pm1@gmail.com");
+    expect((await call("GET", `/freelancers/${f.id}`)).json()).toMatchObject({ idNumber: "1234 5678 9012", phone: "+919800000000" });
+    expect((await call("GET", "/freelancers", undefined, "ok:crew1@gmail.com")).json()).toEqual([]);
+    expect((await call("POST", "/freelancers", { name: "X" }, "ok:fin1@gmail.com")).statusCode).toBe(403); // Finance looks, doesn't edit
+
+    // On a project with a fee; paid through an expense linked to them.
+    const co = (await call("POST", "/companies", { name: "Fee Co", ownerId: "sr", business: "photography" })).json();
+    const proj = (await call("POST", "/projects", { name: "Fee wedding", business: "photography", companyId: co.id, crew: [{ freelancerId: f.id, role: "Candid", feePaise: 25_000_00 }] })).json();
+    expect(proj.crew[0]).toMatchObject({ freelancerId: f.id, feePaise: 25_000_00 });
+    expect((await call("PATCH", `/projects/${proj.id}`, { crew: [{ role: "Nobody" }] })).statusCode).toBe(400); // a member or a freelancer
+    const paid = (await call("POST", "/expenses", { date: "2026-10-28", category: "Freelancers & crew", description: "Aniketh · Fee wedding", amountPaise: 10_000_00, projectId: proj.id, freelancerId: f.id }, "ok:fin1@gmail.com")).json();
+    expect(paid).toMatchObject({ freelancerId: f.id, companyId: co.id });
+
+    // Salaries: owners and Finance only.
+    expect((await call("PUT", `/salaries/${pm.id}`, { monthlyPaise: 45_000_00 }, "ok:fin1@gmail.com")).json()).toEqual({ memberId: pm.id, monthlyPaise: 45_000_00 });
+    expect((await call("GET", "/salaries")).json()).toContainEqual({ memberId: pm.id, monthlyPaise: 45_000_00 });
+    expect((await call("GET", "/salaries", undefined, "ok:pm1@gmail.com")).statusCode).toBe(403);
+    expect((await call("PUT", "/salaries/nobody", { monthlyPaise: 1 })).statusCode).toBe(404);
+  }, 60_000);
 
   it("cancels drafts only, keeping them on record", async () => {
     const inv = { companyId: c1, dueAt: "2026-11-13T00:00:00+05:30", supply: "intra", lines: [{ desc: "x", sac: "998391", qty: 1, ratePaise: 100 }] };
