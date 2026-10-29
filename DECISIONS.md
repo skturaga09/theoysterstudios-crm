@@ -450,3 +450,7 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   "Mark paid" for a month records a Salary expense for that member and month, so payroll counts in Profit & loss.
   Function crew names suggest freelancers and team members, and freelancers count in the calendar's double-booking
   check.
+- **Lead statuses in the Inbox.** Each conversation is New, Contacted, Follow-up, Converted or Spam
+  (`leadStatusOf`): what the team picks in the conversation header, otherwise Converted once it has a deal,
+  Contacted once we've replied, else New. Status chips with counts filter the list ("To work on" = new, contacted
+  and follow-up, the default; Spam is hidden from everything but its own chip). Rows show their status.

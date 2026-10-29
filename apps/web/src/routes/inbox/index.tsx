@@ -1,4 +1,4 @@
-import { parseRupees, rupeesText, type Channel, CHANNEL_LABEL, fmtAgo, fmtTime, formatCompact, routeLead, BUSINESSES, BUSINESS_SHORT, type Business } from "@pinnacle/shared";
+import { LEAD_STATUSES, LEAD_STATUS_LABEL, leadStatusOf, type LeadStatus, parseRupees, rupeesText, type Channel, CHANNEL_LABEL, fmtAgo, fmtTime, formatCompact, routeLead, BUSINESSES, BUSINESS_SHORT, type Business } from "@pinnacle/shared";
 import {
   Avatar,
   Button,
@@ -10,7 +10,6 @@ import {
   MenuItem,
   MenuTrigger,
   Pill,
-  Segmented,
   Select,
   Textarea,
   toast,
@@ -25,9 +24,10 @@ import type { Conversation } from "../../data/types";
 import { IS_DEMO } from "../../lib/demo";
 import { AmountInput } from "../../components/amount-input";
 import { api } from "../../lib/api";
-import { useCreateAction, useListNav } from "../../lib/hooks";
+import { useCreateAction, useListNav, usePref } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 
+const STATUS_TONE = { new: "new", contacted: "mute", followup: "warn", converted: "ok", spam: "risk" } as const;
 const INTENT = { quote: "Quote", meeting: "Meeting", question: "Question", other: "Other" } as const;
 const INBOX_CHANNELS: Channel[] = ["gmail", "instagram", "whatsapp", "facebook", "web", "calendar"];
 
@@ -36,21 +36,38 @@ export function InboxRoute() {
   const navigate = useNavigate();
   const all = useCrm((s) => s.conversations);
   const [channel, setChannel] = useState<Channel | "all">("all");
-  const [scope, setScope] = useState<"open" | "all">("open");
+  // "open" = still being worked: new, contacted or follow-up.
+  const [scope, setScope] = usePref<"open" | LeadStatus | "all">("inbox.status", "open");
+  const inScope = (c: Conversation) => {
+    const st = leadStatusOf(c);
+    return scope === "all" ? st !== "spam" : scope === "open" ? st === "new" || st === "contacted" || st === "followup" : st === scope;
+  };
 
   const list = useMemo(
     () =>
       [...all]
-        .filter((c) => (scope === "open" ? !c.dealId : true))
+        .filter(inScope)
         .filter((c) => channel === "all" || c.channel === channel)
         .sort((a, b) => Number(b.unread) - Number(a.unread) || +new Date(b.lastMessageAt) - +new Date(a.lastMessageAt)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [all, channel, scope],
   );
+  const statusCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const c of all) {
+      const st = leadStatusOf(c);
+      m.set(st, (m.get(st) ?? 0) + 1);
+      if (st === "new" || st === "contacted" || st === "followup") m.set("open", (m.get("open") ?? 0) + 1);
+      if (st !== "spam") m.set("all", (m.get("all") ?? 0) + 1);
+    }
+    return m;
+  }, [all]);
   const counts = useMemo(() => {
-    const base = all.filter((c) => (scope === "open" ? !c.dealId : true));
+    const base = all.filter(inScope);
     const m = new Map<string, number>([["all", base.length]]);
     for (const c of base) m.set(c.channel, (m.get(c.channel) ?? 0) + 1);
     return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [all, scope]);
 
   const selected = all.find((c) => c.id === id);
@@ -82,16 +99,26 @@ export function InboxRoute() {
           <p className="t-eyebrow m-0 mb-3 text-ink-3">{unread ? <span className="text-signal">{unread} unread</span> : "All caught up"} · {all.length} conversations</p>
           <h1 className="t-title m-0">Inbox</h1>
         </div>
-        <Segmented
-          label="Show"
-          value={scope}
-          onChange={setScope}
-          options={[
-            { value: "open", label: "Not converted" },
-            { value: "all", label: "All" },
-          ]}
-        />
       </header>
+
+      {/* Lead status: where each enquiry stands. */}
+      <div role="tablist" aria-label="Lead status" className={cn("-mx-4 mb-3 flex gap-1.5 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0", id && "hidden lg:flex")}>
+        {(["open", ...LEAD_STATUSES, "all"] as const).map((st) => {
+          const on = scope === st;
+          return (
+            <button
+              key={st}
+              role="tab"
+              aria-selected={on}
+              onClick={() => setScope(st)}
+              className={cn("inline-flex h-7 shrink-0 items-center gap-1.5 rounded-chip border px-3 fs-12.5 transition-colors duration-150", on ? "border-ink bg-ink text-on-ink" : "border-line text-ink-2 hover:text-ink")}
+            >
+              {st === "open" ? "To work on" : st === "all" ? "All" : LEAD_STATUS_LABEL[st]}
+              <span className={cn("font-mono fs-11 tnum", on ? "text-on-ink/70" : "text-ink-3")}>{statusCounts.get(st) ?? 0}</span>
+            </button>
+          );
+        })}
+      </div>
 
       <div role="tablist" aria-label="Channel" className={cn("-mx-4 mb-4 flex gap-1.5 overflow-x-auto px-4 pb-1 md:mx-0 md:px-0", id && "hidden lg:flex")}>
         {(["all", ...INBOX_CHANNELS] as const).map((c) => {
@@ -172,11 +199,8 @@ function ConvRow({ c, index, selected, active, onOpen }: { c: Conversation; inde
           </div>
           <p className={cn("m-0 mt-1 line-clamp-2 fs-12.5", c.unread ? "text-ink-2" : "text-ink-3")}>{c.subject ? `${c.subject} — ` : ""}{last?.body}</p>
           <div className="mt-2 flex items-center gap-2">
-            {c.dealId ? (
-              <Pill tone="ok">Deal</Pill>
-            ) : (
-              c.extracted && <Pill tone={c.extracted.intent === "quote" ? "new" : "mute"}>{INTENT[c.extracted.intent]}</Pill>
-            )}
+            <Pill tone={STATUS_TONE[leadStatusOf(c)]}>{LEAD_STATUS_LABEL[leadStatusOf(c)]}</Pill>
+            {!c.dealId && c.extracted && <Pill tone={c.extracted.intent === "quote" ? "new" : "mute"}>{INTENT[c.extracted.intent]}</Pill>}
             {c.extracted && !c.dealId && <span className="font-mono fs-11 text-ink-3">est. {formatCompact(c.extracted.estValuePaise)}</span>}
             {assignee && <Avatar name={assignee.name} me={assignee.id === ME_ID} size="sm" className="ml-auto" />}
           </div>
@@ -241,6 +265,21 @@ function Thread({ c }: { c: Conversation }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Select
+            aria-label="Lead status"
+            disabled={readOnly}
+            value={leadStatusOf(c)}
+            onChange={(e) => {
+              const leadStatus = e.target.value as LeadStatus;
+              const prev = useCrm.getState().conversations;
+              useCrm.setState({ conversations: prev.map((x) => (x.id === c.id ? { ...x, leadStatus } : x)) });
+              if (!IS_DEMO) api(`/conversations/${c.id}`, { method: "PATCH", body: { leadStatus } }).catch((err: Error) => { useCrm.setState({ conversations: prev }); toast(`Couldn't save — ${err.message}`); });
+              toast(leadStatus === "spam" ? "Marked as spam · hidden from the list" : `Marked ${LEAD_STATUS_LABEL[leadStatus]}`);
+            }}
+            className="w-[130px]"
+          >
+            {LEAD_STATUSES.filter((x) => x !== "converted" || c.dealId).map((x) => <option key={x} value={x}>{LEAD_STATUS_LABEL[x]}</option>)}
+          </Select>
           <Menu>
             <MenuTrigger asChild>
               <Button size="sm" disabled={readOnly}>

@@ -76,6 +76,18 @@ export const ROLE_HELP: Record<Role, string> = {
 /** Old role names, from before the five roles. */
 export const roleOf = (r: string): Role => ((ROLES as readonly string[]).includes(r) ? (r as Role) : r === "member" || r === "manager" ? "sales" : "crew");
 
+/** Where an enquiry stands in the Inbox. Converted = it became a deal; spam is hidden from the working list. */
+export const LEAD_STATUSES = ["new", "contacted", "followup", "converted", "spam"] as const;
+export type LeadStatus = (typeof LEAD_STATUSES)[number];
+export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = { new: "New", contacted: "Contacted", followup: "Follow-up", converted: "Converted", spam: "Spam" };
+/** A conversation's status: what the team set, else converted once it has a deal, contacted once we've replied, else new. */
+export function leadStatusOf(c: { leadStatus?: LeadStatus; dealId?: string; messages?: { direction: string }[] }): LeadStatus {
+  if (c.leadStatus === "spam") return "spam";
+  if (c.dealId) return "converted";
+  if (c.leadStatus) return c.leadStatus;
+  return c.messages?.some((m) => m.direction === "out") ? "contacted" : "new";
+}
+
 /** The three areas of work. "own" = sales: change only your own records; crew: only your projects and tasks. */
 export type Area = "sales" | "projects" | "finance";
 export type Access = "edit" | "own" | "view" | "none";

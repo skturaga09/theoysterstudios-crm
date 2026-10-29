@@ -3,7 +3,7 @@
  * web bundle doesn't ship zod until forms need it (M1+).
  */
 import { z } from "zod";
-import { APPROVALS, EXPENSE_CATEGORIES, BUSINESSES, CHANNELS, DELIVERABLE_STATUSES, HEALTHS, NOTIFICATION_KINDS, PRIORITIES, PROJECT_STATUSES, ROLES, TASK_STATUSES } from "./domain";
+import { APPROVALS, EXPENSE_CATEGORIES, BUSINESSES, CHANNELS, DELIVERABLE_STATUSES, HEALTHS, LEAD_STATUSES, NOTIFICATION_KINDS, PRIORITIES, PROJECT_STATUSES, ROLES, TASK_STATUSES } from "./domain";
 import { gstState, GSTIN_RE } from "./gst";
 
 /** A stage id from the deal's business pipeline (checked against it by the API). */
@@ -239,6 +239,7 @@ export const UpdateConversationSchema = z.object({
   assigneeId: id.nullable().optional(),
   dealId: id.nullable().optional(),
   contactId: id.nullable().optional(),
+  leadStatus: z.enum(LEAD_STATUSES).nullable().optional(),
 });
 
 /* ---------- Pipelines (Settings → Pipelines & stages, admins) ---------- */

@@ -1,4 +1,4 @@
-import type { ExpenseCategory, ScheduleItem, Approval, Business, Channel, DeliverableStatus, Health, Paise, Priority, ProjectStatus, Role, Stage, TaskStatus } from "@pinnacle/shared";
+import type { LeadStatus, ExpenseCategory, ScheduleItem, Approval, Business, Channel, DeliverableStatus, Health, Paise, Priority, ProjectStatus, Role, Stage, TaskStatus } from "@pinnacle/shared";
 
 export type ID = string;
 export type ISO = string;
@@ -145,6 +145,8 @@ export type Conversation = {
   contactId?: ID;
   dealId?: ID;
   assigneeId?: ID;
+  /** Set by the team; read it with leadStatusOf (it fills in new / contacted / converted). */
+  leadStatus?: LeadStatus;
   unread: boolean;
   lastMessageAt: ISO;
   subject?: string;
