@@ -459,3 +459,7 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   columns and change in place: priority, status (Done ticks it), due date and who it's assigned to (managers;
   others can't reassign). The board groups the same way, so grouping by status gives a To do → In progress →
   In review → Done board.
+- **Owner dashboard, bento style** (after the client's reference reel): rounded tiles; a solid orange "Confirmed
+  this month" highlight; a conversion dial; orange bars for open leads by stage; profit with invoiced, received and
+  expense bars; project counts; money to collect; who's free today. Numbers count up and tiles rise in; the
+  payments-due list, the by-business table and the team table stay below.

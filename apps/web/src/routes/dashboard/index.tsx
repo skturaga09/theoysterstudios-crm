@@ -1,5 +1,6 @@
 import { istDay, BUSINESS_LABEL, BUSINESSES, formatCompact, onlyBusiness, ownerSummary, ROLE_LABEL, roleOf, type DashboardInput } from "@pinnacle/shared";
-import { Avatar, Ledger, Table, TBody, TD, TH, THead, TR } from "@pinnacle/ui";
+import { Avatar, cn, CountUp, Table, TBody, TD, TH, THead, TR } from "@pinnacle/ui";
+import { motion } from "motion/react";
 import type { ReactNode } from "react";
 import { Link, Navigate } from "react-router";
 import { PageHeader } from "../../components/page-header";
@@ -44,48 +45,7 @@ export function DashboardRoute() {
     <div className="flex flex-col gap-12">
       <PageHeader eyebrow={`${s.businessView === "all" ? "Both businesses" : BUSINESS_LABEL[s.businessView]} · ${month}`} title="Owner dashboard" />
 
-      <Section title="Sales" link={<Link to="/pipeline">Pipeline →</Link>}>
-        <Ledger
-          cells={[
-            { label: "New leads this month", value: sum.sales.newLeads, delta: `${sum.sales.openLeads} open in total`, deltaTone: "mute" },
-            { label: "Confirmed this month", paise: sum.sales.confirmedPaise, delta: `${sum.sales.confirmed} ${sum.sales.confirmed === 1 ? "booking" : "bookings"}`, deltaTone: "mute" },
-            { label: "Open pipeline", paise: sum.sales.pipelinePaise, delta: sum.sales.followUpsOverdue ? `${sum.sales.followUpsOverdue} follow-ups overdue` : "follow-ups on time", deltaTone: sum.sales.followUpsOverdue ? "risk" : "ok" },
-            { label: "Conversion", value: sum.sales.conversion ?? 0, unit: "%", delta: `${sum.sales.lost} lost this month`, deltaTone: sum.sales.lost ? "risk" : "mute" },
-          ]}
-        />
-        <ul className="m-0 mt-3 flex list-none flex-wrap gap-2 p-0" aria-label="Open leads by stage">
-          {byStage.map((st) => (
-            <li key={st.label} className="flex items-baseline gap-1.5 rounded-control bg-sunken px-2.5 py-1">
-              <span className="fs-12 text-ink-2">{st.label}</span>
-              <span className="font-mono fs-12.5 tnum">{st.n}</span>
-            </li>
-          ))}
-        </ul>
-      </Section>
-
-      <Section title="Projects" link={<Link to="/projects">Projects →</Link>}>
-        <Ledger
-          cells={[
-            { label: "Active projects", value: sum.projects.active, delta: `${sum.projects.eventsNext30} ${sum.projects.eventsNext30 === 1 ? "wedding" : "weddings"} in the next 30 days`, deltaTone: "mute" },
-            { label: "Overdue tasks", value: sum.projects.overdueTasks, delta: `${sum.projects.pendingTasks} open in total`, deltaTone: sum.projects.overdueTasks ? "risk" : "ok" },
-            { label: "Awaiting client approval", value: sum.projects.awaitingApproval, delta: "tasks waiting on clients", deltaTone: "mute" },
-            { label: "Deliverables due", value: sum.projects.deliverablesDue, delta: "within 7 days or late", deltaTone: sum.projects.deliverablesDue ? "risk" : "mute" },
-          ]}
-        />
-      </Section>
-
-      <Section title="Money" link={<Link to="/invoices">Invoices →</Link>}>
-        <Ledger
-          cells={[
-            { label: "Invoiced this month", paise: sum.finance.invoicedPaise, delta: "sent invoices, incl. GST", deltaTone: "mute" },
-            { label: "Expenses this month", paise: sum.finance.expensesPaise, delta: "before GST", deltaTone: "mute" },
-            { label: "Profit this month", paise: sum.finance.profitPaise, delta: "invoiced − expenses, before GST", deltaTone: sum.finance.profitPaise < 0 ? "risk" : "ok" },
-            { label: "Received this month", paise: sum.finance.receivedPaise, delta: "payments recorded", deltaTone: "ok" },
-            { label: "Outstanding", paise: sum.finance.outstandingPaise, delta: "still to collect", deltaTone: "mute" },
-            { label: "Overdue", paise: sum.finance.overduePaise, delta: sum.finance.overduePaise ? "past the due date" : "nothing overdue", deltaTone: sum.finance.overduePaise ? "risk" : "ok" },
-          ]}
-        />
-      </Section>
+      <Bento sum={sum} byStage={byStage} team={team} free={free} />
 
       <PaymentsDue />
 
@@ -188,5 +148,151 @@ function ByBusiness({ input }: { input: DashboardInput }) {
         </TBody>
       </Table>
     </Section>
+  );
+}
+
+/* ---------- Bento: the month at a glance, in rounded tiles (one solid highlight, a dial and bars) ---------- */
+const tile = "rounded-[20px] border border-line bg-surface p-5 shadow-rest";
+const Tile = ({ i, className, children }: { i: number; className?: string; children: ReactNode }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 14 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1], delay: i * 0.06 }}
+    whileHover={{ y: -3 }}
+    className={cn(tile, "transition-shadow duration-300 hover:shadow-pop", className)}
+  >
+    {children}
+  </motion.div>
+);
+const Label = ({ children, light }: { children: ReactNode; light?: boolean }) => <p className={cn("t-eyebrow m-0", light ? "text-white/80" : "text-ink-3")}>{children}</p>;
+const Big = ({ paise, value, className }: { paise?: number; value?: number; className?: string }) => (
+  <p className={cn("m-0 mt-2 font-serif fs-44 leading-none tnum", className)}>
+    {paise !== undefined ? <CountUp value={paise} format={formatCompact} /> : <CountUp value={value ?? 0} />}
+  </p>
+);
+
+/** A half-circle dial for a percentage, drawn in on load. */
+function Dial({ pct }: { pct: number }) {
+  const r = 52;
+  const arc = Math.PI * r;
+  return (
+    <svg viewBox="0 0 128 72" className="w-full max-w-[180px]" role="img" aria-label={`${pct}% of decided leads confirmed`}>
+      <path d={`M 12 64 A ${r} ${r} 0 0 1 116 64`} fill="none" stroke="var(--sunken)" strokeWidth="12" strokeLinecap="round" />
+      <motion.path
+        d={`M 12 64 A ${r} ${r} 0 0 1 116 64`}
+        fill="none"
+        stroke="var(--signal)"
+        strokeWidth="12"
+        strokeLinecap="round"
+        strokeDasharray={arc}
+        initial={{ strokeDashoffset: arc }}
+        animate={{ strokeDashoffset: arc * (1 - Math.min(100, Math.max(0, pct)) / 100) }}
+        transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+      />
+      <text x="64" y="60" textAnchor="middle" className="font-serif" fontSize="22" fill="var(--ink)">{pct}%</text>
+    </svg>
+  );
+}
+
+function Bento({ sum, byStage, team, free }: { sum: Summary; byStage: { label: string; n: number }[]; team: { m: { id: string; name: string }; today?: { id: string; name: string } }[]; free: number }) {
+  const max = Math.max(1, ...byStage.map((x) => x.n));
+  const money = [
+    { label: "Invoiced", paise: sum.finance.invoicedPaise },
+    { label: "Received", paise: sum.finance.receivedPaise },
+    { label: "Expenses", paise: sum.finance.expensesPaise },
+  ];
+  const moneyMax = Math.max(1, ...money.map((x) => x.paise));
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* The highlight: what was booked this month. */}
+      <Tile i={0} className="border-transparent bg-signal text-white">
+        <Label light>Confirmed this month</Label>
+        <Big paise={sum.sales.confirmedPaise} />
+        <p className="m-0 mt-3 fs-12.5 text-white/85">{sum.sales.confirmed} {sum.sales.confirmed === 1 ? "booking" : "bookings"} · {sum.sales.newLeads} new leads</p>
+        <Link to="/pipeline" className="mt-5 inline-flex rounded-full bg-white/20 px-3 py-1 fs-12 font-medium text-white hover:bg-white/30">Open pipeline →</Link>
+      </Tile>
+
+      <Tile i={1}>
+        <Label>Conversion</Label>
+        <div className="mt-2 flex justify-center"><Dial pct={sum.sales.conversion ?? 0} /></div>
+        <p className="t-meta m-0 mt-1 text-center text-ink-3">{sum.sales.lost} lost this month · <Link to="/reports" className="hover:text-ink">why →</Link></p>
+      </Tile>
+
+      <Tile i={2}>
+        <Label>Open pipeline</Label>
+        <Big paise={sum.sales.pipelinePaise} className="fs-30" />
+        <div className="mt-4 flex h-[72px] items-end gap-2" aria-label="Open leads by stage">
+          {byStage.map((st, k) => (
+            <div key={st.label} className="flex flex-1 flex-col items-center gap-1" title={`${st.label}: ${st.n}`}>
+              <span className="font-mono fs-10.5 text-ink-3">{st.n}</span>
+              <motion.span
+                className="w-full rounded-t-[6px] bg-signal"
+                style={{ opacity: 0.45 + 0.55 * (st.n / max), originY: 1 }}
+                initial={{ scaleY: 0 }}
+                animate={{ scaleY: 1 }}
+                transition={{ duration: 0.6, delay: 0.25 + k * 0.06, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <span className="block" style={{ height: `${Math.max(4, (st.n / max) * 48)}px` }} />
+              </motion.span>
+            </div>
+          ))}
+        </div>
+        <p className="t-meta m-0 mt-1 truncate text-ink-3">{byStage.map((x) => x.label).join(" · ")}</p>
+        {sum.sales.followUpsOverdue > 0 && <p className="t-meta m-0 mt-1 text-risk">{sum.sales.followUpsOverdue} follow-ups overdue</p>}
+      </Tile>
+
+      <Tile i={3}>
+        <Label>Profit this month</Label>
+        <Big paise={sum.finance.profitPaise} className={cn("fs-30", sum.finance.profitPaise < 0 && "text-risk")} />
+        <ul className="m-0 mt-4 flex list-none flex-col gap-2 p-0">
+          {money.map((x, k) => (
+            <li key={x.label} className="grid grid-cols-[64px_1fr_auto] items-center gap-2 fs-12">
+              <span className="text-ink-3">{x.label}</span>
+              <span className="h-2 overflow-hidden rounded-full bg-sunken">
+                <motion.span className={cn("block h-full rounded-full", k === 2 ? "bg-ink-3" : "bg-signal")} initial={{ width: 0 }} animate={{ width: `${(x.paise / moneyMax) * 100}%` }} transition={{ duration: 0.8, delay: 0.3 + k * 0.08 }} />
+              </span>
+              <span className="font-mono tnum">{formatCompact(x.paise)}</span>
+            </li>
+          ))}
+        </ul>
+      </Tile>
+
+      <Tile i={4} className="sm:col-span-2">
+        <div className="flex items-baseline justify-between"><Label>Projects</Label><Link to="/projects" className="t-meta text-ink-3 hover:text-ink">Projects →</Link></div>
+        <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[
+            { label: "Active", n: sum.projects.active, note: `${sum.projects.eventsNext30} weddings in 30 days` },
+            { label: "Overdue tasks", n: sum.projects.overdueTasks, note: `${sum.projects.pendingTasks} open`, risk: sum.projects.overdueTasks > 0 },
+            { label: "Awaiting client", n: sum.projects.awaitingApproval, note: "approvals" },
+            { label: "Deliverables due", n: sum.projects.deliverablesDue, note: "in 7 days or late", risk: sum.projects.deliverablesDue > 0 },
+          ].map((x) => (
+            <div key={x.label} className="rounded-[14px] bg-sunken p-3">
+              <p className="m-0 fs-11.5 text-ink-3">{x.label}</p>
+              <p className={cn("m-0 mt-1 font-serif fs-30 leading-none tnum", x.risk && "text-risk")}><CountUp value={x.n} /></p>
+              <p className="m-0 mt-1 fs-11 text-ink-3">{x.note}</p>
+            </div>
+          ))}
+        </div>
+      </Tile>
+
+      <Tile i={5}>
+        <div className="flex items-baseline justify-between"><Label>To collect</Label><Link to="/invoices" className="t-meta text-ink-3 hover:text-ink">Invoices →</Link></div>
+        <Big paise={sum.finance.outstandingPaise} className="fs-30" />
+        <p className={cn("t-meta m-0 mt-2", sum.finance.overduePaise ? "text-risk" : "text-ok")}>{sum.finance.overduePaise ? `${formatCompact(sum.finance.overduePaise)} overdue` : "Nothing overdue"}</p>
+      </Tile>
+
+      <Tile i={6}>
+        <Label>Team today</Label>
+        <p className="m-0 mt-2 font-serif fs-30 leading-none tnum">{free}<span className="fs-16 text-ink-3"> / {team.length} free</span></p>
+        <div className="mt-4 flex -space-x-2">
+          {team.slice(0, 8).map(({ m, today }) => (
+            <span key={m.id} title={`${m.name}: ${today ? `on ${today.name}` : "free"}`} className={cn("rounded-full ring-2", today ? "ring-warn" : "ring-surface")}>
+              <Avatar name={m.name} me={m.id === ME_ID} size="sm" />
+            </span>
+          ))}
+        </div>
+        <p className="t-meta m-0 mt-2 text-ink-3">Orange ring: on a function today.</p>
+      </Tile>
+    </div>
   );
 }
