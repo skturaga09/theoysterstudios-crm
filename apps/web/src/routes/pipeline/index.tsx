@@ -142,7 +142,7 @@ export function PipelineRoute() {
         }
       />
 
-      <div className="mb-5 flex flex-wrap items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <Menu>
           <MenuTrigger asChild>
             <button className="inline-flex h-7 items-center gap-1.5 rounded-control px-1.5 fs-13 font-medium hover:bg-hover">
@@ -192,11 +192,11 @@ export function PipelineRoute() {
             <X strokeWidth={1.5} /> Clear
           </Button>
         )}
+        {view === "board" && businessView === "all" && (
+          <Segmented label="Board for" value={boardTab} onChange={setBoardTab} options={BUSINESSES.map((b) => ({ value: b, label: BUSINESS_LABEL[b] }))} className="ml-auto" />
+        )}
       </div>
 
-      {view === "board" && businessView === "all" && (
-        <Segmented label="Board for" value={boardTab} onChange={setBoardTab} options={BUSINESSES.map((b) => ({ value: b, label: BUSINESS_LABEL[b] }))} className="mb-4" />
-      )}
       {view === "board" ? <Board deals={boardDeals} stages={stagesFor(pipelines, boardBusiness)} business={boardBusiness} /> : <DealTable deals={visible} />}
     </>
   );

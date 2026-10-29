@@ -485,3 +485,10 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   logo; re-encoded to H.264 for every browser, ~800 KB, `public/intro.mp4`) plays full screen once per browser
   session before sign-in, or before Home when already signed in, then fades away. Skippable; reduced-motion users
   and any load error go straight in. The client portal, signing and enquiry pages don't show it.
+- **Pipeline without scrolling the page.** The board takes the height left under the header and each column scrolls
+  on its own (header fixed), so the page itself doesn't scroll. The stages being worked share the screen width
+  (min 180px) instead of fixed 272px columns; Confirmed and Lost fold into slim rails at the end that still take a
+  drop and open on click, and Confirmed shows this month's wins unless "show all". Cards are three short lines
+  (client, service, value · date · source · owner). A stage strip above the board shows each stage's share of the
+  pipeline; clicking a stage brings its column into view. On phones the columns snap one at a time. The
+  Photography / Marketing switch moved into the filter row.
