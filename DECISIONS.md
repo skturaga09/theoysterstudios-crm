@@ -492,3 +492,10 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   (client, service, value · date · source · owner). A stage strip above the board shows each stage's share of the
   pipeline; clicking a stage brings its column into view. On phones the columns snap one at a time. The
   Photography / Marketing switch moved into the filter row.
+- **Pipeline, client by client (the new default).** The board squeezed six stages side by side; the team asked to
+  look at it per client. Now a funnel on the left (sticky; chips on phones) picks what to see: Needs attention
+  (open leads with an overdue or missing follow-up), All open leads, each stage, Confirmed this month and Lost this
+  month, each with count, value and its share of the pipeline. On the right, one card per client (most urgent
+  first, searchable) with each of their deals on a stage track: done steps filled, the current one ringed; click
+  any step to move the deal there, or use "Move to <next stage>" / "Confirm booking" / "Lost" (with Undo). Each deal
+  says its next step in words ("Follow-up overdue by 3 days"). Board and Table stay available.

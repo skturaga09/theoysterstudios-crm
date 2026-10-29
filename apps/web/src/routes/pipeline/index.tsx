@@ -1,6 +1,6 @@
 import { CHANNEL_LABEL, CHANNELS, fmtDay, formatCompact, HEALTH_LABEL, type Channel, type Health, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
 import { Avatar, Button, ChannelChip, cn, HealthDot, Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger, MoneyText, Segmented, Table, TBody, TD, TH, THead, TR } from "@pinnacle/ui";
-import { ChevronDown, Columns3, List, Plus, X } from "lucide-react";
+import { ChevronDown, Columns3, List, Plus, Users, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { PageHeader } from "../../components/page-header";
 import { isOpen } from "../../data/derive";
@@ -12,6 +12,7 @@ import type { Deal } from "../../data/types";
 import { useCreateAction, useListNav, usePref } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 import { Board } from "./board";
+import { ClientPipeline } from "./clients";
 
 export type Filters = { owner?: string; channel?: Channel; health?: Health; month?: "this" | "next" };
 
@@ -94,7 +95,8 @@ function FilterChip<T extends string>({
 export function PipelineRoute() {
   const deals = useCrm((s) => s.deals);
   const members = useCrm((s) => s.members);
-  const [view, setView] = usePref<"board" | "table">("pipeline.view", "board");
+  // Client by client is the default; the board and the table are still a click away.
+  const [view, setView] = usePref<"clients" | "board" | "table">("pipeline.layout", "clients");
   const [filters, setFilters] = useState<Filters>({});
   const [viewName, setViewName] = useState("All deals");
   useCreateAction(() => useUi.getState().openComposer("deal"));
@@ -131,6 +133,7 @@ export function PipelineRoute() {
               value={view}
               onChange={setView}
               options={[
+                { value: "clients", label: <><Users strokeWidth={1.5} />Clients</> },
                 { value: "board", label: <><Columns3 strokeWidth={1.5} />Board</> },
                 { value: "table", label: <><List strokeWidth={1.5} />Table</> },
               ]}
@@ -192,12 +195,18 @@ export function PipelineRoute() {
             <X strokeWidth={1.5} /> Clear
           </Button>
         )}
-        {view === "board" && businessView === "all" && (
+        {view !== "table" && businessView === "all" && (
           <Segmented label="Board for" value={boardTab} onChange={setBoardTab} options={BUSINESSES.map((b) => ({ value: b, label: BUSINESS_LABEL[b] }))} className="ml-auto" />
         )}
       </div>
 
-      {view === "board" ? <Board deals={boardDeals} stages={stagesFor(pipelines, boardBusiness)} business={boardBusiness} /> : <DealTable deals={visible} />}
+      {view === "clients" ? (
+        <ClientPipeline key={boardBusiness} deals={boardDeals} stages={stagesFor(pipelines, boardBusiness)} business={boardBusiness} />
+      ) : view === "board" ? (
+        <Board deals={boardDeals} stages={stagesFor(pipelines, boardBusiness)} business={boardBusiness} />
+      ) : (
+        <DealTable deals={visible} />
+      )}
     </>
   );
 }
