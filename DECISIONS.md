@@ -454,3 +454,8 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   (`leadStatusOf`): what the team picks in the conversation header, otherwise Converted once it has a deal,
   Contacted once we've replied, else New. Status chips with counts filter the list ("To work on" = new, contacted
   and follow-up, the default; Spam is hidden from everything but its own chip). Rows show their status.
+- **Tasks page.** A filter bar under the header: whose tasks (everyone, mine, or any one person), priority, group
+  by due date / status / priority / client, and "Show completed" for every grouping. List rows have labelled
+  columns and change in place: priority, status (Done ticks it), due date and who it's assigned to (managers;
+  others can't reassign). The board groups the same way, so grouping by status gives a To do → In progress →
+  In review → Done board.
