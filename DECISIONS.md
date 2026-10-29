@@ -474,3 +474,10 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   average booking and sales cycle; revenue, channel conversion (with channel icons), the stage funnel, the rep
   leaderboard (with won-value bars), sources, the season chart, lost reasons (as bars) and ad spend, each in a
   tile in the studio's orange.
+- **Home as a morning briefing.** The greeting sits on a colour band beside an orange "Do this next" card: the
+  single most pressing thing for the signed-in person (an overdue lead follow-up, then an unanswered quote request,
+  then an overdue task, then today's), with one button to act. "Your day" is a timeline from 8 am to 9 pm: today's
+  meetings, the person's follow-ups and tasks as dots at their times (past ones dimmed), a "now" marker that moves
+  every minute, and today's functions pinned above. "Coming up this week" shows each function in the next 7 days
+  as a photo card with a countdown and crew count. The numbers, lead follow-ups, lead flow, live arrivals, deals
+  closing and tasks due follow, in tiles.

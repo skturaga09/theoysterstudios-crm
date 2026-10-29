@@ -16,6 +16,8 @@ import { IS_DEMO } from "../../lib/demo";
 import { useOncePerSession } from "../../lib/hooks";
 import { useUi } from "../../lib/ui-store";
 import { LeadFlow } from "./lead-flow";
+import { NextUp, ThisWeek, TodayRail } from "./briefing";
+import { tile } from "../../components/bento";
 
 /** Sparkline that ends at the live value. */
 const trend = (v: number, shape: number[]) => [...shape.map((k) => k * v), v];
@@ -82,35 +84,49 @@ function SalesHome() {
   const r = () => ({ variants: rise, initial: "hidden", animate: "show", custom: i++ }) as const;
 
   return (
-    <div className="flex flex-col gap-10">
-      <motion.header {...r()}>
-        <p className="t-eyebrow m-0 mb-3 text-ink-3">{fmtEyebrow(new Date())}</p>
-        <h1 className="t-greeting m-0">
-          {greeting()}, <em className="text-grad italic">{me.name.split(" ")[0]}</em>.
-        </h1>
-        <p className="t-body m-0 mt-3 max-w-[62ch] text-ink-2">{summary}</p>
-      </motion.header>
+    <div className="flex flex-col gap-6">
+      {/* A morning briefing: the greeting and the one thing to do next, side by side. */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <motion.header
+          {...r()}
+          className="relative overflow-hidden rounded-[20px] px-6 py-7 md:px-8"
+          style={{ background: "linear-gradient(120deg, color-mix(in srgb, var(--signal) 20%, var(--surface)), color-mix(in srgb, var(--ok) 14%, var(--surface)))" }}
+        >
+          <p className="t-eyebrow m-0 mb-3 text-ink-2">{fmtEyebrow(new Date())}</p>
+          <h1 className="t-greeting m-0">
+            {greeting()}, <em className="text-grad italic">{me.name.split(" ")[0]}</em>.
+          </h1>
+          <p className="t-body m-0 mt-3 max-w-[62ch] text-ink-2">{summary}</p>
+        </motion.header>
+        <NextUp />
+      </div>
+
+      <TodayRail />
 
       <motion.div {...r()}>
         <Ledger cells={ledger} countUp={firstView} />
       </motion.div>
 
-      <motion.div {...r()}>
+      <ThisWeek />
+
+      <motion.section {...r()} className={tile}>
         <LeadFollowUps />
+      </motion.section>
+
+      <motion.div {...r()} className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <section className={tile}>
+          {IS_DEMO || leads.length ? (
+            <LeadFlow />
+          ) : (
+            <EmptyState icon={Waypoints} title="Lead flow" body="Shows where leads come from and how far they get, once Instagram, Gmail and the other channels are connected." />
+          )}
+        </section>
+        <section className={tile}><ArrivingNow /></section>
       </motion.div>
 
-      <motion.div {...r()} className="grid grid-cols-1 gap-x-10 gap-y-10 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        {IS_DEMO || leads.length ? (
-          <LeadFlow />
-        ) : (
-          <EmptyState icon={Waypoints} title="Lead flow" body="Shows where leads come from and how far they get, once Instagram, Gmail and the other channels are connected." />
-        )}
-        <ArrivingNow />
-      </motion.div>
-
-      <motion.div {...r()} className="grid grid-cols-1 gap-x-10 gap-y-10 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-        <ClosingThisMonth />
-        <FollowUps />
+      <motion.div {...r()} className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <section className={tile}><ClosingThisMonth /></section>
+        <section className={tile}><FollowUps /></section>
       </motion.div>
     </div>
   );
