@@ -67,3 +67,11 @@ export function projectFromDeal(deal: DealLike, templates: Record<Business, Proj
 
 /** Crew typed as "Aniketh & Arun" or "Bobby, Teju and Ravi" → one name each (at most 20). */
 export const splitNames = (text: string) => text.split(/\s*(?:,|&|\band\b)\s*/i).map((x) => x.trim()).filter(Boolean).slice(0, 20);
+
+/** Edited photos and the album follow the couple's photo selection by 3 to 5 weeks. */
+export const SELECTION_WEEKS = [3, 5] as const;
+export function deliveryWindow(selectionDate?: string): { from: string; to: string } | undefined {
+  if (!selectionDate) return undefined;
+  const plus = (weeks: number) => new Date(Date.parse(`${selectionDate}T12:00:00Z`) + weeks * 7 * 86400_000).toISOString().slice(0, 10);
+  return { from: plus(SELECTION_WEEKS[0]), to: plus(SELECTION_WEEKS[1]) };
+}

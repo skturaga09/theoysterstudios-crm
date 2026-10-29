@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_TEMPLATES } from "./domain";
-import { istDay, planProject, splitNames } from "./projects";
+import { deliveryWindow, istDay, planProject, splitNames } from "./projects";
 import { TemplatesSchema, UpdateProjectSchema } from "./schemas";
 
 describe("planProject", () => {
@@ -43,5 +43,12 @@ describe("custom function columns", () => {
     expect(() => TemplatesSchema.parse({ ...DEFAULT_TEMPLATES, photography: { ...DEFAULT_TEMPLATES.photography, columns: [{ id: "c", label: " " }] } })).toThrow();
     const extra = Object.fromEntries(Array.from({ length: 13 }, (_, i) => [`c${i}`, "x"]));
     expect(() => UpdateProjectSchema.parse({ events: [{ id: "e1", name: "Haldi", extra }] })).toThrow();
+  });
+});
+
+describe("delivery after photo selection", () => {
+  it("is 3 to 5 weeks after the couple's selection", () => {
+    expect(deliveryWindow("2026-10-29")).toEqual({ from: "2026-11-19", to: "2026-12-03" });
+    expect(deliveryWindow(undefined)).toBeUndefined();
   });
 });

@@ -424,3 +424,15 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   sidebar, the Settings menu and every switch have one highlight that glides to the chosen item (Motion
   `layoutId`, namespaced per menu so the phone drawer and each switch move on their own). New messages on Home and
   in the Inbox spring in from the top and carry a rose bar down their left edge that fades over about 3 seconds.
+
+## Client update list, 29 Oct 2026 ("CRM, Required Updates & Improvements")
+- **Project page.** The client's name is the bold title; the project name sits in the line above. Owners and
+  project managers can delete a project (its checklist and portal link go with it; the lead, quotations and
+  invoices stay). Weddings record the guest count and the day the couple chose their photos; from then the
+  project and the client's portal show delivery in 3–5 weeks (`deliveryWindow`). Functions, Team and Other
+  details (notes, links) fold to a one-line summary each, remembered per device. Checklist due dates are editable
+  in the row, and changing the wedding date moves the open tasks and pending deliverables the template counts
+  from the event by the same number of days. The first crew names on a function add a high-priority "Book &
+  confirm crew · <function>" task a week before it.
+- **Client portal** shows each function's duration, how many photographers and cinematographers (never names),
+  add-ons, and the guest count.

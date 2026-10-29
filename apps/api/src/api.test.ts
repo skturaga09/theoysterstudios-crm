@@ -802,7 +802,13 @@ describe("api", () => {
     const co = (await call("POST", "/companies", { name: "Zoya & Aman", ownerId: "sr", business: "photography" })).json();
     const d = (await call("POST", "/deals", { title: "Zoya & Aman wedding", companyId: co.id, valuePaise: 1, closeAt: "2027-04-01T00:00:00+05:30", ownerId: "sr", channel: "web", business: "photography", stage: "won", eventDate: "2027-04-01" })).json();
     const p = (await call("GET", `/projects?dealId=${d.id}`)).json()[0];
-    await call("PATCH", `/projects/${p.id}`, { notes: "INTERNAL: client haggles", crew: [{ memberId: "sr", role: "Lead photographer" }] });
+    await call("PATCH", `/projects/${p.id}`, {
+      notes: "INTERNAL: client haggles",
+      crew: [{ memberId: "sr", role: "Lead photographer" }],
+      events: [{ ...p.events[0], duration: "6 hrs", photo: 2, photoCrew: ["Aniketh", "Arun"], videoCrew: ["Bobby"], addOns: "Drone" }],
+      guests: 350,
+      selectionDate: "2027-04-20",
+    });
     const tasks = (await call("GET", `/tasks?projectId=${p.id}`)).json() as { id: string; title: string; approval: string }[];
     const review = tasks.find((t) => t.title === "Client review and approval")!;
     await call("POST", `/tasks/${review.id}/comments`, { body: "STAFF ONLY: use the warm grade" });
@@ -815,12 +821,18 @@ describe("api", () => {
     const view = await app.inject({ method: "GET", url: `/public/portal/${token}` }); // no sign-in
     expect(view.statusCode).toBe(200);
     const body = view.json();
-    expect(body.project).toMatchObject({ name: "Zoya & Aman wedding", events: [{ name: "Wedding", date: "2027-04-01" }], progress: { done: 0, total: tasks.length } });
+    expect(body.project).toMatchObject({
+      name: "Zoya & Aman wedding",
+      events: [{ name: "Wedding", date: "2027-04-01", duration: "6 hrs", photographers: 2, cinematographers: 1, addOns: "Drone" }],
+      guests: 350,
+      delivery: { from: "2027-05-11", to: "2027-05-25" },
+      progress: { done: 0, total: tasks.length },
+    });
     expect(body.client.name).toBe("Zoya & Aman");
     expect(body.approvals.map((x: { title: string }) => x.title)).toEqual(["Client review and approval", "Album design"]);
     expect(body.deliverables[0]).toMatchObject({ name: "Edited photos", status: "pending" });
     const raw = view.body;
-    for (const secret of ["INTERNAL", "STAFF ONLY", "Lead photographer", "Wedding day coverage", "assigneeId", "managerId", "ownerId"]) expect(raw).not.toContain(secret);
+    for (const secret of ["INTERNAL", "STAFF ONLY", "Lead photographer", "Wedding day coverage", "assigneeId", "managerId", "ownerId", "Aniketh", "Bobby"]) expect(raw).not.toContain(secret);
 
     // The client approves one item and asks for changes on another; staff hear about it.
     const approve = (taskId: string, payload: object, t = token) => app.inject({ method: "POST", url: `/public/portal/${t}/approvals/${taskId}`, payload });
@@ -843,6 +855,12 @@ describe("api", () => {
     expect((await call("DELETE", `/projects/${p.id}/portal`)).statusCode).toBe(204);
     expect((await app.inject({ method: "GET", url: `/public/portal/${token}` })).statusCode).toBe(404);
     expect((await app.inject({ method: "GET", url: "/public/portal/short" })).statusCode).toBe(404);
+
+    // Deleting the project takes its checklist with it; crew can't delete.
+    expect((await call("DELETE", `/projects/${p.id}`, undefined, "ok:crewbie@gmail.com")).statusCode).toBe(403);
+    expect((await call("DELETE", `/projects/${p.id}`)).statusCode).toBe(204);
+    expect((await call("GET", `/tasks?projectId=${p.id}`)).json()).toEqual([]);
+    expect((await call("GET", `/deals/${d.id}`)).json().stage).toBe("won"); // the booking stays
   }, 60_000); // many round trips against real Firestore
 
   it("lets the client sign a quotation online, with an audit trail, which confirms the booking", async () => {

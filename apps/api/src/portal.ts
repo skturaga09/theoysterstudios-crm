@@ -3,7 +3,7 @@
  * meant for the client — progress, items awaiting their approval, deliverables, the content calendar, the payment
  * schedule and their invoices — never internal tasks, notes, crew, costs or staff comments.
  */
-import { invoiceTotals, istDay, type InvoiceMath } from "@pinnacle/shared";
+import { deliveryWindow, invoiceTotals, istDay, type InvoiceMath } from "@pinnacle/shared";
 import type { Db } from "mongodb";
 import type { Doc } from "./db";
 
@@ -42,7 +42,18 @@ export async function portalView(db: Db, projectId: string, studio: { studioName
       status: project.status,
       startDate: str(project.startDate),
       dueDate: str(project.dueDate),
-      events: ((project.events as { name: string; date?: string; venue?: string }[] | undefined) ?? []).map(({ name, date, venue }) => ({ name, date, venue })),
+      // Team size only — how many photographers and cinematographers, never who.
+      events: ((project.events as { name: string; date?: string; venue?: string; duration?: string; photo?: number; photoCrew?: string[]; video?: number; videoCrew?: string[]; addOns?: string }[] | undefined) ?? []).map((e) => ({
+        name: e.name,
+        date: e.date,
+        venue: e.venue,
+        duration: e.duration,
+        photographers: Math.max(e.photo ?? 0, e.photoCrew?.length ?? 0) || undefined,
+        cinematographers: Math.max(e.video ?? 0, e.videoCrew?.length ?? 0) || undefined,
+        addOns: e.addOns,
+      })),
+      guests: typeof project.guests === "number" ? project.guests : undefined,
+      delivery: deliveryWindow(str(project.selectionDate)),
       calendarUrl: str(project.calendarUrl),
       progress: { done: tasks.filter((t) => t.done).length, total: tasks.length },
     },

@@ -799,6 +799,11 @@ export function buildApp({
       const mine = await crewProjects(req);
       return mine && { _id: { $in: mine.map((p) => p._id) } };
     },
+    // A deleted project takes its checklist and the client's portal link with it; the deal and invoices stay.
+    afterDelete: async (p) => {
+      await db.collection("tasks").deleteMany({ projectId: p._id });
+      await db.collection("portalLinks").deleteMany({ projectId: p._id });
+    },
   });
   app.post<{ Params: { id: string } }>("/projects/:id/drive-folder", { preHandler: mayChange("projects", false) }, async (req, reply) => {
     try {

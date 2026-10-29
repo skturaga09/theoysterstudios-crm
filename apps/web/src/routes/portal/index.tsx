@@ -17,7 +17,7 @@ export type PortalView = {
   updates?: { id: string; body: string; at: string; by: string }[];
   documents?: { label: string; url: string }[];
   agreements?: PortalAgreement[];
-  project: { name: string; business: Business; status: ProjectStatus; startDate?: string; dueDate?: string; events: { name: string; date?: string; venue?: string }[]; calendarUrl?: string; progress: { done: number; total: number } };
+  project: { name: string; business: Business; status: ProjectStatus; startDate?: string; dueDate?: string; events: { name: string; date?: string; venue?: string; duration?: string; photographers?: number; cinematographers?: number; addOns?: string }[]; guests?: number; delivery?: { from: string; to: string }; calendarUrl?: string; progress: { done: number; total: number } };
   approvals: Approval[];
   deliverables: { name: string; dueDate?: string; status: string; url?: string }[];
   schedule: { label: string; amountPaise: number; dueDate?: string; status: "paid" | "invoiced" | "due" | "upcoming" }[];
@@ -34,7 +34,8 @@ const SAMPLE: PortalView = {
     status: "active",
     startDate: "2026-09-02",
     dueDate: "2026-12-12",
-    events: [{ name: "Mehendi", date: "2026-12-10", venue: "Lake Pichola lawns" }, { name: "Sangeet", date: "2026-12-11", venue: "Ballroom" }, { name: "Wedding", date: "2026-12-12", venue: "Jagmandir" }],
+    events: [{ name: "Mehendi", date: "2026-12-10", venue: "Lake Pichola lawns", duration: "5 hrs", photographers: 1, cinematographers: 1 }, { name: "Sangeet", date: "2026-12-11", venue: "Ballroom", duration: "6 hrs", photographers: 2, cinematographers: 1 }, { name: "Wedding", date: "2026-12-12", venue: "Jagmandir", duration: "8 hrs", photographers: 2, cinematographers: 2, addOns: "Drone" }],
+    guests: 350,
     progress: { done: 5, total: 13 },
   },
   approvals: [
@@ -124,6 +125,7 @@ function PortalPage() {
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <Pill tone={project.status === "delivered" ? "ok" : "warn"}>{PROJECT_STATUS_LABEL[project.status]}</Pill>
             {project.dueDate && <span className="t-meta text-ink-2">{project.business === "photography" ? "Wedding" : "Due"} {fmtDate(project.dueDate)}</span>}
+            {!!project.guests && <span className="t-meta text-ink-2">· {project.guests.toLocaleString("en-IN")} guests</span>}
           </div>
           <div className="mt-4 flex items-center gap-3" aria-label={`${pct}% of the work done`}>
             <span className="h-2 flex-1 overflow-hidden rounded-full bg-sunken"><span className="block h-full bg-ink" style={{ width: `${pct}%` }} /></span>
@@ -143,10 +145,18 @@ function PortalPage() {
             <h2 className="t-eyebrow m-0 mb-2 text-ink-2">Your functions</h2>
             <ul className="m-0 list-none border-t border-line p-0">
               {project.events.map((e, i) => (
-                <li key={i} className="flex flex-wrap items-baseline gap-x-3 border-b border-line py-2.5">
-                  <span className="t-dense font-medium">{e.name}</span>
-                  {e.venue && <span className="t-meta text-ink-3">{e.venue}</span>}
-                  <span className="ml-auto font-mono fs-12 text-ink-2">{e.date ? fmtDate(e.date) : "Date to confirm"}</span>
+                <li key={i} className="border-b border-line py-2.5">
+                  <div className="flex flex-wrap items-baseline gap-x-3">
+                    <span className="t-dense font-medium">{e.name}</span>
+                    {e.venue && <span className="t-meta text-ink-3">{e.venue}</span>}
+                    <span className="ml-auto font-mono fs-12 text-ink-2">{e.date ? fmtDate(e.date) : "Date to confirm"}{e.duration ? ` · ${e.duration}` : ""}</span>
+                  </div>
+                  {/* The team covering it — how many, never who. */}
+                  {(e.photographers || e.cinematographers || e.addOns) && (
+                    <p className="t-meta m-0 mt-1 text-ink-2">
+                      {[e.photographers && `${e.photographers} ${e.photographers === 1 ? "photographer" : "photographers"}`, e.cinematographers && `${e.cinematographers} ${e.cinematographers === 1 ? "cinematographer" : "cinematographers"}`, e.addOns].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>
@@ -200,6 +210,11 @@ function PortalPage() {
         {view.deliverables.length > 0 && (
           <section>
             <h2 className="t-eyebrow m-0 mb-2 text-ink-2">What you'll receive</h2>
+            {project.delivery && (
+              <p className="t-dense m-0 mb-3 rounded-card bg-sunken px-3 py-2 text-ink-2">
+                Thank you for choosing your photos. Your edited photos and album will be ready in 3–5 weeks: between <b className="text-ink">{fmtDate(project.delivery.from)}</b> and <b className="text-ink">{fmtDate(project.delivery.to)}</b>.
+              </p>
+            )}
             <ul className="m-0 list-none border-t border-line p-0">
               {view.deliverables.map((d, i) => (
                 <li key={i} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line py-2.5">

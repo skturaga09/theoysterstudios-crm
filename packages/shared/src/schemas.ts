@@ -313,6 +313,9 @@ export const CreateProjectSchema = z.object({
   links: z.array(link).max(50).default([]),
   /** Marketing: campaign details — objectives, platforms, budgets, dates. */
   campaign: optionalText(4000),
+  /** Weddings: expected guests, and the day the couple finished choosing their photos (delivery follows in 3–5 weeks). */
+  guests: z.number().int().min(0).max(100000).optional(),
+  selectionDate: day.optional(),
 });
 export const UpdateProjectSchema = patchOf(CreateProjectSchema);
 export const ClientUpdateSchema = z.object({ body: z.string().trim().min(1, "Write the update").max(2000) });

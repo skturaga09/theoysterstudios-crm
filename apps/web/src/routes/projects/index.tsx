@@ -1,4 +1,6 @@
 import {
+  addDays,
+  deliveryWindow,
   splitNames,
   APPROVAL_LABEL,
   APPROVALS,
@@ -7,7 +9,6 @@ import {
   DELIVERABLE_STATUSES,
   fmtAgo,
   fmtDate,
-  fmtDay,
   formatFull,
   parseRupees,
   PEOPLE_COST_CATEGORIES,
@@ -27,7 +28,7 @@ import {
 } from "@pinnacle/shared";
 import { Avatar, Button, Checkbox, cn, Input, Pill, Segmented, Select, StrikeText, Textarea, toast } from "@pinnacle/ui";
 import { ArrowLeft, ChevronDown, ExternalLink, FolderKanban, FolderPlus, MessageSquare, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { ClientPhoto } from "../../components/client-photo";
 import { EmptyState } from "../../components/empty-state";
@@ -52,6 +53,65 @@ const PRIORITY_TONE: Record<Priority, "mute" | "warn" | "risk"> = { low: "mute",
 const STATUS_TONE: Record<ProjectStatus, "mute" | "ok" | "warn"> = { planning: "mute", active: "warn", delivered: "ok", closed: "mute" };
 const statusOf = (t: Task): TaskStatus => t.status ?? (t.done ? "done" : "todo");
 const dueOn = (day: string) => `${day}T18:00:00+05:30`;
+
+/** A section that folds to a one-line summary; whether it's open is remembered on this device. */
+function Fold({ id, title, summary, children, defaultOpen = false }: { id: string; title: string; summary: ReactNode; children: ReactNode; defaultOpen?: boolean }) {
+  const [state, setState] = usePref<"open" | "closed">(`project.fold.${id}`, defaultOpen ? "open" : "closed");
+  const open = state === "open";
+  return (
+    <section>
+      <button type="button" onClick={() => setState(open ? "closed" : "open")} aria-expanded={open} className="flex w-full items-center gap-2 text-left">
+        <h2 className="t-eyebrow m-0 text-ink-3">{title}</h2>
+        <ChevronDown size={14} strokeWidth={1.5} className={cn("ml-auto shrink-0 text-ink-3 transition-transform duration-200", open && "rotate-180")} />
+      </button>
+      {open ? <div className="mt-2 flex flex-col gap-6">{children}</div> : <div className="t-meta mt-1.5 text-ink-2">{summary}</div>}
+    </section>
+  );
+}
+
+/** Owners and project managers can remove a project, with its checklist and client link. The deal and invoices stay. */
+function DeleteProject({ p, taskCount }: { p: Project; taskCount: number }) {
+  const navigate = useNavigate();
+  return (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      aria-label="Delete project"
+      title="Delete project"
+      onClick={async () => {
+        if (!window.confirm(`Delete “${p.name}”? Its ${taskCount} checklist ${taskCount === 1 ? "task" : "tasks"} and the client's portal link go too. The lead, quotations and invoices stay. This can't be undone.`)) return;
+        try {
+          if (!IS_DEMO) await api(`/projects/${p.id}`, { method: "DELETE" });
+          useCrm.setState((s) => ({ projects: s.projects.filter((x) => x.id !== p.id), tasks: s.tasks.filter((t) => t.projectId !== p.id) }));
+          toast("Project deleted");
+          navigate("/projects");
+        } catch (e) {
+          toast(`Couldn't delete it — ${(e as Error).message}`);
+        }
+      }}
+    >
+      <Trash2 strokeWidth={1.5} />
+    </Button>
+  );
+}
+
+/**
+ * A new wedding date moves the checklist with it: open tasks and pending deliverables that the template counts from
+ * the event shift by the same number of days. Ones counted from the booking stay put.
+ */
+function moveDate(p: Project, tasks: Task[], next?: string) {
+  const s = useCrm.getState();
+  const shift = p.dueDate && next ? Math.round((Date.parse(next) - Date.parse(p.dueDate)) / 86400_000) : 0;
+  if (!shift) return s.updateProject(p.id, { dueDate: next });
+  const t = s.templates[p.business];
+  const taskTitles = new Set(t.tasks.filter((x) => x.from === "event").map((x) => x.title));
+  const deliverableNames = new Set(t.deliverables.filter((x) => x.from === "event").map((x) => x.name));
+  const moving = tasks.filter((x) => !x.done && taskTitles.has(x.title));
+  for (const x of moving) s.updateTask(x.id, { dueAt: dueOn(addDays(istDay(x.dueAt), shift)) });
+  const deliverables = p.deliverables.map((d) => (d.status !== "delivered" && d.dueDate && deliverableNames.has(d.name) ? { ...d, dueDate: addDays(d.dueDate, shift) } : d));
+  s.updateProject(p.id, { dueDate: next, deliverables });
+  toast(`Moved ${moving.length} ${moving.length === 1 ? "task" : "tasks"} ${shift > 0 ? "later" : "earlier"} by ${Math.abs(shift)} ${Math.abs(shift) === 1 ? "day" : "days"}`);
+}
 const overdue = (t: Task) => !t.done && +new Date(t.dueAt) < Date.now();
 const newId = (p: string) => `${p}${Date.now().toString(36)}`;
 
@@ -210,13 +270,16 @@ export function ProjectRoute() {
         <ArrowLeft size={13} strokeWidth={1.5} /> Back
       </button>
       <PageHeader
-        eyebrow={<span className="inline-flex flex-wrap items-center gap-x-2"><BusinessIcon business={p.business} size="sm" />{BUSINESS_LABEL[p.business]} · {client ? <Link to={`/clients/${client.id}`} className={cn("hover:underline", BUSINESS_TEXT[p.business])}>{client.name}</Link> : "—"} · {pr.done}/{pr.total} tasks done</span>}
-        title={p.name}
+        eyebrow={<span className="inline-flex flex-wrap items-center gap-x-2"><BusinessIcon business={p.business} size="sm" />{BUSINESS_LABEL[p.business]} · {p.name} · {pr.done}/{pr.total} tasks done</span>}
+        title={client ? <Link to={`/clients/${client.id}`} className="font-semibold hover:underline">{client.name}</Link> : <span className="font-semibold">{p.name}</span>}
         media={client && <ClientPhoto company={client} size="lg" />}
         actions={
-          <Select aria-label="Project status" disabled={!canEdit} value={p.status} onChange={(e) => set({ status: e.target.value as ProjectStatus })} className="w-[140px]">
-            {PROJECT_STATUSES.map((x) => <option key={x} value={x}>{PROJECT_STATUS_LABEL[x]}</option>)}
-          </Select>
+          <>
+            <Select aria-label="Project status" disabled={!canEdit} value={p.status} onChange={(e) => set({ status: e.target.value as ProjectStatus })} className="w-[140px]">
+              {PROJECT_STATUSES.map((x) => <option key={x} value={x}>{PROJECT_STATUS_LABEL[x]}</option>)}
+            </Select>
+            {canEdit && <DeleteProject p={p} taskCount={tasks.length} />}
+          </>
         }
       />
 
@@ -224,7 +287,7 @@ export function ProjectRoute() {
         <div className="flex min-w-0 flex-col gap-10">
           <Services p={p} />
           {!wedding && <fieldset disabled={!canEdit} className="contents"><Campaign p={p} set={set} /></fieldset>}
-          {wedding && <fieldset disabled={!canEdit} className="contents"><Functions p={p} set={set} /></fieldset>}
+          {wedding && <fieldset disabled={!canEdit} className="contents"><Functions p={p} set={set} tasks={tasks} /></fieldset>}
           <Checklist p={p} tasks={tasks} canEdit={canEdit} />
           <fieldset disabled={!canEdit} className="contents"><Deliverables p={p} set={set} /></fieldset>
           {deal && canSeeSchedule && <DealPayments deal={deal} />}
@@ -242,7 +305,15 @@ export function ProjectRoute() {
               <span className="t-meta text-ink-3">Started</span>
               <Input type="date" aria-label="Start date" value={p.startDate ?? ""} onChange={(e) => set({ startDate: e.target.value || undefined })} />
               <span className="t-meta text-ink-3">{wedding ? "Wedding date" : "Due"}</span>
-              <Input type="date" aria-label="Due date" value={p.dueDate ?? ""} onChange={(e) => set({ dueDate: e.target.value || undefined })} />
+              <Input type="date" aria-label="Due date" value={p.dueDate ?? ""} onChange={(e) => moveDate(p, tasks, e.target.value || undefined)} />
+              {wedding && (
+                <>
+                  <span className="t-meta text-ink-3">Guests</span>
+                  <Input inputMode="numeric" aria-label="Guest count" key={`g${p.guests ?? ""}`} defaultValue={p.guests ?? ""} placeholder="e.g. 350" onBlur={(e) => { const n = Number(e.target.value.replace(/\D/g, "")) || undefined; if (n !== p.guests) set({ guests: n }); }} />
+                  <span className="t-meta text-ink-3">Photos selected</span>
+                  <Input type="date" aria-label="Photos selected on" value={p.selectionDate ?? ""} onChange={(e) => set({ selectionDate: e.target.value || undefined })} />
+                </>
+              )}
               {!wedding && (
                 <>
                   <span className="t-meta text-ink-3">Retainer / month</span>
@@ -262,16 +333,20 @@ export function ProjectRoute() {
               )}
             </div>
           </section>
-          <Crew p={p} set={set} />
+          <Fold id="team" title={`Team · ${p.crew.length}`} summary={p.crew.length ? p.crew.map((c) => `${s.members.find((m) => m.id === c.memberId)?.name.split(" ")[0] ?? "?"} (${c.role})`).join(", ") : "Nobody added yet"}>
+            <Crew p={p} set={set} />
+          </Fold>
           {canSeeFinance && <ProjectFinance p={p} />}
           {canSeeCommunication && <ProjectCommunication p={p} />}
-          <section>
-            <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Notes</h2>
-            <Textarea key={p.id} rows={4} defaultValue={p.notes ?? ""} placeholder="Brief, special requests, things to remember…" onBlur={(e) => e.target.value.trim() !== (p.notes ?? "") && set({ notes: e.target.value.trim() || undefined })} />
-          </section>
+          <Fold id="other" title="Other details" summary={[p.notes ? "Notes" : "", p.links.length ? `${p.links.length} ${p.links.length === 1 ? "link" : "links"}` : ""].filter(Boolean).join(" · ") || "Notes and links"}>
+            <section>
+              <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Notes</h2>
+              <Textarea key={p.id} rows={4} defaultValue={p.notes ?? ""} placeholder="Brief, special requests, things to remember…" onBlur={(e) => e.target.value.trim() !== (p.notes ?? "") && set({ notes: e.target.value.trim() || undefined })} />
+            </section>
+            <Links p={p} set={set} />
+          </Fold>
           <ClientPortal p={p} canShare={canEdit} />
           {canEdit && <ClientUpdates p={p} />}
-          <Links p={p} set={set} />
         </aside>
         </fieldset>
       </div>
@@ -410,18 +485,51 @@ async function addColumn(business: Project["business"], label: string) {
   useCrm.setState({ templates: next });
 }
 
-function Functions({ p, set }: { p: Project; set: (patch: Partial<Project>) => void }) {
+/** "Haldi · 14 Oct · 5 hrs · Fishermanwarf · 2 photo, 1 video" */
+const eventLine = (e: ProjectEvent) => {
+  const n = (count?: number, names?: string[]) => Math.max(count ?? 0, names?.length ?? 0);
+  const team = [n(e.photo, e.photoCrew) && `${n(e.photo, e.photoCrew)} photo`, n(e.video, e.videoCrew) && `${n(e.video, e.videoCrew)} video`].filter(Boolean).join(", ");
+  return [e.date ? fmtDate(e.date) : "date to confirm", e.duration, e.venue, team, e.addOns].filter(Boolean).join(" · ");
+};
+
+/** The first time a function gets crew names, someone has to book and confirm them. */
+function crewTask(p: Project, tasks: Task[], before: ProjectEvent, after: ProjectEvent) {
+  const names = [...(after.photoCrew ?? []), ...(after.videoCrew ?? [])];
+  if ((before.photoCrew?.length ?? 0) + (before.videoCrew?.length ?? 0) > 0 || !names.length) return;
+  const title = `Book & confirm crew · ${after.name}`;
+  if (tasks.some((t) => t.title.startsWith(title))) return;
+  const today = istDay(new Date());
+  const week = after.date ? addDays(after.date, -7) : addDays(today, 2);
+  useCrm.getState().addTask({ title: `${title} (${names.join(", ")})`, dueAt: dueOn(week < today ? today : week), assigneeId: p.managerId ?? ME_ID, projectId: p.id, dealId: p.dealId, companyId: p.companyId, business: p.business, status: "todo", priority: "high", approval: "none" });
+  toast(`Added a task to book and confirm the ${after.name} crew`);
+}
+
+function Functions({ p, set, tasks }: { p: Project; set: (patch: Partial<Project>) => void; tasks: Task[] }) {
   const columns = useCrm((s) => s.templates[p.business].columns) ?? [];
   const canAddColumn = useAccess("projects") === "edit";
   const [column, setColumn] = useState<string>();
-  const change = (id: string, patch: Partial<ProjectEvent>) => set({ events: p.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
+  const change = (id: string, patch: Partial<ProjectEvent>) => {
+    const before = p.events.find((e) => e.id === id);
+    set({ events: p.events.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
+    if (before) crewTask(p, tasks, before, { ...before, ...patch });
+  };
   const text = (e: ProjectEvent, key: "venue" | "duration" | "addOns") => ({
     defaultValue: e[key] ?? "",
     onBlur: (x: React.FocusEvent<HTMLInputElement>) => x.target.value.trim() !== (e[key] ?? "") && change(e.id, { [key]: x.target.value.trim() || undefined }),
   });
+  const summary = p.events.length ? (
+    <ul className="m-0 list-none border-t border-line p-0">
+      {p.events.map((e) => (
+        <li key={e.id} className="flex gap-3 border-b border-line py-2">
+          <span className="t-dense w-[110px] shrink-0 truncate font-medium text-ink">{e.name}</span>
+          <span className="min-w-0 flex-1 truncate">{eventLine(e)}</span>
+        </li>
+      ))}
+    </ul>
+  ) : "No functions yet — open to add haldi, mehendi, sangeet, reception…";
   return (
+    <Fold id="events" title={`Functions · ${p.events.length}`} summary={summary}>
     <section>
-      <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Functions · {p.events.length}</h2>
       <ul className="m-0 list-none border-t border-line p-0">
         {p.events.map((e) => (
           <li key={e.id} className="border-b border-line py-3">
@@ -493,6 +601,7 @@ function Functions({ p, set }: { p: Project; set: (patch: Partial<Project>) => v
         </form>
       )}
     </section>
+    </Fold>
   );
 }
 
@@ -522,7 +631,11 @@ function Checklist({ p, tasks, canEdit }: { p: Project; tasks: Task[]; canEdit: 
                 </button>
                 {t.priority && t.priority !== "normal" && t.priority !== "low" && <Pill tone={PRIORITY_TONE[t.priority]}>{PRIORITY_LABEL[t.priority]}</Pill>}
                 {t.approval && t.approval !== "none" && <Pill tone={t.approval === "approved" ? "ok" : t.approval === "changes" ? "risk" : "warn"}>{APPROVAL_LABEL[t.approval]}</Pill>}
-                {t.done ? <DoneBy t={t} short /> : <span className={cn("w-[56px] text-right font-mono fs-11.5", overdue(t) ? "text-risk" : "text-ink-2")}>{fmtDay(t.dueAt)}</span>}
+                {t.done ? (
+                  <DoneBy t={t} short />
+                ) : (
+                  <Input type="date" aria-label={`${t.title} due`} disabled={!mine} value={istDay(t.dueAt)} onChange={(e) => e.target.value && upd({ dueAt: dueOn(e.target.value) })} className={cn("h-8 w-[140px] font-mono fs-11.5", overdue(t) ? "text-risk" : "text-ink-2")} />
+                )}
                 <Select aria-label={`Who does ${t.title}`} disabled={!canEdit} value={t.assigneeId} onChange={(e) => upd({ assigneeId: e.target.value })} className="w-[130px]">
                   {people.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </Select>
@@ -608,10 +721,16 @@ function Comments({ t }: { t: Task }) {
 }
 
 function Deliverables({ p, set }: { p: Project; set: (patch: Partial<Project>) => void }) {
+  const window_ = deliveryWindow(p.selectionDate);
   const change = (id: string, patch: Partial<Project["deliverables"][number]>) => set({ deliverables: p.deliverables.map((d) => (d.id === id ? { ...d, ...patch } : d)) });
   return (
     <section>
       <h2 className="t-eyebrow m-0 mb-2 text-ink-3">Deliverables · {p.deliverables.filter((d) => d.status === "delivered").length}/{p.deliverables.length} delivered</h2>
+      {window_ && (
+        <p className="t-dense m-0 mb-2 rounded-card bg-ok-wash px-3 py-2 text-ink">
+          Photos selected {fmtDate(p.selectionDate!)} · delivery in 3–5 weeks: <b>{fmtDate(window_.from)}</b> to <b>{fmtDate(window_.to)}</b>. The client sees this in their portal.
+        </p>
+      )}
       <ul className="m-0 list-none border-t border-line p-0">
         {p.deliverables.map((d) => (
           <li key={d.id} className="flex flex-wrap items-center gap-2 border-b border-line py-2">

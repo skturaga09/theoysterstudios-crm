@@ -210,6 +210,9 @@ export type Project = {
   startDate?: string;
   dueDate?: string;
   events: ProjectEvent[];
+  guests?: number;
+  /** The day the couple finished choosing their photos. */
+  selectionDate?: string;
   crew: { memberId: ID; role: string }[];
   deliverables: { id: string; name: string; dueDate?: string; status: DeliverableStatus; url?: string }[];
   retainerPaise?: number;
