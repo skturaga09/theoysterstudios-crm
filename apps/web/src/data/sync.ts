@@ -10,6 +10,7 @@ export type IntegrationStatus = {
   instagram: { connected: boolean; username?: string; lastEventAt?: string; tokenExpiresAt?: string; connectedAt?: string };
   razorpay: { ready: boolean; webhook: boolean };
   whatsapp: { connected: boolean; lastEventAt?: string };
+  leadads?: { connected: boolean; pageName?: string; connectedAt?: string; lastEventAt?: string };
   /** `ready` = an admin has saved the Google keys, so people can connect their accounts. */
   google: { ready: boolean; accounts: GoogleAccountStatus[] };
 };
@@ -41,6 +42,17 @@ export function channelsFrom(s: IntegrationStatus): ChannelStatus[] {
         : !ig.lastEventAt
           ? "No DMs have reached the CRM yet. In your Meta app: Configure webhooks → Verify and save with this CRM's callback URL and verify token, turn on the messages field, and switch the app to Live. In Instagram: Message controls → Connected tools → Allow access to messages. Test from a different Instagram account."
           : undefined,
+    });
+  }
+  if (s.leadads?.connected) {
+    out.push({
+      channel: "facebook",
+      label: "Lead Ads",
+      status: "ok",
+      lastEventMin: minsAgo(s.leadads.lastEventAt ?? s.leadads.connectedAt),
+      waiting: !s.leadads.lastEventAt,
+      account: `${s.leadads.pageName} (Page)`,
+      note: s.leadads.lastEventAt ? undefined : "No leads have arrived yet. Check the Page webhook (leadgen field), Leads access for the CRM app, and send one with Meta's Lead Ads Testing Tool.",
     });
   }
   if (s.whatsapp.connected) {

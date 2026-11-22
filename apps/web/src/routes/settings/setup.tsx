@@ -238,6 +238,19 @@ const whatsappSteps = (site: string, verifyToken: string): Step[] => [
   { id: "w-test", title: "Test it with a teammate's phone", body: <>Send "hi" to the studio number: it appears in Inbox within about 30 seconds, and a reply from Inbox arrives on the phone. On a deal with a payment schedule and that phone as the contact, <strong>Remind</strong> should say "WhatsApp reminder sent".</> },
 ];
 
+const leadAdsSteps = (site: string, verifyToken: string): Step[] => [
+  { id: "l-app", title: "Use the same Meta app as Instagram", body: <>developers.facebook.com → My Apps → <em>The Oyster Studios CRM</em> → Use cases → Add use case → the one for <strong>ad leads</strong> (Capture and manage ad leads with the Marketing API). It brings the <strong>leads_retrieval</strong> permission. The app only reads the studio's own Page, so Standard access is enough; if Meta asks for Advanced access, request it there.</> },
+  {
+    id: "l-webhook",
+    title: "Send new leads to the CRM",
+    body: verifyToken ? <>In the app: Webhooks → choose the object <strong>Page</strong> → Subscribe to this object. Callback URL:<Copyable value={`${site}/api/integrations/leadads/webhook`} />Verify token:<Copyable value={verifyToken} />Verify and save, then subscribe to the field <strong>leadgen</strong>.</> : <>Save the Meta App secret below first; this step's values appear once it's saved.</>,
+  },
+  { id: "l-leads-access", title: "Give the CRM app access to the Page's leads", body: <>business.facebook.com → Settings → Integrations → <strong>Leads access</strong> → choose the studio's Page → CRMs → Assign CRMs → <em>The Oyster Studios CRM</em>. Without this, Meta tells the CRM a lead arrived but won't show its answers.</> },
+  { id: "l-token", title: "Create the Page token", body: <>Settings → Users → System users → <em>CRM</em> (the same one as WhatsApp, or add one, role Admin). Assign assets: the studio's <strong>Facebook Page</strong> (full control) and the app. Generate new token → that app → expiry <strong>Never</strong> → tick <strong>leads_retrieval</strong>, <strong>pages_manage_metadata</strong>, <strong>pages_manage_ads</strong>, <strong>pages_read_engagement</strong> and <strong>pages_show_list</strong>. Copy it (starts EA, shown once) and paste it below.</> },
+  { id: "l-page-id", title: "Find the Page ID", body: <>Settings → Accounts → Pages → the studio's Page: the <strong>ID</strong> under its name (a long number). Paste it below, then click <strong>Connect</strong>.</> },
+  { id: "l-test", title: "Send a test lead", body: <>developers.facebook.com/tools/lead-ads-testing → choose the Page and a form → <strong>Create lead</strong>. It appears in Inbox within about 30 seconds as a Lead Ads lead, with every answer from the form. Delete the test lead in Meta afterwards.</> },
+];
+
 const razorpaySteps = (site: string): Step[] => [
   { id: "r-account", title: "Sign in to the studio's Razorpay account", body: <>dashboard.razorpay.com. If it isn't activated yet, finish activation (business PAN, GST certificate, bank account): Live keys need it; Test mode works straight away. Switch the dashboard to <strong>Test mode</strong> for the first run.</> },
   { id: "r-keys", title: "Create API keys", body: <>Account &amp; Settings → API Keys → Generate Key. Paste the <strong>Key ID</strong> (rzp_test_…) and <strong>Key secret</strong> below straight away — Razorpay shows the secret only once.</> },
@@ -246,8 +259,8 @@ const razorpaySteps = (site: string): Step[] => [
   { id: "r-live", title: "Go live", body: <>Switch Razorpay to <strong>Live mode</strong>, generate Live keys (rzp_live_…) and add the webhook again — Test and Live webhooks are separate. Paste the Live Key ID, Key secret and webhook secret below, over the test ones.</> },
 ];
 
-export const setupProgress = (state: SetupState, kind: "google" | "meta" | "whatsapp" | "razorpay") => {
-  const steps = kind === "google" ? googleSteps("") : kind === "meta" ? metaSteps("", "") : kind === "whatsapp" ? whatsappSteps("", "") : razorpaySteps("");
+export const setupProgress = (state: SetupState, kind: "google" | "meta" | "whatsapp" | "razorpay" | "leadads") => {
+  const steps = kind === "google" ? googleSteps("") : kind === "meta" ? metaSteps("", "") : kind === "whatsapp" ? whatsappSteps("", "") : kind === "leadads" ? leadAdsSteps("", "") : razorpaySteps("");
   return { done: steps.filter((s) => state.done.has(s.id)).length, total: steps.length };
 };
 
@@ -480,6 +493,61 @@ export function RazorpaySetup({ state, ready, webhook }: { state: SetupState; re
           ["Client paid but the invoice isn't Paid", "Razorpay → Webhooks shows failed deliveries. Re-paste the same secret in both places; tick payment_link.paid in the mode you're using (Test or Live)."],
           ["Razorpay says authentication failed", "The Key ID and secret are from different pairs or modes. Generate a fresh pair and paste both."],
           ["A key may have leaked", "Regenerate the keys and change the webhook secret in Razorpay, then paste the new values here; the old ones stop at once."],
+        ]}
+      />
+    </div>
+  );
+}
+
+/** Meta Lead Ads: steps, the app secret, and connecting the studio's Facebook Page. */
+export function LeadAdsSetup({ state, connected, pageName, onChanged }: { state: SetupState; connected: boolean; pageName?: string; onChanged: () => void }) {
+  const site = window.location.origin;
+  const [pageId, setPageId] = useState("");
+  const [token, setToken] = useState("");
+  const [busy, setBusy] = useState(false);
+  const ready = !!state.keys?.metaAppSecretSaved;
+  return (
+    <div className="mt-4">
+      <p className="t-meta m-0 mb-3 text-ink-3">For your Meta Business admin · about 30 minutes, once Instagram's app exists. Every form someone fills in from an ad arrives in Inbox as a lead with all their answers. Paste the token only here — never send it to anyone.</p>
+      <Steps steps={leadAdsSteps(site, state.keys?.webhookVerifyToken ?? "")} done={state.done} toggle={state.toggle} />
+      <KeysForm keys={state.keys} onSaved={state.setKeys} fields={[{ key: "metaAppSecret", label: "Meta App secret (checks leads really come from Meta)", secret: true, placeholder: "From App settings → Basic" }]} />
+      <form
+        className="mt-4 flex flex-col gap-3 rounded-panel border border-line p-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          try {
+            const r = await api<{ pageName: string }>("/integrations/leadads/connect", { method: "POST", body: { pageId: pageId.trim(), token: token.trim() } });
+            toast(`Connected ${r.pageName} — new Lead Ads leads will appear in Inbox`);
+            setToken("");
+            onChanged();
+          } catch (err) {
+            toast(`Couldn't connect — ${(err as Error).message}`);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <p className="t-dense m-0 text-ink-2">{connected ? `Connected to ${pageName}. Paste a new token and connect again to replace it.` : ready ? "Paste the Page ID and the token, then connect." : "Save the Meta App secret above first."}</p>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[200px_minmax(0,1fr)_auto]">
+          <Input aria-label="Page ID" placeholder="Page ID (a long number)" value={pageId} onChange={(e) => setPageId(e.target.value)} className="font-mono" />
+          <Input aria-label="Page token" type="password" autoComplete="off" placeholder="Token, starts with EA…" value={token} onChange={(e) => setToken(e.target.value)} className="font-mono" />
+          <Button type="submit" variant="ink" disabled={!ready || busy || IS_DEMO || !pageId.trim() || !token.trim()}>{busy ? "Connecting…" : connected ? "Reconnect" : "Connect"}</Button>
+        </div>
+        {connected && (
+          <Button type="button" variant="ghost" size="sm" className="self-start" onClick={async () => {
+            if (!window.confirm("Disconnect Lead Ads? New leads stop arriving. Leads already in Inbox stay.")) return;
+            await api("/integrations/leadads/disconnect", { method: "POST" }).catch((err: Error) => toast(err.message));
+            onChanged();
+          }}>Disconnect</Button>
+        )}
+      </form>
+      <Troubleshooting
+        items={[
+          ["“Meta said: … permission”", "The token is missing a tick: generate it again with all five permissions, and assign the Page to the system user."],
+          ["Connected, but no leads arrive", "Webhooks → Page → the leadgen field must be subscribed; the app must be Live; Leads access must include the CRM app."],
+          ["“Verify and save” fails in Meta", "Save the Meta App secret here first, reload this panel and copy the verify token again."],
+          ["Lead arrives without answers", "Leads access isn't given to the CRM app yet (step 3)."],
         ]}
       />
     </div>

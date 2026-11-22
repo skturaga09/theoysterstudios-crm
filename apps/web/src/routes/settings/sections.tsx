@@ -8,7 +8,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { CHANNEL_STATUS, type ChannelStatus } from "../../data/seed";
 import { IS_DEMO } from "../../lib/demo";
 import { channelsFrom, type IntegrationStatus } from "../../data/sync";
-import { GoogleAccounts, GoogleSetup, MetaSetup, RazorpaySetup, setupProgress, useSetupState, WhatsAppSetup } from "./setup";
+import { GoogleAccounts, GoogleSetup, LeadAdsSetup, MetaSetup, RazorpaySetup, setupProgress, useSetupState, WhatsAppSetup } from "./setup";
 import { defaultOwnerId, useCrm, useMe, useWorkspace } from "../../data/store";
 import type { Company, Contact } from "../../data/types";
 import { api, ApiError } from "../../lib/api";
@@ -270,7 +270,7 @@ const ABOUT: Record<Channel, string> = {
   other: "",
 };
 /** Which one-time setup a channel needs. Gmail and Calendar share the Google Workspace setup. */
-const SETUP_FOR: Partial<Record<Channel, "google" | "meta" | "whatsapp">> = { gmail: "google", calendar: "google", instagram: "meta", whatsapp: "whatsapp" };
+const SETUP_FOR: Partial<Record<Channel, "google" | "meta" | "whatsapp" | "leadads">> = { gmail: "google", calendar: "google", instagram: "meta", whatsapp: "whatsapp", facebook: "leadads" };
 
 export function IntegrationsRoute() {
   const isAdmin = useMe().role === "admin";
@@ -349,7 +349,7 @@ export function IntegrationsRoute() {
                     <Button size="sm" variant={c.status === "warn" ? "ink" : "outline"} aria-expanded={expanded} onClick={() => setOpen(expanded ? undefined : c.channel)}>
                       {expanded ? "Hide" : "Manage accounts"}
                     </Button>
-                    ) : c.connected && kind === "whatsapp" ? (
+                    ) : c.connected && (kind === "whatsapp" || kind === "leadads") ? (
                     isAdmin && <Button size="sm" variant="outline" aria-expanded={expanded} onClick={() => setOpen(expanded ? undefined : c.channel)}>{expanded ? "Hide" : "Manage"}</Button>
                   ) : c.connected && !IS_DEMO ? (
                     isAdmin && (
@@ -385,6 +385,7 @@ export function IntegrationsRoute() {
               {expanded && kind === "google" && (isAdmin ? <GoogleSetup state={setup} status={status} onChanged={() => void refresh()} /> : <GoogleAccounts status={status} onChanged={() => void refresh()} />)}
               {expanded && kind === "meta" && <MetaSetup state={setup} connected={c.connected} />}
               {expanded && kind === "whatsapp" && <WhatsAppSetup state={setup} connected={c.connected} />}
+              {expanded && kind === "leadads" && <LeadAdsSetup state={setup} connected={c.connected} pageName={status?.leadads?.pageName} onChanged={() => void refresh()} />}
               {confirmDisconnect === c.channel && c.channel === "instagram" && (
                 <div className="mt-3 flex flex-wrap items-center gap-3 rounded-card bg-risk-wash px-4 py-3">
                   <p className="t-dense m-0 flex-1">Disconnect {CHANNEL_LABEL[c.channel]}? New messages stop arriving. Conversations already in Inbox stay.</p>

@@ -56,6 +56,7 @@ import { handleWhatsAppWebhook, sendReminder, sendText, type WhatsAppKeys } from
 import { feedFor, toIcs } from "./calendar";
 import { portalView, type PortalLink } from "./portal";
 import { deletePhoto, fromDataUrl, savePhoto, type Photo } from "./photos";
+import { connectPage, handleLeadgen, type LeadAdsIntegration } from "./leadads";
 import { createCreditNote, createInvoice, financialYear, nextNumber } from "./invoices";
 import { createDriveFolder, shareWithDomain, exchangeGoogleCode, googleAccessToken, googleAuthorizeUrl, revokeGoogle, syncGoogle, type GoogleAccount } from "./google";
 import { sendInstagram, authorizeUrl, exchangeCode, handleWebhook, newVerifyToken, subscribeMessages, validSignature, type Fetch, type InstagramIntegration, type SetupKeys } from "./instagram";
@@ -141,7 +142,7 @@ export function buildApp({
     });
   }
   /** Called by Meta or by a browser coming back from Instagram sign-in — no CRM login; each checks its own proof. */
-  const PUBLIC = new Set(["/healthz", "/public/enquiry", "/public/enquiry-info", "/integrations/razorpay/webhook", "/integrations/whatsapp/webhook", "/integrations/instagram/webhook", "/integrations/instagram/callback", "/integrations/google/callback", "/public/privacy-info"]);
+  const PUBLIC = new Set(["/healthz", "/public/enquiry", "/public/enquiry-info", "/integrations/razorpay/webhook", "/integrations/whatsapp/webhook", "/integrations/instagram/webhook", "/integrations/leadads/webhook", "/integrations/instagram/callback", "/integrations/google/callback", "/public/privacy-info"]);
 
   /**
    * Every route except /healthz needs a Google sign-in (Firebase ID token) whose verified email is on
@@ -279,6 +280,10 @@ export function buildApp({
     return {
       instagram: ig ? { connected: true, username: ig.username, lastEventAt: ig.lastEventAt, tokenExpiresAt: ig.tokenExpiresAt, connectedAt: ig.connectedAt } : { connected: false },
       razorpay: { ready: !!keys.razorpayKeyId && !!keys.razorpayKeySecret, webhook: !!keys.razorpayWebhookSecret },
+      leadads: await (async () => {
+        const la = await db.collection<LeadAdsIntegration>("integrations").findOne({ _id: "leadads" });
+        return la ? { connected: true, pageName: la.pageName, connectedAt: la.connectedAt, lastEventAt: la.lastEventAt } : { connected: false };
+      })(),
       whatsapp: { connected: !!keys.whatsappPhoneNumberId && !!keys.whatsappToken, lastEventAt: (await db.collection<Doc>("integrations").findOne({ _id: "whatsapp" }))?.lastEventAt as string | undefined },
       google: { ready: !!(keys as { googleClientId?: string }).googleClientId && !!(keys as { googleClientSecret?: string }).googleClientSecret, accounts: accounts.map(({ _id: _, ...a }) => a) },
     };
@@ -373,6 +378,36 @@ export function buildApp({
     if (!validSignature(raw, req.headers["x-hub-signature-256"] as string | undefined, [keys.metaAppSecret, keys.instagramAppSecret])) return reply.code(401).send({ error: "Bad signature" });
     return handleWebhook(db, f, req.body as Parameters<typeof handleWebhook>[2]);
   });
+  /* ---------- Meta Lead Ads (the studio's own Meta app and Facebook Page) ---------- */
+  app.post("/integrations/leadads/connect", { preHandler: adminOnly }, async (req, reply) => {
+    const { pageId, token } = z.object({ pageId: z.string().trim().regex(/^\d{5,25}$/, "The Page ID is a long number"), token: z.string().trim().regex(/^EA[A-Za-z0-9]{40,}$/, "A Meta access token starts with EA") }).parse(req.body);
+    if (!(await getKeys()).metaAppSecret) return reply.code(409).send({ error: "Save the Meta App secret first (it checks that leads really come from Meta)" });
+    try {
+      const page = await connectPage(f, pageId, token);
+      await db.collection<LeadAdsIntegration>("integrations").replaceOne({ _id: "leadads" }, { ...page, connectedAt: now(), connectedBy: req.member._id }, { upsert: true });
+      return { connected: true, pageName: page.pageName };
+    } catch (e) {
+      return reply.code(422).send({ error: `Meta said: ${(e as Error).message}` });
+    }
+  });
+  app.post("/integrations/leadads/disconnect", { preHandler: adminOnly }, async () => {
+    await db.collection("integrations").deleteOne({ _id: "leadads" } as never);
+    return { connected: false };
+  });
+  /** Meta checks the address once, then posts each new lead's id, signed with the app secret. */
+  app.get("/integrations/leadads/webhook", async (req, reply) => {
+    const q = req.query as Record<string, string | undefined>;
+    const token = (await getKeys()).webhookVerifyToken;
+    if (q["hub.mode"] === "subscribe" && token && q["hub.verify_token"] === token) return reply.type("text/plain").send(q["hub.challenge"] ?? "");
+    return reply.code(403).send({ error: "Verify token doesn't match" });
+  });
+  app.post("/integrations/leadads/webhook", async (req, reply) => {
+    const keys = await getKeys();
+    const raw = (req.raw as { rawBody?: string | Buffer }).rawBody;
+    if (!validSignature(raw, req.headers["x-hub-signature-256"] as string | undefined, [keys.metaAppSecret])) return reply.code(401).send({ error: "Bad signature" });
+    return handleLeadgen(db, f, req.body as Parameters<typeof handleLeadgen>[2]);
+  });
+
   /* ---------- WhatsApp Cloud API (the studio's own Meta app and number) ---------- */
   app.get("/integrations/whatsapp/webhook", async (req, reply) => {
     const q = req.query as Record<string, string | undefined>;

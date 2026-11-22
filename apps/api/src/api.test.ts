@@ -28,12 +28,16 @@ const fakeInstagram: typeof fetch = async (input, init) => {
   if (url.startsWith("https://graph.instagram.com/me?")) return ok({ user_id: "17841400000000001", username: "theoysterstudios" });
   if (url.startsWith("https://graph.instagram.com/v21.0/me/messages")) return ok({ recipient_id: "x", message_id: `ig-out-${igCalls.length}` });
   if (url.startsWith("https://graph.instagram.com/")) return ok({ name: "Riya Mehta", username: "riya.m" }); // a DM sender's profile
+  // Meta Lead Ads: the Page, its lead subscription, and one lead's answers.
+  if (url.startsWith("https://graph.facebook.com/v23.0/1234567890123?")) return ok({ id: "1234567890123", name: "The Oyster Studios", access_token: "PAGE-SECRET-TOKEN" });
+  if (url.startsWith("https://graph.facebook.com/v23.0/1234567890123/subscribed_apps")) return ok({ success: true });
+  if (url.startsWith("https://graph.facebook.com/v23.0/LEAD")) return ok({ id: "LEAD1", created_time: "2026-11-22T10:00:00+0000", campaign_name: "Wedding season", field_data: [{ name: "full_name", values: ["Ananya Rao"] }, { name: "email", values: ["Ananya@Example.com"] }, { name: "phone_number", values: ["+919800011122"] }, { name: "city", values: ["Mysuru"] }, { name: "wedding_date", values: ["Feb 2027"] }] });
   // Razorpay and WhatsApp Cloud API stand-ins: record the request bodies too.
   if (url === "https://api.razorpay.com/v1/payment_links") {
     sent.push({ url, body: JSON.parse(String(init?.body)) });
     return ok({ id: `plink_${sent.length}`, short_url: `https://rzp.io/i/test${sent.length}` });
   }
-  if (url.startsWith("https://graph.facebook.com/v21.0/") && url.endsWith("/messages")) {
+  if (url.startsWith("https://graph.facebook.com/v23.0/") && url.endsWith("/messages")) {
     const body = JSON.parse(String(init?.body));
     sent.push({ url, body });
     if (body.to === "910000000000") return new Response(JSON.stringify({ error: { code: 131047, message: "Re-engagement message" } }), { status: 400 });
@@ -603,6 +607,39 @@ describe("api", () => {
     expect(d.createdAt).toBe("2026-11-01T10:00:00+05:30");
     expect((await call("PATCH", `/deals/${d.id}`, { createdAt: "2026-10-28T10:00:00+05:30" })).json().createdAt).toBe("2026-10-28T10:00:00+05:30");
   }, 60_000);
+
+  it("connects a Facebook Page for Lead Ads and files each form as a routed Inbox lead, once", async () => {
+    const metaSecret = "b".repeat(32);
+    await call("PUT", "/setup/keys", { metaAppSecret: metaSecret });
+    const { webhookVerifyToken } = (await call("GET", "/setup/keys")).json();
+    const check = await app.inject({ url: `/api/integrations/leadads/webhook?hub.mode=subscribe&hub.verify_token=${webhookVerifyToken}&hub.challenge=77` });
+    expect([check.statusCode, check.body]).toEqual([200, "77"]);
+    expect((await call("POST", "/integrations/leadads/connect", { pageId: "1234567890123", token: "nope" })).statusCode).toBe(400);
+    expect((await call("POST", "/integrations/leadads/connect", { pageId: "1234567890123", token: `EA${"x".repeat(60)}` })).json()).toEqual({ connected: true, pageName: "The Oyster Studios" });
+    expect(igCalls).toContain("POST https://graph.facebook.com/v23.0/1234567890123/subscribed_apps");
+    const status = (await call("GET", "/integrations")).json();
+    expect(status.leadads).toMatchObject({ connected: true, pageName: "The Oyster Studios" });
+    expect(JSON.stringify(status)).not.toContain("PAGE-SECRET-TOKEN");
+
+    const post = (body: object, secret = metaSecret) => {
+      const raw = JSON.stringify(body);
+      return app.inject({ method: "POST", url: "/api/integrations/leadads/webhook", payload: raw, headers: { "content-type": "application/json", "x-hub-signature-256": `sha256=${createHmac("sha256", secret).update(raw).digest("hex")}` } });
+    };
+    const lead = (id: string, page = "1234567890123") => ({ object: "page", entry: [{ id: page, changes: [{ field: "leadgen", value: { leadgen_id: id, page_id: page } }] }] });
+    expect((await post(lead("LEAD1"), "c".repeat(32))).statusCode).toBe(401); // forged
+    expect((await post(lead("LEAD1"))).json()).toEqual({ stored: 1 });
+    expect((await post(lead("LEAD1"))).json()).toEqual({ stored: 0 }); // Meta sends twice: stored once
+    expect((await post(lead("LEAD9", "999"))).json()).toEqual({ stored: 0 }); // another Page
+    const conv = (await call("GET", "/conversations")).json().find((c: { channel: string }) => c.channel === "facebook");
+    expect(conv).toMatchObject({ name: "Ananya Rao", handle: "+919800011122", city: "Mysuru", unread: true });
+    expect(conv.messages[0].body).toContain("Wedding date: Feb 2027");
+    expect(conv.messages[0].body).toContain("campaign Wedding season");
+    // The same person filling a form again joins their conversation.
+    expect((await post(lead("LEAD2"))).json()).toEqual({ stored: 1 });
+    expect((await call("GET", "/conversations")).json().filter((c: { channel: string }) => c.channel === "facebook")).toHaveLength(1);
+    expect((await call("POST", "/integrations/leadads/disconnect")).json()).toEqual({ connected: false });
+    await deps.db.collection("conversations").deleteMany({ channel: "facebook" }); // keep later alert counts clean
+  });
 
   it("cancels drafts only, keeping them on record", async () => {
     const inv = { companyId: c1, dueAt: "2026-11-13T00:00:00+05:30", supply: "intra", lines: [{ desc: "x", sac: "998391", qty: 1, ratePaise: 100 }] };

@@ -9,7 +9,7 @@ import type { Doc } from "./db";
 import type { Fetch } from "./instagram";
 
 export type WhatsAppKeys = { whatsappPhoneNumberId?: string; whatsappToken?: string; whatsappReminderTemplate?: string; whatsappTemplateLanguage?: string };
-const GRAPH = "https://graph.facebook.com/v21.0";
+const GRAPH = "https://graph.facebook.com/v23.0";
 
 /** Indian numbers saved without the country code get +91; everything else is digits only. */
 export const waNumber = (phone: string) => {

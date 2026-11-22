@@ -521,5 +521,10 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   "Working on now" and links to it; project cards show everyone on the project and pending / completed counts.
 - **Date of the enquiry.** A lead's date can be set when it's added (for enquiries from earlier days) and changed on
   the lead; reports count leads by it. Pipeline client cards show it.
-- **Not built: Meta ads.** Needs the studio's Meta Business account, a Page token and Meta's App Review for lead
-  retrieval (Lead Ads) or ads_read (spend and results). Waiting on which of the two they mean and their setup.
+- **Meta Lead Ads** (the studio meant lead forms). The admin pastes the Page ID and a never-expiring system-user
+  token (leads_retrieval, pages_manage_metadata, pages_manage_ads, pages_read_engagement, pages_show_list) in
+  Settings → Integrations → Facebook Lead Ads; the CRM swaps it for the Page's token, subscribes the Page to
+  `leadgen`, and stores the token server-side only. Meta posts each lead id to `/integrations/leadads/webhook`
+  (signed with the Meta App secret, same verify token); the CRM fetches the answers and files an Inbox lead on the
+  "facebook" channel, routed like other leads, each lead once, with a repeat submitter joining their earlier
+  conversation (by email or phone). Graph API calls moved to v23.0 (v21.0 is past its two-year life).
