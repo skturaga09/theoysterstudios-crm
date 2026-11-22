@@ -88,7 +88,7 @@ beforeAll(async () => {
   // TEST_MONGODB_URI runs the suite against a real (throwaway!) Firestore database; it writes test data.
   const uri = process.env.TEST_MONGODB_URI ?? (rs = await MongoMemoryReplSet.create({ replSet: { count: 1 } })).getUri();
   const { client, db } = await connect(uri);
-  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "notificationPreferences", "calendarFeeds", "portalLinks", "signLinks", "photos", "freelancers", "salaries"].map((c) => db.collection(c).deleteMany({})));
+  if (process.env.TEST_MONGODB_URI) await Promise.all(["companies", "contacts", "deals", "invoices", "counters", "members", "workspace", "tasks", "activities", "routing", "creditNotes", "setup", "integrations", "conversations", "seenMessages", "googleAccounts", "pipelines", "projects", "templates", "quotes", "expenses", "financeSettings", "notifications", "notificationPreferences", "calendarFeeds", "portalLinks", "signLinks", "photos", "freelancers", "salaries", "content"].map((c) => db.collection(c).deleteMany({})));
   await ensureAdmin(db, ADMIN);
   deps = { db, client, supportEmails: [SUPPORT] };
   app = buildApp({ ...deps, verify, fetch: fakeGoogle });
@@ -576,6 +576,28 @@ describe("api", () => {
     expect((await call("GET", "/salaries")).json()).toContainEqual({ memberId: pm.id, monthlyPaise: 45_000_00 });
     expect((await call("GET", "/salaries", undefined, "ok:pm1@gmail.com")).statusCode).toBe(403);
     expect((await call("PUT", "/salaries/nobody", { monthlyPaise: 1 })).statusCode).toBe(404);
+  }, 60_000);
+
+  it("keeps a marketing client's workspace, subscription and content calendar", async () => {
+    await call("POST", "/members", { email: "am1@gmail.com", role: "pm" });
+    await call("POST", "/members", { email: "sales9@gmail.com", role: "sales" });
+    const co = (await call("POST", "/companies", { name: "Jeevaa Hospital", ownerId: "sr", business: "marketing" })).json();
+    // The account manager (a PM) runs the workspace, but not the sales record.
+    const ws = { category: "Hospital", accountStatus: "active", brandAssetsUrl: "https://drive.google.com/x", subscription: { plan: "monthly", services: ["8 reels", "Ads"], startDate: "2026-10-01", renewalDate: "2026-11-01", retainerPaise: 60_000_00, paymentStatus: "paid" } };
+    expect((await call("PATCH", `/companies/${co.id}`, ws, "ok:am1@gmail.com")).json()).toMatchObject(ws);
+    expect((await call("PATCH", `/companies/${co.id}`, { name: "Renamed" }, "ok:am1@gmail.com")).statusCode).toBe(403);
+    expect((await call("DELETE", `/companies/${co.id}`, undefined, "ok:am1@gmail.com")).statusCode).toBe(403);
+    expect((await call("PATCH", `/companies/${co.id}`, { category: "Spa" })).statusCode).toBe(400);
+
+    // Content: add, change status (the kanban), clear a date, delete.
+    const c = (await call("POST", "/content", { companyId: co.id, title: "Heart health tips", type: "Reel", publishDate: "2026-11-22", person: "Dr. Meera" }, "ok:am1@gmail.com")).json();
+    expect(c).toMatchObject({ status: "planning", type: "Reel" });
+    expect((await call("PATCH", `/content/${c.id}`, { status: "approval", publishDate: null }, "ok:am1@gmail.com")).json()).toMatchObject({ status: "approval" });
+    expect((await call("GET", `/content?companyId=${co.id}`)).json()[0].publishDate).toBeUndefined();
+    expect((await call("POST", "/content", { companyId: co.id, title: "x", status: "Trail" })).statusCode).toBe(400);
+    expect((await call("POST", "/content", { companyId: "nope", title: "x" })).statusCode).toBe(422);
+    expect((await call("POST", "/content", { companyId: co.id, title: "x" }, "ok:sales9@gmail.com")).statusCode).toBe(403);
+    expect((await call("DELETE", `/content/${c.id}`, undefined, "ok:am1@gmail.com")).statusCode).toBe(204);
   }, 60_000);
 
   it("cancels drafts only, keeping them on record", async () => {

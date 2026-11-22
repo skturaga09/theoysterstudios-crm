@@ -499,3 +499,17 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   first, searchable) with each of their deals on a stage track: done steps filled, the current one ringed; click
   any step to move the deal there, or use "Move to <next stage>" / "Confirm booking" / "Lost" (with Undo). Each deal
   says its next step in words ("Follow-up overdue by 3 days"). Board and Table stay available.
+
+## Marketing requirements, 22 Nov 2026 ("CRM marketing")
+- **Marketing clients** (`/marketing`): a board of retainer clients in three columns (Active, Onboarding, On hold;
+  drag a card to move it), each card with category, contact person and work status (in production, to publish,
+  late tasks, payment overdue); search and a category filter (Hospital, Doctor / personal branding, Real estate,
+  Clinic, Other business). A client is a marketing client once tagged Marketing or given any workspace detail.
+- **Client workspace**, three tabs. Overview: client information (business type and account status editable),
+  brand assets Drive link, task list with quick add, pending production (planning, shooting, editing) and pending
+  content (client approval, ready to publish). Subscription: monthly / quarterly, services, start and renewal dates
+  (renewal suggested from the plan), retainer, payment status, beside what their invoices still owe. Content
+  calendar: one `content` collection read by an editable table (inline cells, add / delete rows), a month calendar
+  by publish date (click to edit, + on a day to add) and a kanban by status (drag to move); an edit in one view shows
+  in the others at once. Workspace fields live on the company; account managers (projects: edit) may change those
+  fields only, the sales record stays with Sales.

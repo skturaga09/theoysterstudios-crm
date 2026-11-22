@@ -30,6 +30,8 @@ const routes: RouteObject[] = [
       { path: "clients/:id", lazy: async () => ({ Component: (await import("./routes/records/client")).ClientRoute }) },
       // Companies became Clients; old links still work.
       { path: "companies", element: <Navigate to="/clients" replace /> },
+      { path: "marketing", lazy: async () => ({ Component: (await import("./routes/marketing/index")).MarketingClientsRoute }) },
+      { path: "marketing/:id", lazy: async () => ({ Component: (await import("./routes/marketing/index")).MarketingClientRoute }) },
       { path: "contacts", lazy: async () => ({ Component: (await import("./routes/records/contacts")).ContactsRoute }) },
       { path: "quotes", lazy: async () => ({ Component: (await import("./routes/quotes/index")).QuotesRoute }) },
       { path: "quotes/:id", lazy: async () => ({ Component: (await import("./routes/quotes/index")).QuoteRoute }) },

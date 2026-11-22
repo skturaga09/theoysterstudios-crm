@@ -12,6 +12,7 @@ import {
   Gauge,
   FolderKanban,
   Home,
+  Megaphone,
   Inbox,
   KanbanSquare,
   Settings,
@@ -39,6 +40,7 @@ export const NAV: NavSection[] = [
     label: "Records",
     items: [
       { to: "/clients", label: "Clients", icon: Building2, count: "companies", area: "sales" },
+      { to: "/marketing", label: "Marketing clients", icon: Megaphone, area: "projects" },
       { to: "/contacts", label: "Contacts", icon: Users, count: "contacts", area: "sales" },
       { to: "/quotes", label: "Quotations", icon: FileSignature, area: "sales" },
       { to: "/invoices", label: "Invoices", icon: FileText, count: "invoices", area: "finance" },

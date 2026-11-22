@@ -35,6 +35,9 @@ import {
   UpdateQuoteSchema,
   CreateExpenseSchema,
   CreateFreelancerSchema,
+  CreateContentSchema,
+  UpdateContentSchema,
+  WORKSPACE_FIELDS,
   UpdateFreelancerSchema,
   SalarySchema,
   UpdateExpenseSchema,
@@ -636,6 +639,17 @@ export function buildApp({
   records("companies", CreateCompanySchema, UpdateCompanySchema, () => ({ lastActivityAt: now() }), {
     area: "sales",
     owned: true,
+    // Account managers (projects: edit) run marketing clients' workspaces; the sales record stays with Sales.
+    write: (req, next, existing) => {
+      const keys = Object.keys(next);
+      if (existing && keys.length && keys.every((k) => (WORKSPACE_FIELDS as readonly string[]).includes(k)) && access(req, "projects") === "edit") return undefined;
+      const a = access(req, "sales");
+      if (a === "edit") return undefined;
+      if (a !== "own") return denied(req, "sales");
+      if (existing && existing.ownerId !== req.member._id) return "You can only change records you own";
+      if (next.ownerId !== undefined && next.ownerId !== req.member._id) return "Only admins can assign records to someone else";
+      return undefined;
+    },
     // A replaced or removed photo is deleted, and a deleted client takes their photo with them.
     after: async (saved, _req, existing) => {
       if (existing?.photo && existing.photo !== saved.photo) await deletePhoto(db, existing.photo);
@@ -644,6 +658,19 @@ export function buildApp({
     scope: async (req) => {
       const mine = await crewProjects(req);
       return mine && { _id: { $in: mine.map((p) => String(p.companyId)) } };
+    },
+  });
+  /* ---------- Content calendar (marketing clients): one record per post, shared by the table, calendar and kanban ---------- */
+  records("content", CreateContentSchema, UpdateContentSchema, () => ({ createdAt: now() }), {
+    area: "projects",
+    check: async (next, existing) => {
+      if (!existing && !(await db.collection<Doc>("companies").countDocuments({ _id: next.companyId as string }, { limit: 1 }))) return "That client doesn't exist";
+      return undefined;
+    },
+    // Crew see the content of the clients whose projects they're on.
+    scope: async (req) => {
+      const mine = await crewProjects(req);
+      return mine && { companyId: { $in: mine.map((p) => String(p.companyId)) } };
     },
   });
   records("contacts", CreateContactSchema, UpdateContactSchema, () => ({ lastActivityAt: now() }), {

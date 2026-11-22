@@ -1,4 +1,4 @@
-import type { LeadStatus, ExpenseCategory, ScheduleItem, Approval, Business, Channel, DeliverableStatus, Health, Paise, Priority, ProjectStatus, Role, Stage, TaskStatus } from "@pinnacle/shared";
+import type { AccountStatus, PaymentStatus, LeadStatus, ExpenseCategory, ScheduleItem, Approval, Business, Channel, DeliverableStatus, Health, Paise, Priority, ProjectStatus, Role, Stage, TaskStatus } from "@pinnacle/shared";
 
 export type ID = string;
 export type ISO = string;
@@ -35,6 +35,11 @@ export type Company = {
   /** Files and documents kept elsewhere (Drive folders, contracts, shot lists…). */
   links?: { label: string; url: string }[];
   employees?: number;
+  /** Marketing clients: the workspace and the subscription. */
+  category?: string;
+  accountStatus?: AccountStatus;
+  brandAssetsUrl?: string;
+  subscription?: { plan: "monthly" | "quarterly"; services: string[]; startDate?: string; renewalDate?: string; retainerPaise?: number; paymentStatus: PaymentStatus };
 };
 
 export type Contact = {

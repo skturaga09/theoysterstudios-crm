@@ -136,9 +136,23 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
 };
 
 /* ---------- Projects ---------- */
-export const TASK_STATUSES = ["todo", "in_progress", "review", "done"] as const;
+/** "pending" = waiting on someone else (the client, a shoot, footage); still open work. */
+export const TASK_STATUSES = ["todo", "in_progress", "review", "pending", "done"] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
-export const TASK_STATUS_LABEL: Record<TaskStatus, string> = { todo: "To do", in_progress: "In progress", review: "In review", done: "Done" };
+export const TASK_STATUS_LABEL: Record<TaskStatus, string> = { todo: "Not started", in_progress: "In progress", review: "Under review", pending: "Pending", done: "Completed" };
+
+/* ---------- Marketing clients: workspace and content calendar ---------- */
+export const CLIENT_CATEGORIES = ["Hospital", "Doctor / personal branding", "Real estate", "Clinic", "Other business"] as const;
+export const ACCOUNT_STATUSES = ["active", "onboarding", "on_hold"] as const;
+export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
+export const ACCOUNT_STATUS_LABEL: Record<AccountStatus, string> = { active: "Active", onboarding: "Onboarding", on_hold: "On hold" };
+export const PAYMENT_STATUSES = ["paid", "pending", "overdue"] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = { paid: "Paid", pending: "Pending", overdue: "Overdue" };
+export const CONTENT_TYPES = ["Reel", "Carousel", "Static post", "Story", "Video", "Other"] as const;
+export const CONTENT_STATUSES = ["planning", "shooting", "editing", "approval", "ready", "published"] as const;
+export type ContentStatus = (typeof CONTENT_STATUSES)[number];
+export const CONTENT_STATUS_LABEL: Record<ContentStatus, string> = { planning: "Planning", shooting: "Shooting", editing: "Editing", approval: "Client approval", ready: "Ready to publish", published: "Published" };
 export const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
 export type Priority = (typeof PRIORITIES)[number];
 export const PRIORITY_LABEL: Record<Priority, string> = { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" };

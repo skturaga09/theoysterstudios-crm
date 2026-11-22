@@ -3,7 +3,7 @@
  * web bundle doesn't ship zod until forms need it (M1+).
  */
 import { z } from "zod";
-import { APPROVALS, EXPENSE_CATEGORIES, BUSINESSES, CHANNELS, DELIVERABLE_STATUSES, HEALTHS, LEAD_STATUSES, NOTIFICATION_KINDS, PRIORITIES, PROJECT_STATUSES, ROLES, TASK_STATUSES } from "./domain";
+import { ACCOUNT_STATUSES, CLIENT_CATEGORIES, CONTENT_STATUSES, CONTENT_TYPES, PAYMENT_STATUSES, APPROVALS, EXPENSE_CATEGORIES, BUSINESSES, CHANNELS, DELIVERABLE_STATUSES, HEALTHS, LEAD_STATUSES, NOTIFICATION_KINDS, PRIORITIES, PROJECT_STATUSES, ROLES, TASK_STATUSES } from "./domain";
 import { gstState, GSTIN_RE } from "./gst";
 
 /** A stage id from the deal's business pipeline (checked against it by the API). */
@@ -70,8 +70,40 @@ export const CreateCompanySchema = z.object({
     .array(z.object({ label: z.string().trim().min(1, "Name the link").max(80), url: z.string().trim().url("Enter a full web address, starting https://").max(2000) }))
     .max(50)
     .optional(),
+  /** Marketing clients: the workspace (category, where the account stands, brand files) and the subscription. */
+  category: z.enum(CLIENT_CATEGORIES).optional(),
+  accountStatus: z.enum(ACCOUNT_STATUSES).optional(),
+  brandAssetsUrl: z.string().trim().url("Enter a full web address, starting https://").max(2000).nullable().optional(),
+  subscription: z
+    .object({
+      plan: z.enum(["monthly", "quarterly"]),
+      services: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
+      startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      renewalDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      retainerPaise: z.number().int().nonnegative().optional(),
+      paymentStatus: z.enum(PAYMENT_STATUSES).default("pending"),
+    })
+    .optional(),
 });
 export const UpdateCompanySchema = patchOf(CreateCompanySchema);
+/** What account managers (project managers) may change on a client: the workspace, not the sales record. */
+export const WORKSPACE_FIELDS = ["category", "accountStatus", "brandAssetsUrl", "subscription"] as const;
+
+/** One piece of content on a marketing client's calendar. Table, calendar and kanban all read these. */
+const optionalDay = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date").nullable().optional();
+export const CreateContentSchema = z.object({
+  companyId: id,
+  title: z.string().trim().min(1, "Give it a title").max(200),
+  person: z.string().trim().max(80).optional(),
+  type: z.enum(CONTENT_TYPES).default("Reel"),
+  shootDate: optionalDay,
+  publishDate: optionalDay,
+  status: z.enum(CONTENT_STATUSES).default("planning"),
+  driveUrl: z.string().trim().url("Enter a full web address, starting https://").max(2000).nullable().optional(),
+  caption: z.string().trim().max(4000).optional(),
+  position: z.number().optional(),
+});
+export const UpdateContentSchema = patchOf(CreateContentSchema.omit({ companyId: true }));
 
 export const CreateContactSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -108,6 +140,8 @@ export const CreateDealSchema = z.object({
   requirements: optionalText(2000),
   /** When to follow up next; null clears it. */
   nextFollowUpAt: iso.nullable().optional(),
+  /** The date of the enquiry, when it came in before it was entered (defaults to now). Reports count leads by it. */
+  createdAt: iso.optional(),
 });
 export const UpdateDealSchema = patchOf(CreateDealSchema).extend({
   lostReason: optionalText(240),
