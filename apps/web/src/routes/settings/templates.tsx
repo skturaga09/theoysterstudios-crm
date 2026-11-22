@@ -1,4 +1,4 @@
-import { BUSINESS_LABEL, BUSINESSES, PRIORITIES, PRIORITY_LABEL, type Business, type Priority, type ProjectTemplate, type Templates } from "@pinnacle/shared";
+import { ROLE_LABEL, type Role, BUSINESS_LABEL, BUSINESSES, PRIORITIES, PRIORITY_LABEL, type Business, type Priority, type ProjectTemplate, type Templates } from "@pinnacle/shared";
 import { Button, Input, Segmented, Select, toast } from "@pinnacle/ui";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -37,7 +37,7 @@ export function TemplatesRoute() {
     <>
       <SettingsHeader
         title="Project templates"
-        body="When a lead is confirmed, its project starts with this checklist and these deliverables. Days count from the event date (or the confirmation day when there's no event date). Changes apply to new projects."
+        body="When a lead is confirmed, its project starts with this checklist and these deliverables. Days count from the event date (or the confirmation day when there's no event date). A task given to a role (an editor, a performance marketer) goes to whoever in that role has the least open work; the rest go to the project manager. Changes apply to new projects."
       />
       <Segmented label="Business" value={business} onChange={setBusiness} options={BUSINESSES.map((b) => ({ value: b, label: BUSINESS_LABEL[b] }))} className="mb-4" />
       {!canEdit && <p className="t-dense mb-4 rounded-card bg-sunken px-4 py-3 text-ink-2">Only admins and project managers can change the templates.</p>}
@@ -57,6 +57,10 @@ export function TemplatesRoute() {
             </Select>
             <Select aria-label="Priority" value={x.priority} disabled={!canEdit} onChange={(e) => setTask(i, { priority: e.target.value as Priority })} className="w-[100px]">
               {PRIORITIES.map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
+            </Select>
+            <Select aria-label="Who does it" title="Who gets this task on a new project" value={x.role ?? ""} disabled={!canEdit} onChange={(e) => setTask(i, { role: (e.target.value || undefined) as Role | undefined })} className="w-[170px]">
+              <option value="">Project manager</option>
+              {(["editor", "marketer", "pm", "sales", "finance", "crew"] as Role[]).map((r) => <option key={r} value={r}>{r === "pm" ? "A project manager" : `${/^[aeiou]/i.test(ROLE_LABEL[r]) ? "An" : "A"} ${ROLE_LABEL[r].toLowerCase()}`}</option>)}
             </Select>
             <label className="flex items-center gap-1.5 fs-12 text-ink-2">
               <input type="checkbox" checked={!!x.approval} disabled={!canEdit} onChange={(e) => setTask(i, { approval: e.target.checked })} />

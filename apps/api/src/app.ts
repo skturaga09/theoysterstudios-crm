@@ -47,7 +47,7 @@ import {
   TemplatesSchema,
   type Workspace,
 } from "@pinnacle/shared/schemas";
-import { addDays, planProject, routeLead, type RoutingRule, DEFAULT_FINANCE, DEFAULT_NOTIFICATION_PREFERENCES, DEFAULT_SAC, gstState, invoiceTotals as totalsOf, istDay, type FinanceSettings, accessOf, ROLE_LABEL, roleOf, type Area, DEFAULT_PIPELINES, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines, type NotificationPreferences } from "@pinnacle/shared";
+import { addDays, leastBusy, planProject, routeLead, type RoutingRule, DEFAULT_FINANCE, DEFAULT_NOTIFICATION_PREFERENCES, DEFAULT_SAC, gstState, invoiceTotals as totalsOf, istDay, type FinanceSettings, accessOf, ROLE_LABEL, roleOf, type Area, DEFAULT_PIPELINES, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatFull, invoiceTotals, type Business, type InvoiceMath, type Pipelines, type NotificationPreferences } from "@pinnacle/shared";
 import { nameFromEmail, SUPPORT_MEMBER, type Member, type Verify } from "./auth";
 import type { Doc } from "./db";
 import { notify, type Notification, type NotificationPreferencesDoc } from "./notifications";
@@ -203,6 +203,13 @@ export function buildApp({
     const me = req.member._id;
     const viaTasks = (await db.collection<Doc>("tasks").find({ assigneeId: me, projectId: { $exists: true } }, { projection: { projectId: 1 } }).toArray()).map((t) => String(t.projectId));
     return db.collection<Doc>("projects").find({ $or: [{ managerId: me }, { "crew.memberId": me }, { _id: { $in: viaTasks } }] }, { projection: { companyId: 1 } }).toArray();
+  };
+  /** For roles that see only their own work: the clients of their projects and of the tasks given to them. */
+  const crewCompanies = async (req: FastifyRequest) => {
+    const mine = await crewProjects(req);
+    if (!mine) return undefined;
+    const viaTasks = await db.collection<Doc>("tasks").distinct("companyId", { assigneeId: req.member._id, companyId: { $exists: true } });
+    return [...new Set([...mine.map((p) => String(p.companyId)), ...viaTasks.map(String)])];
   };
   const isLastAdmin = async (m: Member) => m.role === "admin" && (await members.countDocuments({ role: "admin", status: { $ne: "removed" } })) <= 1;
 
@@ -690,30 +697,41 @@ export function buildApp({
       if (existing?.photo && existing.photo !== saved.photo) await deletePhoto(db, existing.photo);
     },
     afterDelete: async (c) => deletePhoto(db, c.photo),
+    // Roles without sales access see only the clients they work on (sales "view", e.g. performance marketers, see all).
     scope: async (req) => {
-      const mine = await crewProjects(req);
-      return mine && { _id: { $in: mine.map((p) => String(p.companyId)) } };
+      if (access(req, "sales") !== "none") return undefined;
+      const mine = await crewCompanies(req);
+      return mine && { _id: { $in: mine } };
     },
   });
   /* ---------- Content calendar (marketing clients): one record per post, shared by the table, calendar and kanban ---------- */
   records("content", CreateContentSchema, UpdateContentSchema, () => ({ createdAt: now() }), {
     area: "projects",
-    check: async (next, existing) => {
+    check: async (next, existing, req) => {
       if (!existing && !(await db.collection<Doc>("companies").countDocuments({ _id: next.companyId as string }, { limit: 1 }))) return "That client doesn't exist";
+      const mine = await crewCompanies(req);
+      if (mine && !mine.includes(String(existing?.companyId ?? next.companyId))) return "That's a client you don't work on";
       return undefined;
     },
-    // Crew see the content of the clients whose projects they're on.
+    // Editors, marketers and crew see and update the content of the clients they work on; they can't delete it.
     scope: async (req) => {
-      const mine = await crewProjects(req);
-      return mine && { companyId: { $in: mine.map((p) => String(p.companyId)) } };
+      const mine = await crewCompanies(req);
+      return mine && { companyId: { $in: mine } };
+    },
+    write: (req, next, existing) => {
+      const a = access(req, "projects");
+      if (a === "edit") return undefined;
+      if (a !== "own") return denied(req, "projects");
+      return existing && !Object.keys(next).length ? "Only project managers and owners can delete content" : undefined;
     },
   });
   records("contacts", CreateContactSchema, UpdateContactSchema, () => ({ lastActivityAt: now() }), {
     area: "sales",
     owned: true,
     scope: async (req) => {
-      const mine = await crewProjects(req);
-      return mine && { companyId: { $in: mine.map((p) => String(p.companyId)) } };
+      if (access(req, "sales") !== "none") return undefined;
+      const mine = await crewCompanies(req);
+      return mine && { companyId: { $in: mine } };
     },
   });
   /* ---------- Client photos ---------- */
@@ -814,7 +832,10 @@ export function buildApp({
 
   /** One project per confirmed deal (a unique index makes a second confirmation a no-op), with its checklist. */
   async function startProject(deal: Doc) {
-    const { project, tasks } = projectFromDeal(deal, await getTemplates(), now());
+    // Checklist items meant for a role (an editor, a performance marketer) go to the least busy person in it.
+    const team = (await members.find({ status: { $ne: "removed" } }).toArray()).map((m) => ({ id: m._id, role: m.role, status: m.status }));
+    const open = await db.collection<Doc>("tasks").find({ done: false }, { projection: { assigneeId: 1 } }).toArray();
+    const { project, tasks } = projectFromDeal(deal, await getTemplates(), now(), (role) => leastBusy(team, open.map((t) => ({ assigneeId: String(t.assigneeId) })), role));
     const projectId = new ObjectId().toHexString();
     try {
       await db.collection<Doc>("projects").insertOne({ _id: projectId, ...project });
@@ -911,9 +932,11 @@ export function buildApp({
     const label = new Date(`${next}-15T00:00:00Z`).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
     const { tasks: planned, deliverables } = planProject((await getTemplates()).marketing, { confirmedAt: `${next}-01T06:00:00Z` });
     const managerId = String(p.managerId ?? req.member._id);
+    const team = (await members.find({ status: { $ne: "removed" } }).toArray()).map((m) => ({ id: m._id, role: m.role, status: m.status }));
+    const open = (await db.collection<Doc>("tasks").find({ done: false }, { projection: { assigneeId: 1 } }).toArray()).map((t) => ({ assigneeId: String(t.assigneeId) }));
     if (planned.length)
       await db.collection<Doc>("tasks").insertMany(
-        planned.map((t) => ({ _id: new ObjectId().toHexString(), ...t, title: `${t.title} — ${label}`, status: "todo", done: false, remind: false, links: [], comments: [], business: "marketing", projectId: p._id, dealId: p.dealId, companyId: p.companyId, assigneeId: managerId })),
+        planned.map(({ role, ...t }) => ({ _id: new ObjectId().toHexString(), ...t, title: `${t.title} — ${label}`, status: "todo", done: false, remind: false, links: [], comments: [], business: "marketing", projectId: p._id, dealId: p.dealId, companyId: p.companyId, assigneeId: (role && leastBusy(team, open, role)) || managerId })),
       );
     const saved = await projects.findOneAndUpdate(
       { _id: p._id },
@@ -1350,7 +1373,7 @@ export function buildApp({
   /* ---------- Freelancers: outside crew, with their ID and payments across projects ---------- */
   records("freelancers", CreateFreelancerSchema, UpdateFreelancerSchema, () => ({ createdAt: now() }), {
     area: "projects", // owners and project managers keep the list; Finance and Sales can look; crew can't
-    scope: async (req) => (roleOf(req.member.role) === "crew" ? NOTHING : undefined),
+    scope: async (req) => (access(req, "projects") === "own" ? NOTHING : undefined),
     // An ID number is personal data: only owners see it in full.
     view: (f, req) => (roleOf(req.member.role) === "admin" || typeof f.idNumber !== "string" ? f : { ...f, idNumber: `•••• ${f.idNumber.slice(-4)}` }),
     // A masked number sent back unchanged isn't a new number.

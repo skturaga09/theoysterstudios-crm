@@ -63,14 +63,16 @@ export const HEALTH_LABEL: Record<Health, string> = {
 };
 
 /* ---------- Roles and what each may do ---------- */
-export const ROLES = ["admin", "sales", "pm", "finance", "crew"] as const;
+export const ROLES = ["admin", "sales", "pm", "finance", "editor", "marketer", "crew"] as const;
 export type Role = (typeof ROLES)[number];
-export const ROLE_LABEL: Record<Role, string> = { admin: "Owner / Admin", sales: "Sales", pm: "Project manager", finance: "Finance", crew: "Team / Freelancer" };
+export const ROLE_LABEL: Record<Role, string> = { admin: "Owner / Admin", sales: "Sales", pm: "Project manager", finance: "Finance", editor: "Editor", marketer: "Performance marketer", crew: "Team / Freelancer" };
 export const ROLE_HELP: Record<Role, string> = {
   admin: "Everything, including the team, integrations, stages and templates.",
   sales: "Leads, Inbox, follow-ups and clients they own; sees projects and invoices.",
   pm: "Runs projects, crews and checklists; sees leads and clients.",
   finance: "Invoices, payments and credit notes; sees leads, clients and projects.",
+  editor: "Their edits: the projects and clients they work on, their tasks and the clients' content calendars.",
+  marketer: "Ads and campaigns: their tasks, the clients they work on and their content; sees leads, Inbox and reports.",
   crew: "Only the projects they're on and their own tasks.",
 };
 /** Old role names, from before the five roles. */
@@ -96,6 +98,8 @@ export const ACCESS: Record<Role, Record<Area, Access>> = {
   sales: { sales: "own", projects: "view", finance: "view" },
   pm: { sales: "view", projects: "edit", finance: "none" },
   finance: { sales: "view", projects: "view", finance: "edit" },
+  editor: { sales: "none", projects: "own", finance: "none" },
+  marketer: { sales: "view", projects: "own", finance: "none" },
   crew: { sales: "none", projects: "own", finance: "none" },
 };
 export const accessOf = (role: string, area: Area): Access => ACCESS[roleOf(role)][area];
@@ -176,7 +180,8 @@ export const CREW_ROLES: Record<Business, string[]> = {
  * A project template: the checklist and deliverables every new project of a business starts with.
  * `from` is what a due date counts from — the event (wedding) date or the day the deal was confirmed.
  */
-export type TemplateItem = { title: string; from: "event" | "confirmed"; days: number; priority: Priority; approval?: boolean };
+/** `role`: who does it — the team member with that role who has the least open work; otherwise the project's manager. */
+export type TemplateItem = { title: string; from: "event" | "confirmed"; days: number; priority: Priority; approval?: boolean; role?: Role };
 export type ProjectTemplate = {
   tasks: TemplateItem[];
   deliverables: { name: string; from: "event" | "confirmed"; days: number }[];
@@ -196,10 +201,10 @@ export const DEFAULT_TEMPLATES: Templates = {
       { title: "Equipment check and backups", from: "event", days: -2, priority: "high" },
       { title: "Wedding day coverage", from: "event", days: 0, priority: "urgent" },
       { title: "Back up and cull photos", from: "event", days: 2, priority: "high" },
-      { title: "Edit photos", from: "event", days: 14, priority: "normal" },
-      { title: "Edit wedding film", from: "event", days: 30, priority: "normal" },
+      { title: "Edit photos", from: "event", days: 14, priority: "normal", role: "editor" },
+      { title: "Edit wedding film", from: "event", days: 30, priority: "normal", role: "editor" },
       { title: "Client review and approval", from: "event", days: 35, priority: "normal", approval: true },
-      { title: "Album design", from: "event", days: 45, priority: "normal", approval: true },
+      { title: "Album design", from: "event", days: 45, priority: "normal", approval: true, role: "editor" },
       { title: "Final delivery and balance payment", from: "event", days: 60, priority: "high" },
     ],
     deliverables: [
@@ -215,10 +220,10 @@ export const DEFAULT_TEMPLATES: Templates = {
       { title: "Collect brand assets and account access", from: "confirmed", days: 5, priority: "normal" },
       { title: "Strategy and monthly content calendar", from: "confirmed", days: 10, priority: "high" },
       { title: "Content calendar approval", from: "confirmed", days: 12, priority: "normal", approval: true },
-      { title: "Create the month's creatives", from: "confirmed", days: 20, priority: "normal", approval: true },
-      { title: "Campaign setup", from: "confirmed", days: 21, priority: "normal" },
-      { title: "Publish and monitor", from: "confirmed", days: 30, priority: "normal" },
-      { title: "Monthly report", from: "confirmed", days: 35, priority: "normal" },
+      { title: "Create the month's creatives", from: "confirmed", days: 20, priority: "normal", approval: true, role: "editor" },
+      { title: "Campaign setup", from: "confirmed", days: 21, priority: "normal", role: "marketer" },
+      { title: "Publish and monitor", from: "confirmed", days: 30, priority: "normal", role: "marketer" },
+      { title: "Monthly report", from: "confirmed", days: 35, priority: "normal", role: "marketer" },
       { title: "Plan next month's calendar", from: "confirmed", days: 40, priority: "normal" },
     ],
     deliverables: [

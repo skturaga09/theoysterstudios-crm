@@ -641,6 +641,38 @@ describe("api", () => {
     await deps.db.collection("conversations").deleteMany({ channel: "facebook" }); // keep later alert counts clean
   });
 
+  it("gives editors and performance marketers their own work, and checklist tasks to the right role", async () => {
+    const ed = (await call("POST", "/members", { email: "editor1@gmail.com", role: "editor" })).json();
+    const pm = (await call("POST", "/members", { email: "perf1@gmail.com", role: "marketer" })).json();
+    expect([ed.role, pm.role]).toEqual(["editor", "marketer"]);
+    const mine = (await call("POST", "/companies", { name: "Edit Client", ownerId: "sr", business: "marketing" })).json();
+    const other = (await call("POST", "/companies", { name: "Not Theirs", ownerId: "sr", business: "marketing" })).json();
+    await call("POST", "/tasks", { title: "Edit the launch reel", dueAt: "2026-12-01T18:00:00+05:30", assigneeId: ed.id, companyId: mine.id });
+    const post = (await call("POST", "/content", { companyId: mine.id, title: "Launch reel" })).json();
+    const hidden = (await call("POST", "/content", { companyId: other.id, title: "Secret" })).json();
+
+    // The editor sees only the client they work on, updates its content, can't delete it or touch other clients.
+    expect((await call("GET", "/companies", undefined, "ok:editor1@gmail.com")).json().map((c: { id: string }) => c.id)).toEqual([mine.id]);
+    expect((await call("GET", "/content", undefined, "ok:editor1@gmail.com")).json().map((c: { id: string }) => c.id)).toEqual([post.id]);
+    expect((await call("PATCH", `/content/${post.id}`, { status: "approval", driveUrl: "https://drive.google.com/file/d/abc" }, "ok:editor1@gmail.com")).json()).toMatchObject({ status: "approval" });
+    expect((await call("PATCH", `/content/${hidden.id}`, { status: "approval" }, "ok:editor1@gmail.com")).statusCode).toBe(422);
+    expect((await call("DELETE", `/content/${post.id}`, undefined, "ok:editor1@gmail.com")).statusCode).toBe(403);
+    expect((await call("GET", "/deals", undefined, "ok:editor1@gmail.com")).json()).toEqual([]);
+
+    // The performance marketer sees every client and lead, but can't change leads.
+    const seen = (await call("GET", "/companies", undefined, "ok:perf1@gmail.com")).json().map((c: { id: string }) => c.id);
+    expect(seen).toEqual(expect.arrayContaining([mine.id, other.id]));
+    expect((await call("POST", "/deals", { title: "x", companyId: mine.id, valuePaise: 1, closeAt: "2026-12-01T00:00:00+05:30", ownerId: pm.id, channel: "web" }, "ok:perf1@gmail.com")).statusCode).toBe(403);
+
+    // A confirmed marketing lead: "Create the month's creatives" goes to the editor, "Campaign setup" to the marketer.
+    const d = (await call("POST", "/deals", { title: "Retainer for Edit Client", companyId: mine.id, valuePaise: 1, closeAt: "2026-12-01T00:00:00+05:30", ownerId: "sr", channel: "web", business: "marketing", stage: "won" })).json();
+    const proj = (await call("GET", `/projects?dealId=${d.id}`)).json()[0];
+    const tasks = (await call("GET", `/tasks?projectId=${proj.id}`)).json() as { title: string; assigneeId: string }[];
+    expect(tasks.find((t) => t.title === "Create the month's creatives")?.assigneeId).toBe(ed.id);
+    expect(tasks.find((t) => t.title === "Campaign setup")?.assigneeId).toBe(pm.id);
+    expect(tasks.find((t) => t.title === "Kick-off call and onboarding")?.assigneeId).toBe("sr"); // no role: the manager
+  }, 60_000);
+
   it("cancels drafts only, keeping them on record", async () => {
     const inv = { companyId: c1, dueAt: "2026-11-13T00:00:00+05:30", supply: "intra", lines: [{ desc: "x", sac: "998391", qty: 1, ratePaise: 100 }] };
     const draft = (await call("POST", "/invoices", inv)).json();

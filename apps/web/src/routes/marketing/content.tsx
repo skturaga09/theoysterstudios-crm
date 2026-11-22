@@ -20,7 +20,7 @@ const url = /^https?:\/\/\S+$/;
  * A client's content calendar: the same posts as an editable table, a month calendar by publish date, and a kanban
  * by status. Every view writes to the one list, so a change in one shows in the others straight away.
  */
-export function ContentCalendar({ companyId, canEdit }: { companyId: string; canEdit: boolean }) {
+export function ContentCalendar({ companyId, canEdit, canDelete = canEdit }: { companyId: string; canEdit: boolean; canDelete?: boolean }) {
   const all = useContentItems();
   const [view, setView] = usePref<"table" | "calendar" | "kanban">("content.view", "table");
   const [query, setQuery] = useState("");
@@ -59,7 +59,7 @@ export function ContentCalendar({ companyId, canEdit }: { companyId: string; can
       </div>
 
       {view === "table" ? (
-        <ContentTable items={items} canEdit={canEdit} onOpen={setOpenId} onAdd={() => void add()} />
+        <ContentTable items={items} canEdit={canEdit} canDelete={canDelete} onOpen={setOpenId} onAdd={() => void add()} />
       ) : view === "calendar" ? (
         <ContentMonth items={items} onOpen={setOpenId} onAdd={canEdit ? (d) => void add({ publishDate: d }) : undefined} />
       ) : (
@@ -67,7 +67,7 @@ export function ContentCalendar({ companyId, canEdit }: { companyId: string; can
       )}
 
       <Sheet open={!!open} onOpenChange={(o) => !o && setOpenId(undefined)} eyebrow={open ? `${open.type} · ${CONTENT_STATUS_LABEL[open.status]}` : ""} title={open?.title ?? ""}>
-        {open && <ContentForm key={open.id} item={open} canEdit={canEdit} onDeleted={() => setOpenId(undefined)} />}
+        {open && <ContentForm key={open.id} item={open} canEdit={canEdit} canDelete={canDelete} onDeleted={() => setOpenId(undefined)} />}
       </Sheet>
     </div>
   );
@@ -75,7 +75,7 @@ export function ContentCalendar({ companyId, canEdit }: { companyId: string; can
 
 /* ---------- Table: edit in place, like a spreadsheet ---------- */
 
-function ContentTable({ items, canEdit, onOpen, onAdd }: { items: ContentItem[]; canEdit: boolean; onOpen: (id: string) => void; onAdd: () => void }) {
+function ContentTable({ items, canEdit, canDelete, onOpen, onAdd }: { items: ContentItem[]; canEdit: boolean; canDelete: boolean; onOpen: (id: string) => void; onAdd: () => void }) {
   const head = "px-2 py-2 text-left font-mono fs-10.5 font-normal tracking-wide text-ink-3 uppercase whitespace-nowrap";
   const cell = "h-8 w-full rounded-control border border-transparent bg-transparent px-2 fs-12.5 hover:border-line focus:border-line-2 focus:bg-surface focus:outline-none disabled:hover:border-transparent";
   // Text cells save when you leave them, so typing stays smooth.
@@ -133,7 +133,7 @@ function ContentTable({ items, canEdit, onOpen, onAdd }: { items: ContentItem[];
               <td className="px-1 py-1">{text(c, "caption", "Caption…")}</td>
               <td className="px-1 py-1 whitespace-nowrap">
                 <Button size="icon-sm" variant="ghost" aria-label={`Open ${c.title}`} onClick={() => onOpen(c.id)}><Pencil strokeWidth={1.5} /></Button>
-                {canEdit && <Button size="icon-sm" variant="ghost" aria-label={`Delete ${c.title}`} onClick={() => window.confirm(`Delete “${c.title}”? This can't be undone.`) && removeContent(c.id)}><Trash2 strokeWidth={1.5} /></Button>}
+                {canDelete && <Button size="icon-sm" variant="ghost" aria-label={`Delete ${c.title}`} onClick={() => window.confirm(`Delete “${c.title}”? This can't be undone.`) && removeContent(c.id)}><Trash2 strokeWidth={1.5} /></Button>}
               </td>
             </tr>
           ))}
@@ -252,7 +252,7 @@ function ContentKanban({ items, canEdit, onOpen }: { items: ContentItem[]; canEd
 
 /* ---------- One post, every field ---------- */
 
-function ContentForm({ item: c, canEdit, onDeleted }: { item: ContentItem; canEdit: boolean; onDeleted: () => void }) {
+function ContentForm({ item: c, canEdit, canDelete, onDeleted }: { item: ContentItem; canEdit: boolean; canDelete: boolean; onDeleted: () => void }) {
   const field = "flex flex-col gap-1";
   const lab = "t-meta text-ink-3";
   return (
@@ -291,7 +291,7 @@ function ContentForm({ item: c, canEdit, onDeleted }: { item: ContentItem; canEd
       <label className={field}><span className={lab}>Caption / content text</span>
         <Textarea rows={6} defaultValue={c.caption ?? ""} onBlur={(e) => e.target.value.trim() !== (c.caption ?? "") && updateContent(c.id, { caption: e.target.value.trim() || undefined })} />
       </label>
-      {canEdit && (
+      {canDelete && (
         <Button variant="ghost" className="self-start text-risk" onClick={() => {
           if (!window.confirm(`Delete “${c.title}”? This can't be undone.`)) return;
           removeContent(c.id);

@@ -376,7 +376,7 @@ export const EnquirySchema = z.object({
 export const TaskCommentSchema = z.object({ body: z.string().trim().min(1, "Write a comment").max(2000) });
 
 const TemplateSchema = z.object({
-  tasks: z.array(z.object({ title: z.string().trim().min(1).max(160), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365), priority: z.enum(PRIORITIES), approval: z.boolean().optional() })).max(60),
+  tasks: z.array(z.object({ title: z.string().trim().min(1).max(160), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365), priority: z.enum(PRIORITIES), approval: z.boolean().optional(), role: z.enum(ROLES).optional() })).max(60),
   deliverables: z.array(z.object({ name: z.string().trim().min(1).max(120), from: z.enum(["event", "confirmed"]), days: z.number().int().min(-365).max(365) })).max(30),
   columns: z.array(z.object({ id: smallId, label: z.string().trim().min(1, "Name the column").max(40) })).max(MAX_COLUMNS).optional(),
 });

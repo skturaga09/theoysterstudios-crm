@@ -1,5 +1,6 @@
 import { fmtDate, istDay, ROLE_LABEL, roleOf, TASK_STATUS_LABEL } from "@pinnacle/shared";
-import { Avatar, cn, Pill, type PillTone } from "@pinnacle/ui";
+import { Avatar, cn, Pill, Segmented, type PillTone } from "@pinnacle/ui";
+import { usePref } from "../../lib/hooks";
 import { motion } from "motion/react";
 import { Link } from "react-router";
 import { tile } from "../../components/bento";
@@ -23,6 +24,7 @@ const statusOf = (t: Task) => (t.done ? "done" : (t.status ?? "todo"));
  */
 export function Workload({ header = true }: { header?: boolean }) {
   const s = useCrm();
+  const [role, setRole] = usePref<string>("workload.role", "all");
   const today = istDay(new Date().toISOString());
   const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString();
   const live = s.projects.filter((p) => p.status === "planning" || p.status === "active");
@@ -31,7 +33,7 @@ export function Workload({ header = true }: { header?: boolean }) {
     const c = s.companies.find((x) => x.id === (t.companyId ?? p?.companyId));
     return { p, label: [c?.name, p?.name].filter(Boolean).join(" · ") || "Internal" };
   };
-  const people = s.members.map((m) => {
+  const people = s.members.filter((m) => role === "all" || roleOf(m.role) === role).map((m) => {
     const mine = s.tasks.filter((t) => t.assigneeId === m.id);
     const open = mine.filter((t) => !t.done);
     const first = m.name.split(" ")[0]!.toLowerCase();
@@ -69,6 +71,13 @@ export function Workload({ header = true }: { header?: boolean }) {
           ]}
         />
       )}
+      <Segmented
+        label="Role"
+        value={role}
+        onChange={setRole}
+        className="max-w-full self-start overflow-x-auto"
+        options={[{ value: "all", label: "Everyone" }, ...[...new Set(s.members.map((m) => roleOf(m.role)))].map((r) => ({ value: r as string, label: ROLE_LABEL[r] }))]}
+      />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
         {people.map((x, i) => <PersonCard key={x.m.id} x={x} i={i} where={where} />)}
       </div>
@@ -89,7 +98,7 @@ function PersonCard({ x, i, where }: { x: { m: Member; load: Load; shoot?: { id:
         <Avatar name={x.m.name} me={x.m.id === ME_ID} size="lg" />
         <div className="min-w-0 flex-1">
           <p className="m-0 truncate font-medium">{x.m.name}</p>
-          <p className="m-0 truncate fs-12 text-ink-3">{x.m.title || ROLE_LABEL[roleOf(x.m.role)]}</p>
+          <p className="m-0 truncate fs-12 text-ink-3">{[ROLE_LABEL[roleOf(x.m.role)], x.m.title].filter(Boolean).join(" · ")}</p>
         </div>
         <Pill tone={LOAD[x.load].tone}>{LOAD[x.load].label}</Pill>
       </header>

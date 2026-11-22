@@ -1,4 +1,4 @@
-import { BUSINESS_SHORT, fmtDay, istDay, PRIORITIES, PRIORITY_LABEL, TASK_STATUSES, TASK_STATUS_LABEL, type Priority, type TaskStatus } from "@pinnacle/shared";
+import { BUSINESS_SHORT, fmtDay, istDay, ROLE_LABEL, roleOf, PRIORITIES, PRIORITY_LABEL, TASK_STATUSES, TASK_STATUS_LABEL, type Priority, type TaskStatus } from "@pinnacle/shared";
 import { Avatar, Button, Checkbox, cn, Input, Pill, Segmented, Select, StrikeText, toast, Tooltip } from "@pinnacle/ui";
 import { Bell, BellOff, CheckSquare, Columns3, List, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
@@ -52,7 +52,7 @@ export function TasksRoute() {
   useCreateAction(() => useUi.getState().openComposer("task"));
 
   const visible = tasks
-    .filter((t) => who === "all" || t.assigneeId === (who === "me" ? ME_ID : who))
+    .filter((t) => who === "all" || (who.startsWith("role:") ? roleOf(s.members.find((m) => m.id === t.assigneeId)?.role ?? "") === who.slice(5) : t.assigneeId === (who === "me" ? ME_ID : who)))
     .filter((t) => priority === "any" || (t.priority ?? "normal") === priority)
     .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt));
   // Done: most recently completed first.
@@ -107,7 +107,12 @@ export function TasksRoute() {
         <Select aria-label="Whose tasks" value={who} onChange={(e) => setWho(e.target.value)} className="w-[170px]">
           <option value="all">Everyone</option>
           <option value="me">My work</option>
-          {s.members.filter((m) => m.id !== ME_ID).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          <optgroup label="By role">
+            {[...new Set(s.members.map((m) => roleOf(m.role)))].map((r) => <option key={r} value={`role:${r}`}>All {ROLE_LABEL[r].toLowerCase()}s</option>)}
+          </optgroup>
+          <optgroup label="Person">
+            {s.members.filter((m) => m.id !== ME_ID).map((m) => <option key={m.id} value={m.id}>{m.name} · {ROLE_LABEL[roleOf(m.role)]}</option>)}
+          </optgroup>
         </Select>
         <Select aria-label="Priority" value={priority} onChange={(e) => setPriority(e.target.value as "any" | Priority)} className="w-[10.5em]">
           <option value="any">Any priority</option>

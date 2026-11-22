@@ -190,7 +190,7 @@ export function MarketingClientRoute() {
   const c = useCrm((s) => s.companies.find((x) => x.id === id));
   const contact = useCrm((s) => s.contacts.find((x) => x.companyId === id));
   const canRun = useCanRun(c);
-  const canContent = useAccess("projects") === "edit";
+  const projectsAccess = useAccess("projects");
   const [params, setParams] = useSearchParams();
   const tab = (params.get("tab") as Tab) || "overview";
   if (!c) return <EmptyState icon={Megaphone} title="Client not found" body="It may have been removed, or the link is old." action={<Button asChild><Link to="/marketing">All marketing clients</Link></Button>} />;
@@ -219,7 +219,7 @@ export function MarketingClientRoute() {
         className="self-start"
         options={[{ value: "overview", label: "Overview" }, { value: "subscription", label: "Subscription" }, { value: "content", label: "Content calendar" }]}
       />
-      {tab === "overview" ? <Overview c={c} canRun={canRun} /> : tab === "subscription" ? <Subscription key={c.id} c={c} canRun={canRun} /> : <ContentCalendar companyId={c.id} canEdit={canContent} />}
+      {tab === "overview" ? <Overview c={c} canRun={canRun} /> : tab === "subscription" ? <Subscription key={c.id} c={c} canRun={canRun} /> : <ContentCalendar companyId={c.id} canEdit={projectsAccess === "edit" || projectsAccess === "own"} canDelete={projectsAccess === "edit"} />}
     </div>
   );
 }

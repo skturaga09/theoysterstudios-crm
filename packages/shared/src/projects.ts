@@ -1,11 +1,11 @@
-import type { Business, Priority, ProjectTemplate } from "./domain";
+import type { Business, Priority, ProjectTemplate, Role } from "./domain";
 
 const DAY = 86_400_000;
 /** The IST calendar day (YYYY-MM-DD) of an instant. */
 export const istDay = (at: string | Date) => new Date(new Date(at).getTime() + 5.5 * 3_600_000).toISOString().slice(0, 10);
 export const addDays = (day: string, n: number) => new Date(Date.parse(`${day}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
 
-export type PlannedTask = { title: string; dueAt: string; priority: Priority; approval: "none" | "pending" };
+export type PlannedTask = { title: string; dueAt: string; priority: Priority; approval: "none" | "pending"; role?: Role };
 export type PlannedDeliverable = { id: string; name: string; dueDate: string; status: "pending" };
 
 /**
@@ -26,6 +26,7 @@ export function planProject(template: ProjectTemplate, { confirmedAt, eventDate 
     dueAt: `${dueDay(t.from, t.days)}T18:00:00+05:30`,
     priority: t.priority,
     approval: t.approval ? "pending" : "none",
+    ...(t.role && { role: t.role }),
   }));
   const deliverables: PlannedDeliverable[] = template.deliverables.map((d, i) => ({ id: `d${i + 1}`, name: d.name, dueDate: dueDay(d.from, d.days), status: "pending" }));
   return { tasks, deliverables };
@@ -38,7 +39,8 @@ export const firstEvents = (business: Business, eventDate?: string, venue?: stri
 type DealLike = { _id?: string; id?: string; title?: unknown; business?: unknown; companyId?: unknown; ownerId?: unknown; wonAt?: unknown; eventDate?: unknown; location?: unknown };
 
 /** The project and checklist a confirmed deal starts (ids are added by whoever saves them). */
-export function projectFromDeal(deal: DealLike, templates: Record<Business, ProjectTemplate>, now = new Date().toISOString()) {
+/** `pick(role)`: who should do a task meant for a role (e.g. the least busy editor); none → the project's manager. */
+export function projectFromDeal(deal: DealLike, templates: Record<Business, ProjectTemplate>, now = new Date().toISOString(), pick?: (role: Role) => string | undefined) {
   const business = (deal.business ?? "photography") as Business;
   const dealId = String(deal._id ?? deal.id);
   const confirmedAt = String(deal.wonAt ?? now);
@@ -61,7 +63,7 @@ export function projectFromDeal(deal: DealLike, templates: Record<Business, Proj
       links: [] as { label: string; url: string }[],
       createdAt: now,
     },
-    tasks: tasks.map((t) => ({ ...t, status: "todo" as const, done: false, remind: false, links: [], comments: [], business, dealId, assigneeId: ownerId })),
+    tasks: tasks.map(({ role, ...t }) => ({ ...t, status: "todo" as const, done: false, remind: false, links: [], comments: [], business, dealId, assigneeId: (role && pick?.(role)) || ownerId })),
   };
 }
 
@@ -74,4 +76,12 @@ export function deliveryWindow(selectionDate?: string): { from: string; to: stri
   if (!selectionDate) return undefined;
   const plus = (weeks: number) => new Date(Date.parse(`${selectionDate}T12:00:00Z`) + weeks * 7 * 86400_000).toISOString().slice(0, 10);
   return { from: plus(SELECTION_WEEKS[0]), to: plus(SELECTION_WEEKS[1]) };
+}
+
+/** The least busy active member with a role, for work the checklist gives to a role. */
+export function leastBusy(members: { id: string; role: string; status?: string }[], openTasks: { assigneeId: string }[], role: Role) {
+  return members
+    .filter((m) => m.role === role && m.status !== "removed")
+    .map((m) => ({ id: m.id, n: openTasks.filter((t) => t.assigneeId === m.id).length }))
+    .sort((a, b) => a.n - b.n)[0]?.id;
 }

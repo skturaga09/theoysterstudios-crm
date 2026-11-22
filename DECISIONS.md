@@ -528,3 +528,12 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   (signed with the Meta App secret, same verify token); the CRM fetches the answers and files an Inbox lead on the
   "facebook" channel, routed like other leads, each lead once, with a repeat submitter joining their earlier
   conversation (by email or phone). Graph API calls moved to v23.0 (v21.0 is past its two-year life).
+- **Editor and Performance marketer roles** (added 22 Nov 2026 at the client's request). Editor: like Team /
+  Freelancer — only the projects and clients they work on (their projects, or any task given to them for that
+  client), their tasks, and those clients' content calendars, which they may update but not delete; no leads or
+  money. Performance marketer: the same own-work access to projects and content, plus read-only leads, Inbox,
+  clients and Reports. Project templates have "Who does it" per task: a task given to a role goes to the active
+  person in that role with the fewest open tasks when a project starts (and in each new marketing month), otherwise
+  to the project manager; defaults give editing work to editors and campaign setup, publishing and the monthly
+  report to performance marketers. Tasks can be filtered by role, the Workload view by role, and the Playbook has
+  a daily routine for each. Templates already saved by the studio keep "Project manager" until they choose.

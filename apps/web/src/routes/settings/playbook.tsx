@@ -93,6 +93,29 @@ const DAYS: Record<Role, { label: string; day: Day }> = {
       ],
     },
   },
+  editor: {
+    label: "Editor",
+    day: {
+      morning: [<>Open <L to="/tasks">Tasks</L>, My work: your edits by due date, overdue first.</>],
+      during: [
+        "Set the edit you're working on to In progress, so the team sees what you're cutting.",
+        "Paste the Drive link of each draft on the task, then set it to Under review.",
+        <>For marketing clients, update the post in the client's <L to="/marketing">content calendar</L>: link, caption and status (Editing → Client approval).</>,
+      ],
+      weekly: ["Mark finished edits Completed, and check next week's deadlines."],
+    },
+  },
+  marketer: {
+    label: "Performance marketer",
+    day: {
+      morning: [<>Open <L to="/tasks">Tasks</L>, My work, then check new Lead Ads leads in the <L to="/inbox">Inbox</L>.</>],
+      during: [
+        "Set the campaign you're working on to In progress; mark launches Under review for approval.",
+        <>Keep each client's <L to="/marketing">content calendar</L> current: what's ready to publish and when.</>,
+      ],
+      weekly: [<>Check <L to="/reports">Reports</L>: where leads came from and what converted.</>, "Post the client's monthly report task when it's done."],
+    },
+  },
   crew: {
     label: "Team",
     day: {

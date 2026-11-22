@@ -3,7 +3,7 @@
  * deals, invoices, tasks and activity (see sync.ts); mutations update the screen first, then save to the API
  * and roll back if that fails. The inbox is still local-only until the channels are connected.
  */
-import { DEFAULT_FINANCE, type FinanceSettings, accessOf, type Area, DEFAULT_TEMPLATES, projectFromDeal, type Templates, formatCompact, type Business, type BusinessView, type RoutingRule, type Stage, DEFAULT_PIPELINES, stageIn, type Pipelines } from "@pinnacle/shared";
+import { DEFAULT_FINANCE, type FinanceSettings, accessOf, type Area, DEFAULT_TEMPLATES, projectFromDeal, leastBusy, type Templates, formatCompact, type Business, type BusinessView, type RoutingRule, type Stage, DEFAULT_PIPELINES, stageIn, type Pipelines } from "@pinnacle/shared";
 import { create } from "zustand";
 import {
   ACTIVITIES,
@@ -242,7 +242,7 @@ const raw = create<CrmState>((set, get) => ({
     // Confirmed: the API starts the project and its checklist; show them (the demo builds them here).
     if (stage === "won" && !get().projects.some((p) => p.dealId === id)) {
       if (IS_DEMO) {
-        const { project, tasks } = projectFromDeal(moved, get().templates);
+        const { project, tasks } = projectFromDeal(moved, get().templates, undefined, (role) => leastBusy(get().members, get().tasks.filter((t) => !t.done), role));
         const projectId = uid("p");
         set({ projects: [{ ...project, id: projectId }, ...get().projects], tasks: [...tasks.map((t) => ({ ...t, id: uid("t"), projectId })), ...get().tasks] });
         toast(`Project started · ${tasks.length} tasks from the checklist`);
