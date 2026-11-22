@@ -11,3 +11,4 @@ export * from "./finance";
 export * from "./analytics";
 export * from "./gstr1";
 export * from "./journey";
+export * from "./embed";

@@ -973,6 +973,13 @@ export function buildApp({
       }
       if (t.assigneeId !== existing?.assigneeId)
         await notify(db, [String(t.assigneeId)], { kind: "task", text: `${req.member.name} gave you a task: ${t.title}`, link: t.projectId ? `/projects/${t.projectId}` : "/tasks" }, req.member._id);
+      // Handed in for review: the project's manager (or the client's owner) is asked to look.
+      if (existing && t.status === "review" && existing.status !== "review") {
+        const project = t.projectId ? await db.collection<Doc>("projects").findOne({ _id: String(t.projectId) }) : null;
+        const company = !project && t.companyId ? await db.collection<Doc>("companies").findOne({ _id: String(t.companyId) }) : null;
+        const reviewer = (project?.managerId ?? company?.ownerId) as string | undefined;
+        if (reviewer) await notify(db, [reviewer], { kind: "approval", text: `${req.member.name} sent “${t.title}” for review`, link: t.projectId ? `/projects/${t.projectId}` : "/tasks" }, req.member._id);
+      }
     },
     // Admins and project managers run every task; everyone else updates the ones given to them.
     write: (req, next, existing) => {
@@ -984,6 +991,9 @@ export function buildApp({
     // Ticking a task done and moving it to "Done" are the same thing. Who finished it and when is recorded here,
     // by the server (not the device's clock); reopening clears both.
     check: async (next, existing, req) => {
+      // Adding a link to work in progress hands it in for review (unless the change says otherwise).
+      const added = Array.isArray(next.links) && next.links.length > ((existing?.links as unknown[] | undefined)?.length ?? 0);
+      if (added && existing && !existing.done && next.status === undefined && next.done === undefined && existing.status !== "review") next.status = "review";
       if (next.status !== undefined) next.done = next.status === "done";
       else if (next.done !== undefined) next.status = next.done ? "done" : "todo";
       if (next.done === true && !existing?.done) Object.assign(next, { doneAt: now(), doneBy: req.member._id });

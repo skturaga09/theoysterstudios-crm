@@ -537,3 +537,9 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   to the project manager; defaults give editing work to editors and campaign setup, publishing and the monthly
   report to performance marketers. Tasks can be filtered by role, the Workload view by role, and the Playbook has
   a daily routine for each. Templates already saved by the studio keep "Project manager" until they choose.
+- **Work links on every task, previewed in the CRM.** Any task (Tasks page, project checklist, client workspace) has
+  Work links: paste a Drive / YouTube / Vimeo / Instagram / file link (and an optional name) and it plays or shows
+  inside the CRM in a full-screen viewer (`embedOf` turns share links into embeddable players; anything else
+  opens in a new tab). Adding a link to an open task moves it to Under review, and the project's manager (or the
+  client's owner) gets an approval notification. Content-calendar links preview the same way. Drive files play
+  only for people they're shared with, or "anyone with the link". Links only: files stay in Drive.

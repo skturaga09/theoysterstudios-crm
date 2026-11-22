@@ -1,11 +1,12 @@
 import { BUSINESS_SHORT, fmtDay, istDay, ROLE_LABEL, roleOf, PRIORITIES, PRIORITY_LABEL, TASK_STATUSES, TASK_STATUS_LABEL, type Priority, type TaskStatus } from "@pinnacle/shared";
 import { Avatar, Button, Checkbox, cn, Input, Pill, Segmented, Select, StrikeText, toast, Tooltip } from "@pinnacle/ui";
-import { Bell, BellOff, CheckSquare, Columns3, List, Plus } from "lucide-react";
+import { Bell, BellOff, CheckSquare, Columns3, Link2, List, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { ClientPhoto } from "../../components/client-photo";
 import { PageHeader } from "../../components/page-header";
 import { DoneBy } from "../../components/done-by";
+import { TaskLinks } from "../../components/task-links";
 import { taskGroup, type TaskGroup } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
 import { useCanAssign, useCrm } from "../../data/store";
@@ -274,6 +275,8 @@ const PRIORITY_TEXT = { urgent: "text-risk", high: "text-warn", normal: "text-in
 
 function TaskRow({ t }: { t: Task }) {
   const { toggle, finishing, done, company, deal, project } = useTaskBits(t);
+  const [linksOpen, setLinksOpen] = useState(false);
+  const n = t.links?.length ?? 0;
   const members = useCrm((s) => s.members);
   const canAssign = useCanAssign();
   const g = taskGroup(t);
@@ -316,7 +319,22 @@ function TaskRow({ t }: { t: Task }) {
       <Select aria-label={`Who does ${t.title}`} disabled={!canAssign && t.assigneeId !== ME_ID} value={t.assigneeId} onChange={(e) => upd({ assigneeId: e.target.value })} className={cn("w-[10.5em]", small)}>
         {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
       </Select>
+      <button
+        type="button"
+        onClick={() => setLinksOpen((o) => !o)}
+        aria-expanded={linksOpen}
+        aria-label={`Work links for ${t.title}`}
+        title="Work links: paste a draft or final, preview it here"
+        className={cn("inline-flex h-7 items-center gap-1 rounded-control px-1.5 fs-11.5 hover:bg-hover", n ? "text-signal" : "text-ink-3")}
+      >
+        <Link2 size={14} strokeWidth={1.5} />{n > 0 && n}
+      </button>
       <RemindToggle t={t} />
+      {linksOpen && (
+        <div className="mt-1 mb-1 basis-full rounded-card bg-sunken p-2.5 pl-9">
+          <TaskLinks t={t} canEdit={canAssign || t.assigneeId === ME_ID} compact />
+        </div>
+      )}
     </motion.li>
   );
 }

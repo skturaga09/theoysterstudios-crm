@@ -1,9 +1,10 @@
 import { CONTENT_STATUS_LABEL, CONTENT_STATUSES, CONTENT_TYPES, fmtDate, istDay, type ContentStatus } from "@pinnacle/shared";
 import { Button, cn, Input, Segmented, Select, Sheet, Textarea, toast } from "@pinnacle/ui";
-import { CalendarDays, ChevronLeft, ChevronRight, Columns3, ExternalLink, Pencil, Plus, Search, Table2, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Columns3, Pencil, Plus, Search, Table2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { addContent, removeContent, updateContent, useContentItems, type ContentItem } from "../../data/content";
 import { usePref } from "../../lib/hooks";
+import { PreviewLink } from "../../components/task-links";
 
 /** Each status's colour, used by the table, calendar and kanban alike. */
 export const STATUS_STYLE: Record<ContentStatus, string> = {
@@ -127,7 +128,7 @@ function ContentTable({ items, canEdit, canDelete, onOpen, onAdd }: { items: Con
                     if (v && !url.test(v)) return toast("Paste a full link, starting https://");
                     updateContent(c.id, { driveUrl: v || undefined });
                   }} />
-                  {c.driveUrl && <a href={c.driveUrl} target="_blank" rel="noreferrer" aria-label="Open the material" className="grid size-7 shrink-0 place-items-center text-ink-3 hover:text-ink"><ExternalLink size={13} strokeWidth={1.5} /></a>}
+                  {c.driveUrl && <PreviewLink url={c.driveUrl} label={c.title} />}
                 </span>
               </td>
               <td className="px-1 py-1">{text(c, "caption", "Caption…")}</td>
@@ -285,7 +286,7 @@ function ContentForm({ item: c, canEdit, canDelete, onDeleted }: { item: Content
             if (v && !url.test(v)) return toast("Paste a full link, starting https://");
             updateContent(c.id, { driveUrl: v || undefined });
           }} />
-          {c.driveUrl && <Button asChild size="icon-sm" variant="ghost"><a href={c.driveUrl} target="_blank" rel="noreferrer" aria-label="Open the material"><ExternalLink strokeWidth={1.5} /></a></Button>}
+          {c.driveUrl && <PreviewLink url={c.driveUrl} label={c.title} className="size-8" />}
         </span>
       </label>
       <label className={field}><span className={lab}>Caption / content text</span>

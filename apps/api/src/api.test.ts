@@ -671,6 +671,17 @@ describe("api", () => {
     expect(tasks.find((t) => t.title === "Create the month's creatives")?.assigneeId).toBe(ed.id);
     expect(tasks.find((t) => t.title === "Campaign setup")?.assigneeId).toBe(pm.id);
     expect(tasks.find((t) => t.title === "Kick-off call and onboarding")?.assigneeId).toBe("sr"); // no role: the manager
+
+    // The editor pastes the draft's link on their task: it goes to Under review and the manager hears about it.
+    const creatives = tasks.find((t) => t.title === "Create the month's creatives") as unknown as { id: string };
+    await call("PATCH", `/projects/${proj.id}`, { managerId: (await call("GET", "/me")).json().id }); // the signed-in owner manages it
+    await call("PATCH", `/tasks/${creatives.id}`, { status: "in_progress" }, "ok:editor1@gmail.com");
+    const handed = (await call("PATCH", `/tasks/${creatives.id}`, { links: [{ label: "Draft v1", url: "https://drive.google.com/file/d/1Draft/view" }] }, "ok:editor1@gmail.com")).json();
+    expect(handed).toMatchObject({ status: "review", done: false });
+    expect((await call("GET", "/notifications")).json().some((n: { kind: string; text: string }) => n.kind === "approval" && n.text.includes("sent “Create the month's creatives” for review"))).toBe(true);
+    // Removing a link, or a second link once in review, doesn't move it again; Completed stays Completed.
+    expect((await call("PATCH", `/tasks/${creatives.id}`, { status: "done" })).json().status).toBe("done");
+    expect((await call("PATCH", `/tasks/${creatives.id}`, { links: [{ label: "Draft v1", url: "https://drive.google.com/file/d/1Draft/view" }, { label: "Final", url: "https://youtu.be/dQw4w9WgXcQ" }] })).json().status).toBe("done");
   }, 60_000);
 
   it("cancels drafts only, keeping them on record", async () => {

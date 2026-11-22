@@ -16,7 +16,7 @@ import {
   type PaymentStatus,
 } from "@pinnacle/shared";
 import { Avatar, Button, cn, Input, Pill, Segmented, Select, toast, type PillTone } from "@pinnacle/ui";
-import { ArrowLeft, ChevronRight, ExternalLink, FolderOpen, Mail, Megaphone, Phone, Plus, Search } from "lucide-react";
+import { ArrowLeft, ChevronRight, ExternalLink, FolderOpen, Link2, Mail, Megaphone, Phone, Plus, Search } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
@@ -34,6 +34,7 @@ import { api } from "../../lib/api";
 import { IS_DEMO } from "../../lib/demo";
 import { useUi } from "../../lib/ui-store";
 import { ContentCalendar, STATUS_STYLE } from "./content";
+import { TaskLinks } from "../../components/task-links";
 
 const STATUS_TONE: Record<AccountStatus, PillTone> = { active: "ok", onboarding: "warn", on_hold: "risk" };
 const PAY_TONE: Record<PaymentStatus, PillTone> = { paid: "ok", pending: "warn", overdue: "risk" };
@@ -327,6 +328,8 @@ function ContentList({ items, empty, date }: { items: ContentItem[]; empty: stri
 
 function TaskList({ c, tasks }: { c: Company; tasks: ReturnType<ReturnType<typeof useWork>>["tasks"] }) {
   const members = useCrm((s) => s.members);
+  const canProjects = useAccess("projects");
+  const [open, setOpen] = useState<string>();
   const [title, setTitle] = useState("");
   const [who, setWho] = useState(ME_ID);
   const [due, setDue] = useState(istDay(new Date().toISOString()));
@@ -339,12 +342,15 @@ function TaskList({ c, tasks }: { c: Company; tasks: ReturnType<ReturnType<typeo
           const m = members.find((x) => x.id === t.assigneeId);
           const late = istDay(t.dueAt) < today;
           const st = t.status ?? "todo";
+          const n = t.links?.length ?? 0;
           return (
-            <li key={t.id} className="flex items-center gap-2.5 border-b border-line py-2 last:border-0">
-              <span className="t-dense min-w-0 flex-1 truncate">{t.title}</span>
+            <li key={t.id} className="flex flex-wrap items-center gap-2.5 border-b border-line py-2 last:border-0">
+              <button type="button" onClick={() => setOpen(open === t.id ? undefined : t.id)} aria-expanded={open === t.id} className="t-dense min-w-0 flex-1 truncate text-left hover:underline">{t.title}</button>
+              <button type="button" onClick={() => setOpen(open === t.id ? undefined : t.id)} aria-label={`Work links for ${t.title}`} className={cn("inline-flex items-center gap-0.5 fs-11", n ? "text-signal" : "text-ink-3")}><Link2 size={13} strokeWidth={1.5} />{n > 0 && n}</button>
               {m && <Avatar name={m.name} me={m.id === ME_ID} size="sm" />}
               <span className={cn("shrink-0 text-right font-mono fs-11 whitespace-nowrap", late ? "text-risk" : "text-ink-3")}>{new Date(t.dueAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "Asia/Kolkata" })}</span>
               <Pill tone={st === "in_progress" ? "new" : st === "review" ? "warn" : st === "pending" ? "risk" : "mute"}>{TASK_STATUS_LABEL[st]}</Pill>
+              {open === t.id && <div className="basis-full rounded-card bg-sunken p-2.5"><TaskLinks t={t} canEdit={canProjects === "edit" || t.assigneeId === ME_ID} compact /></div>}
             </li>
           );
         })}

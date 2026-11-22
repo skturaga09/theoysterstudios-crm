@@ -37,6 +37,7 @@ import { motion } from "motion/react";
 import { BUSINESS_TEXT, BusinessIcon } from "../../components/business-icon";
 import { PageHeader } from "../../components/page-header";
 import { DoneBy } from "../../components/done-by";
+import { TaskLinks } from "../../components/task-links";
 import { Timeline } from "../../components/deal/timeline";
 import { ME_ID } from "../../data/seed";
 import { DealPayments } from "../../components/deal/deal-money";
@@ -675,7 +676,7 @@ function Checklist({ p, tasks, canEdit }: { p: Project; tasks: Task[]; canEdit: 
                       <Input type="date" value={istDay(t.dueAt)} onChange={(e) => e.target.value && upd({ dueAt: dueOn(e.target.value) })} />
                     </label>
                   </fieldset>
-                  <TaskAttachments t={t} canEdit={mine} />
+                  <TaskLinks t={t} canEdit={mine} />
                   <Comments t={t} />
                 </div>
               )}
@@ -1106,34 +1107,3 @@ function ClientUpdates({ p }: { p: Project }) {
 }
 
 /** Attachments on a task: links to files kept in Drive or elsewhere (raw folders, edits, reference images). */
-function TaskAttachments({ t, canEdit }: { t: Task; canEdit: boolean }) {
-  const [draft, setDraft] = useState({ label: "", url: "" });
-  const links = t.links ?? [];
-  const save = (next: { label: string; url: string }[]) => useCrm.getState().updateTask(t.id, { links: next });
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span className="t-meta text-ink-3">Attachments</span>
-      {links.map((l, i) => (
-        <span key={i} className="flex items-center gap-2">
-          <a href={l.url} target="_blank" rel="noreferrer" className="t-dense min-w-0 flex-1 truncate hover:underline"><ExternalLink size={12} strokeWidth={1.5} className="mr-1 inline text-ink-3" />{l.label}</a>
-          {canEdit && <Button size="icon-sm" variant="ghost" aria-label={`Remove ${l.label}`} onClick={() => save(links.filter((_, k) => k !== i))}><Trash2 strokeWidth={1.5} /></Button>}
-        </span>
-      ))}
-      {canEdit && (
-        <form
-          className="flex flex-wrap gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (!draft.label.trim() || !/^https?:\/\/\S+$/.test(draft.url.trim())) return toast("Name the file and paste a full link, starting https://");
-            save([...links, { label: draft.label.trim(), url: draft.url.trim() }]);
-            setDraft({ label: "", url: "" });
-          }}
-        >
-          <Input aria-label="Attachment name" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} placeholder="Name, e.g. Selects v2" className="h-8 w-[160px]" />
-          <Input aria-label="Attachment link" value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="Drive or file link" className="h-8 min-w-0 flex-1 basis-[160px]" />
-          <Button type="submit" size="sm">Attach</Button>
-        </form>
-      )}
-    </div>
-  );
-}
