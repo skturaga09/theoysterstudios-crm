@@ -513,3 +513,13 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   by publish date (click to edit, + on a day to add) and a kanban by status (drag to move); an edit in one view shows
   in the others at once. Workspace fields live on the company; account managers (projects: edit) may change those
   fields only, the sales record stays with Sales.
+- **Team and project tracking.** Task statuses are now Not started, In progress, Under review, Pending (waiting on
+  someone else) and Completed. Team & freelancers opens on **Workload**: a card per person with what they're
+  working on now (their In progress tasks, so each editor's current film, highlight, teaser or reel; or today's
+  function), open / overdue / under review / pending / done in 7 days, their projects, and whether they're
+  Available, Busy, Overloaded (3+ overdue or 10+ open) or On a shoot today. The Owner dashboard's team table adds
+  "Working on now" and links to it; project cards show everyone on the project and pending / completed counts.
+- **Date of the enquiry.** A lead's date can be set when it's added (for enquiries from earlier days) and changed on
+  the lead; reports count leads by it. Pipeline client cards show it.
+- **Not built: Meta ads.** Needs the studio's Meta Business account, a Page token and Meta's App Review for lead
+  retrieval (Lead Ads) or ads_read (spend and results). Waiting on which of the two they mean and their setup.

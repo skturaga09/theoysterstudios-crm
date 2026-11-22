@@ -12,6 +12,7 @@ import { loadPeople, saveFreelancer, setSalary, usePeople } from "../../data/peo
 import { useAccess, useCrm } from "../../data/store";
 import type { Freelancer } from "../../data/types";
 import { usePref } from "../../lib/hooks";
+import { Workload } from "./workload";
 
 const monthLabel = (m: string) => new Date(`${m}-01T12:00:00Z`).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 const lastMonths = (n: number) => {
@@ -41,17 +42,20 @@ export function TeamRoute() {
   const canEdit = useAccess("projects") === "edit";
   const loaded = usePeople((p) => p.loaded);
   const freelancers = usePeople((p) => p.freelancers);
-  const [tab, setTab] = usePref<"freelancers" | "salaries">("team.tab", "freelancers");
+  const [tab, setTab] = usePref<"workload" | "freelancers" | "salaries">("team.tab", "workload");
   useEffect(() => void loadPeople(canPay), [canPay]);
-  const shown = canPay ? tab : "freelancers";
+  const shown = tab === "salaries" && !canPay ? "workload" : tab;
   return (
     <>
       <PageHeader
         title="Team & freelancers"
-        stats={[{ label: "Freelancers", value: freelancers.length, tone: "signal" }]}
-        actions={canPay && <Segmented label="Show" value={shown} onChange={setTab} options={[{ value: "freelancers", label: "Freelancers" }, { value: "salaries", label: "Salaries" }]} />}
+        stats={[
+          { label: "Team", value: useCrm.getState().members.length },
+          { label: "Freelancers", value: freelancers.length, tone: "signal" },
+        ]}
+        actions={<Segmented label="Show" value={shown} onChange={setTab} options={[{ value: "workload", label: "Workload" }, { value: "freelancers", label: "Freelancers" }, ...(canPay ? [{ value: "salaries" as const, label: "Salaries" }] : [])]} />}
       />
-      {!loaded ? <p className="t-dense text-ink-3">Loading…</p> : shown === "salaries" ? <Salaries /> : <Freelancers canEdit={canEdit} canPay={canPay} />}
+      {shown === "workload" ? <Workload header={false} /> : !loaded ? <p className="t-dense text-ink-3">Loading…</p> : shown === "salaries" ? <Salaries /> : <Freelancers canEdit={canEdit} canPay={canPay} />}
     </>
   );
 }

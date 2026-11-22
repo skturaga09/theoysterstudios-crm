@@ -177,7 +177,8 @@ function DealTrack({ deal: d, stages }: { deal: Deal; stages: PipelineStage[] })
         <button onClick={() => useUi.getState().openDeal(d.id)} className="t-dense min-w-0 truncate text-left font-medium hover:underline">{d.title}</button>
         <span className="font-mono fs-12 text-ink-2">{formatCompact(d.valuePaise)}</span>
         <span className="ml-auto flex items-center gap-1.5 fs-11.5 text-ink-3">
-          {d.eventDate && <span>Event {fmtDate(d.eventDate)}</span>}
+          <span title="Date of enquiry">Enquired {fmtDate(d.createdAt)}</span>
+          {d.eventDate && <span>· Event {fmtDate(d.eventDate)}</span>}
           <ChannelChip channel={d.channel} className="h-4 min-w-4" />
           {owner && <Avatar name={owner.name} me={owner.id === ME_ID} size="sm" />}
         </span>

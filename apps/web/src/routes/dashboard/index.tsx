@@ -54,7 +54,7 @@ export function DashboardRoute() {
 
       <Section
         title="Team"
-        link={
+        link={<span className="flex gap-4"><Link to="/team">Workload →</Link>{
           <button
             onClick={() =>
               downloadCsv("team-workload", [
@@ -65,7 +65,7 @@ export function DashboardRoute() {
           >
             Workload CSV
           </button>
-        }
+        }</span>}
       >
         <p className="t-meta m-0 mb-2 text-ink-3">{free} of {team.length} free today (not on a wedding or function).</p>
         <Table className="border-t border-line">
@@ -73,6 +73,7 @@ export function DashboardRoute() {
             <TR interactive={false}>
               <TH>Person</TH>
               <TH className="hidden sm:table-cell">Today</TH>
+              <TH className="hidden md:table-cell">Working on now</TH>
               <TH align="right">Open leads</TH>
               <TH align="right">Confirmed this month</TH>
               <TH align="right">Projects</TH>
@@ -90,6 +91,7 @@ export function DashboardRoute() {
                   </span>
                 </TD>
                 <TD className="hidden sm:table-cell">{t ? <Link to={`/projects/${t.id}`} className="text-warn hover:underline">On {t.name}</Link> : <span className="text-ok">Free</span>}</TD>
+                <TD className="hidden max-w-[260px] truncate text-ink-2 md:table-cell">{s.tasks.find((x) => x.assigneeId === m.id && !x.done && x.status === "in_progress")?.title ?? <span className="text-ink-3">—</span>}</TD>
                 <TD align="right" numeric>{n.openLeads}</TD>
                 <TD align="right" numeric>{n.confirmedPaise ? formatCompact(n.confirmedPaise) : "—"}</TD>
                 <TD align="right" numeric>{n.projects}</TD>

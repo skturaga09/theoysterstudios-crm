@@ -1,4 +1,4 @@
-import { parseRupees, rupeesText, CHANNEL_LABEL, fmtDate, fmtDay, formatFull, HEALTH_LABEL, rupees, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
+import { istDay, parseRupees, rupeesText, CHANNEL_LABEL, fmtDay, formatFull, HEALTH_LABEL, rupees, BUSINESS_LABEL, BUSINESSES, type Business } from "@pinnacle/shared";
 import {
   Avatar,
   Button,
@@ -233,7 +233,9 @@ export function DealProperties({ deal }: { deal: Deal }) {
         )}
       </Prop>
       <Prop label="City">{company?.city}</Prop>
-      <Prop label="Created"><span className="font-mono fs-12.5">{fmtDate(deal.createdAt)}</span></Prop>
+      <Prop label="Enquiry date">
+        <Input type="date" aria-label="Date of enquiry" value={istDay(deal.createdAt)} max={istDay(new Date().toISOString())} onChange={(e) => e.target.value && s.updateDeal(deal.id, { createdAt: `${e.target.value}T10:00:00+05:30` })} className="h-8 w-[150px] font-mono" />
+      </Prop>
       {(deal.stage === "lost" || deal.lostReason) && (
         <Prop label="Lost reason">
           {/* Feeds Reports → why leads are lost. */}

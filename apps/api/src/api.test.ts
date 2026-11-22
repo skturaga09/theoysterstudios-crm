@@ -598,6 +598,10 @@ describe("api", () => {
     expect((await call("POST", "/content", { companyId: "nope", title: "x" })).statusCode).toBe(422);
     expect((await call("POST", "/content", { companyId: co.id, title: "x" }, "ok:sales9@gmail.com")).statusCode).toBe(403);
     expect((await call("DELETE", `/content/${c.id}`, undefined, "ok:am1@gmail.com")).statusCode).toBe(204);
+    // A lead keeps the date its enquiry actually came in.
+    const d = (await call("POST", "/deals", { title: "Retainer", companyId: co.id, valuePaise: 1, closeAt: "2026-12-01T00:00:00+05:30", ownerId: "sr", channel: "web", business: "marketing", createdAt: "2026-11-01T10:00:00+05:30" })).json();
+    expect(d.createdAt).toBe("2026-11-01T10:00:00+05:30");
+    expect((await call("PATCH", `/deals/${d.id}`, { createdAt: "2026-10-28T10:00:00+05:30" })).json().createdAt).toBe("2026-10-28T10:00:00+05:30");
   }, 60_000);
 
   it("cancels drafts only, keeping them on record", async () => {

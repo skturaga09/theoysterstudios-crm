@@ -34,7 +34,7 @@ function NewDealForm({ stage, business: initialBusiness, onDone }: { stage?: str
   const s = useCrm();
   const [business, setBusiness] = useState<Business>(initialBusiness ?? defaultBusiness());
   const run = runFor(s.pipelines, business);
-  const [f, setF] = useState({ client: "", person: "", phone: "", email: "", service: "", value: "", location: "", eventDate: "", requirements: "", followUp: plusDays(1) });
+  const [f, setF] = useState({ client: "", person: "", phone: "", email: "", service: "", value: "", location: "", eventDate: "", requirements: "", followUp: plusDays(1), enquiredOn: plusDays(0) });
   const [st, setSt] = useState<Stage>(stage ?? "new");
   const [owner, setOwner] = useState(defaultOwnerId);
   const [channel, setChannel] = useState<Channel>("instagram");
@@ -95,6 +95,8 @@ function NewDealForm({ stage, business: initialBusiness, onDone }: { stage?: str
               ...(photo && f.eventDate && { eventDate: f.eventDate }),
               ...(f.requirements.trim() && { requirements: f.requirements.trim() }),
               ...(f.followUp && { nextFollowUpAt: `${f.followUp}T10:00:00+05:30` }),
+              // An enquiry from an earlier day keeps its real date (reports count leads by it).
+              ...(f.enquiredOn && f.enquiredOn !== plusDays(0) && { createdAt: `${f.enquiredOn}T10:00:00+05:30` }),
             },
           });
           useCrm.setState((x) => ({
@@ -143,6 +145,7 @@ function NewDealForm({ stage, business: initialBusiness, onDone }: { stage?: str
         ) : (
           <Field label="Decision expected by"><Input type="date" value={close} onChange={(e) => setClose(e.target.value)} className="font-mono" /></Field>
         )}
+        <Field label="Date of enquiry"><Input type="date" value={f.enquiredOn} max={plusDays(0)} onChange={set("enquiredOn")} className="font-mono" /></Field>
         <Field label="Next follow-up"><Input type="date" value={f.followUp} onChange={set("followUp")} className="font-mono" /></Field>
         <Field label="Source">
           <Select value={channel} onChange={(e) => setChannel(e.target.value as Channel)}>

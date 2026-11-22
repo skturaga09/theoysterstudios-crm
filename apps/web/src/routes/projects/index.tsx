@@ -128,7 +128,8 @@ function ProjectCard({ p, index }: { p: Project; index: number }) {
   const pr = progress(tasks);
   const late = tasks.filter(overdue).length;
   const client = s.companies.find((c) => c.id === p.companyId);
-  const manager = s.members.find((m) => m.id === p.managerId);
+  // Everyone on it: the manager, the crew and whoever has a task on it.
+  const team = s.members.filter((m) => m.id === p.managerId || p.crew.some((c) => c.memberId === m.id) || tasks.some((t) => !t.done && t.assigneeId === m.id));
   const today = istDay(new Date());
   const next = p.events.filter((e) => e.date && e.date >= today).sort((a, b) => a.date!.localeCompare(b.date!))[0];
   const bar = p.business === "marketing" ? "bg-ok" : "bg-signal";
@@ -159,8 +160,12 @@ function ProjectCard({ p, index }: { p: Project; index: number }) {
               {next ? <>Next: <b className="font-medium text-ink">{next.name}</b> · {fmtDate(next.date!)}</> : p.dueDate ? `${p.business === "photography" ? "Event" : "Due"} ${fmtDate(p.dueDate)}` : "No dates yet"}
             </span>
             {late > 0 && <Pill tone="risk">{late} overdue</Pill>}
-            {manager && <Avatar name={manager.name} me={manager.id === ME_ID} size="sm" />}
+            <span className="flex -space-x-1.5" title={`Team: ${team.map((m) => m.name).join(", ")}`}>
+              {team.slice(0, 4).map((m) => <Avatar key={m.id} name={m.name} me={m.id === ME_ID} size="sm" className="ring-2 ring-surface" />)}
+              {team.length > 4 && <span className="grid size-5 place-items-center rounded-full bg-sunken fs-10 text-ink-2 ring-2 ring-surface">+{team.length - 4}</span>}
+            </span>
           </div>
+          <p className="m-0 fs-11.5 text-ink-3">{tasks.length - pr.done} pending · {pr.done} completed</p>
         </div>
       </Link>
     </motion.li>
