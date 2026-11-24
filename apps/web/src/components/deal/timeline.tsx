@@ -2,6 +2,7 @@ import { fmtAgo } from "@pinnacle/shared";
 import { ArrowRight, Calendar, Check, FileText, Mail, Phone, Sparkles, SquarePen, Trophy } from "lucide-react";
 import type { Activity } from "../../data/types";
 import { useCrm } from "../../data/store";
+import { MEET_ICON } from "@pinnacle/ui";
 
 const ICON = {
   stage: ArrowRight,
@@ -50,7 +51,7 @@ export function Timeline({
               </p>
               <p className="m-0 mt-0.5 flex items-center gap-1.5 font-mono fs-11 text-ink-3">{fmtAgo(a.at)}</p>
               {a.meetLink && a.meetingAt && +new Date(a.meetingAt) > Date.now() - 3 * 3600_000 && (
-                <a href={a.meetLink} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-ok-wash px-3 py-1 fs-12 font-medium text-ok hover:opacity-80">Join Google Meet</a>
+                <a href={a.meetLink} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-[#00832d]/30 bg-surface px-3 py-1 fs-12 font-medium text-ink shadow-rest hover:bg-[#00832d]/5"><img src={MEET_ICON} alt="" className="size-4" /> Join Google Meet</a>
               )}
               {a.body && <p className="t-dense m-0 mt-2 rounded-card bg-sunken px-3 py-2 whitespace-pre-line text-ink-2">{a.body}</p>}
             </div>

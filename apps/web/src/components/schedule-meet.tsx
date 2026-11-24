@@ -1,6 +1,5 @@
 import { istDay } from "@pinnacle/shared";
-import { Button, Input, Select, Sheet, Textarea, toast } from "@pinnacle/ui";
-import { Video } from "lucide-react";
+import { Button, Input, MEET_ICON, Select, Sheet, Textarea, toast } from "@pinnacle/ui";
 import { useState } from "react";
 import { useCrm } from "../data/store";
 import type { Activity } from "../data/types";
@@ -26,8 +25,15 @@ export function ScheduleMeet({ companyId, dealId, title: suggested, size = "sm" 
   const lab = "t-meta text-ink-3";
   return (
     <>
-      <Button size={size} onClick={() => { setF(blank()); setOpen(true); }}><Video strokeWidth={1.5} /> Google Meet</Button>
-      <Sheet open={open} onOpenChange={setOpen} eyebrow={company?.name ?? "Meeting"} title="Schedule a Google Meet">
+      <Button
+        size={size}
+        variant="outline"
+        onClick={() => { setF(blank()); setOpen(true); }}
+        className="border-[#00832d]/30 bg-surface font-medium shadow-rest hover:border-[#00832d]/60 hover:bg-[#00832d]/5"
+      >
+        <img src={MEET_ICON} alt="" className="size-[18px]" /> Google Meet
+      </Button>
+      <Sheet open={open} onOpenChange={setOpen} eyebrow={company?.name ?? "Meeting"} title={<span className="inline-flex items-center gap-2"><img src={MEET_ICON} alt="" className="size-6" /> Schedule a Google Meet</span>}>
         <form
           className="flex flex-col gap-4"
           onSubmit={async (e) => {
@@ -65,7 +71,7 @@ export function ScheduleMeet({ companyId, dealId, title: suggested, size = "sm" 
           </label>
           <label className={field}><span className={lab}>Agenda (goes in the invite)</span><Textarea rows={3} value={f.notes} onChange={(e) => put({ notes: e.target.value })} placeholder="What you'll go through" /></label>
           <p className="t-meta m-0 text-ink-3">Booked on your Google Calendar with a Google Meet link. Google emails the invite to the client; it also shows on this client's timeline, the CRM Calendar and Home.</p>
-          <Button type="submit" variant="ink" disabled={busy} className="self-start">{busy ? "Booking…" : "Book the meeting"}</Button>
+          <Button type="submit" variant="ink" disabled={busy} className="self-start"><img src={MEET_ICON} alt="" className="size-4" />{busy ? "Booking…" : "Book the meeting"}</Button>
         </form>
       </Sheet>
     </>

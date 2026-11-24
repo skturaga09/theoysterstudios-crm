@@ -4,6 +4,10 @@ import whatsapp from "../assets/channels/whatsapp.png";
 import gmail from "../assets/channels/gmail.png";
 import calendar from "../assets/channels/calendar.png";
 import web from "../assets/channels/web.png";
+import meet from "../assets/channels/meet.png";
+
+/** Google's own Google Meet logo (fonts.gstatic.com product logo), for the Meet buttons. */
+export const MEET_ICON = meet;
 import { CHANNEL_LABEL, CHANNEL_MONOGRAM, type Channel } from "@pinnacle/shared";
 import { cn } from "../lib/cn";
 
