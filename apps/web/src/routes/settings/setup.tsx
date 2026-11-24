@@ -180,7 +180,7 @@ const googleSteps = (redirect: string): Step[] => {
     {
       id: "g-scopes",
       title: "Allow mail, calendar and CRM-created Drive folders",
-      body: <>Google Auth Platform → Data access → Add or remove scopes → add exactly these three. The Drive scope can only manage files this CRM creates; it cannot browse the rest of Drive.<Copyable value="https://www.googleapis.com/auth/gmail.readonly" /><Copyable value="https://www.googleapis.com/auth/calendar.readonly" /><Copyable value="https://www.googleapis.com/auth/drive.file" /></>,
+      body: <>Google Auth Platform → Data access → Add or remove scopes → add exactly these three. The calendar scope lets the CRM read new meetings and book Google Meet calls with clients; the Drive scope can only manage files this CRM creates. (Set up before 24 Nov 2026? Replace <em>calendar.readonly</em> with the calendar line below, then everyone clicks Reconnect once.)<Copyable value="https://www.googleapis.com/auth/gmail.readonly" /><Copyable value="https://www.googleapis.com/auth/calendar.events" /><Copyable value="https://www.googleapis.com/auth/drive.file" /></>,
     },
     { id: "g-client", title: "Create the CRM's login client", body: <>Google Auth Platform → Clients → Create client → type <strong>Web application</strong>, name <em>CRM</em>. Under Authorised redirect URIs add exactly: <Copyable value={redirect} />Click Create. Google shows a Client ID and a Client secret — paste both below.</> },
     { id: "g-trust", title: "Let your team connect", body: <>admin.google.com → Security → Access and data control → API controls → Settings → tick <strong>Trust internal, domain-owned apps</strong>.</> },

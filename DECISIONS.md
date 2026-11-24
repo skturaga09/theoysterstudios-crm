@@ -543,3 +543,11 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   opens in a new tab). Adding a link to an open task moves it to Under review, and the project's manager (or the
   client's owner) gets an approval notification. Content-calendar links preview the same way. Drive files play
   only for people they're shared with, or "anyone with the link". Links only: files stay in Drive.
+- **Google Meet with clients from the CRM** (24 Nov 2026). A "Google Meet" button on the lead, the client page and the
+  marketing client workspace books a meeting on the organiser's own connected Google Calendar with a Meet link
+  (`POST /meetings` → Calendar events with conferenceData, `sendUpdates=all`, so Google emails the client the
+  invite). Guests default to the client's contacts with an email; title, date, IST time, length and agenda are set
+  in the form. The meeting lands on the lead / client timeline with a "Join Google Meet" button (until 3 hours after
+  it starts), on the CRM Calendar and on Home's day timeline; the calendar check skips it so it isn't filed twice.
+  The Google scope moved from calendar.readonly to calendar.events: the studio's Google admin adds it under Data
+  access, and each person clicks Reconnect once; until then booking says so.

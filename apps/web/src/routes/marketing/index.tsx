@@ -35,6 +35,7 @@ import { IS_DEMO } from "../../lib/demo";
 import { useUi } from "../../lib/ui-store";
 import { ContentCalendar, STATUS_STYLE } from "./content";
 import { TaskLinks } from "../../components/task-links";
+import { ScheduleMeet } from "../../components/schedule-meet";
 
 const STATUS_TONE: Record<AccountStatus, PillTone> = { active: "ok", onboarding: "warn", on_hold: "risk" };
 const PAY_TONE: Record<PaymentStatus, PillTone> = { paid: "ok", pending: "warn", overdue: "risk" };
@@ -212,6 +213,7 @@ export function MarketingClientRoute() {
             <Link to={`/clients/${c.id}`} className="text-ink-3 hover:text-ink">Full client record →</Link>
           </p>
         </div>
+        <ScheduleMeet companyId={c.id} />
       </header>
       <Segmented
         label="Workspace"

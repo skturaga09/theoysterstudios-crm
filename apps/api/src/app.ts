@@ -58,7 +58,7 @@ import { portalView, type PortalLink } from "./portal";
 import { deletePhoto, fromDataUrl, savePhoto, type Photo } from "./photos";
 import { connectPage, handleLeadgen, type LeadAdsIntegration } from "./leadads";
 import { createCreditNote, createInvoice, financialYear, nextNumber } from "./invoices";
-import { createDriveFolder, shareWithDomain, exchangeGoogleCode, googleAccessToken, googleAuthorizeUrl, revokeGoogle, syncGoogle, type GoogleAccount } from "./google";
+import { createDriveFolder, shareWithDomain, exchangeGoogleCode, googleAccessToken, googleAuthorizeUrl, revokeGoogle, scheduleMeet, syncGoogle, type GoogleAccount } from "./google";
 import { sendInstagram, authorizeUrl, exchangeCode, handleWebhook, newVerifyToken, subscribeMessages, validSignature, type Fetch, type InstagramIntegration, type SetupKeys } from "./instagram";
 
 /** `_id` → `id`, matching the web app's types. */
@@ -385,6 +385,46 @@ export function buildApp({
     if (!validSignature(raw, req.headers["x-hub-signature-256"] as string | undefined, [keys.metaAppSecret, keys.instagramAppSecret])) return reply.code(401).send({ error: "Bad signature" });
     return handleWebhook(db, f, req.body as Parameters<typeof handleWebhook>[2]);
   });
+  /* ---------- Google Meet: schedule a meeting with a client from the CRM, on your own Google Calendar ---------- */
+  app.post("/meetings", async (req, reply) => {
+    const m = z
+      .object({
+        title: z.string().trim().min(1, "Give the meeting a title").max(200),
+        start: z.iso.datetime({ offset: true }),
+        minutes: z.number().int().min(15).max(480),
+        guests: z.array(z.string().trim().toLowerCase().pipe(z.email("Check the guest's email address"))).min(1, "Add the client's email").max(20),
+        notes: z.string().trim().max(2000).optional(),
+        dealId: z.string().optional(),
+        companyId: z.string().optional(),
+      })
+      .parse(req.body);
+    if (+new Date(m.start) < Date.now() - 5 * 60_000) return reply.code(422).send({ error: "Pick a time in the future" });
+    const keys = (await getKeys()) as { googleClientId?: string; googleClientSecret?: string };
+    const acct = await googleAccounts.findOne({ connectedBy: req.member._id });
+    if (!keys.googleClientId || !keys.googleClientSecret || !acct) return reply.code(409).send({ error: "Connect your Google account first (Settings → Integrations → Gmail / Calendar)" });
+    try {
+      const token = await googleAccessToken(db, f, { googleClientId: keys.googleClientId, googleClientSecret: keys.googleClientSecret }, acct);
+      const ev = await scheduleMeet(db, f, token, m);
+      const label = new Date(m.start).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
+      const activity: Doc = {
+        _id: new ObjectId().toHexString(),
+        type: "meeting",
+        ...(m.dealId && { dealId: m.dealId }),
+        ...(m.companyId && { companyId: m.companyId }),
+        actorId: req.member._id,
+        text: `scheduled a Google Meet: ${m.title} · ${label}`,
+        meetingAt: new Date(m.start).toISOString(),
+        meetLink: ev.meetLink,
+        at: now(),
+      };
+      await db.collection<Doc>("activities").insertOne(activity);
+      return reply.code(201).send({ ...ev, activity: out(activity) });
+    } catch (e) {
+      const status = (e as { statusCode?: number }).statusCode ?? 502;
+      return reply.code(status).send({ error: (e as Error).message });
+    }
+  });
+
   /* ---------- Meta Lead Ads (the studio's own Meta app and Facebook Page) ---------- */
   app.post("/integrations/leadads/connect", { preHandler: adminOnly }, async (req, reply) => {
     const { pageId, token } = z.object({ pageId: z.string().trim().regex(/^\d{5,25}$/, "The Page ID is a long number"), token: z.string().trim().regex(/^EA[A-Za-z0-9]{40,}$/, "A Meta access token starts with EA") }).parse(req.body);

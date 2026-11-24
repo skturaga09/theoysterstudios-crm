@@ -11,7 +11,8 @@ import type { Fetch } from "./instagram";
 
 export const GOOGLE_SCOPES = [
   "https://www.googleapis.com/auth/gmail.readonly",
-  "https://www.googleapis.com/auth/calendar.readonly",
+  // Reads new meetings, and creates the Google Meet meetings scheduled from the CRM.
+  "https://www.googleapis.com/auth/calendar.events",
   // Only files and folders this CRM creates; it cannot browse the rest of the account's Drive.
   "https://www.googleapis.com/auth/drive.file",
 ];
@@ -353,4 +354,28 @@ export async function syncGoogle(db: Db, f: Fetch) {
     }
   }
   return { accounts: accounts.length, stored };
+}
+
+/**
+ * Books a meeting with a Google Meet link on the organiser's calendar and emails the invite to the guests.
+ * The guests are marked as seen so the next calendar check doesn't file the same meeting again.
+ */
+export async function scheduleMeet(db: Db, f: Fetch, token: string, m: { title: string; start: string; minutes: number; guests: string[]; notes?: string }) {
+  const end = new Date(+new Date(m.start) + m.minutes * 60_000).toISOString();
+  const res = await f(`${CALENDAR}?conferenceDataVersion=1&sendUpdates=all`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      summary: m.title,
+      ...(m.notes && { description: m.notes }),
+      start: { dateTime: m.start, timeZone: "Asia/Kolkata" },
+      end: { dateTime: end, timeZone: "Asia/Kolkata" },
+      attendees: m.guests.map((email) => ({ email })),
+      conferenceData: { createRequest: { requestId: new ObjectId().toHexString(), conferenceSolutionKey: { type: "hangoutsMeet" } } },
+    }),
+  });
+  if (res.status === 403) throw Object.assign(new Error("Google needs permission to add meetings: reconnect your Google account in Settings → Integrations"), { statusCode: 409 });
+  const ev = await json(res);
+  for (const g of m.guests) await firstTime(db, `calendar:${String(ev.id)}:${g.toLowerCase()}`);
+  return { id: String(ev.id), meetLink: (ev.hangoutLink as string | undefined) ?? "", eventLink: String(ev.htmlLink ?? "") };
 }

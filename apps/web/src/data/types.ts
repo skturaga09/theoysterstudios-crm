@@ -184,6 +184,8 @@ export type Activity = {
   at: ISO;
   /** Meetings from Google Calendar: when the meeting happens (not when it was synced). */
   meetingAt?: ISO;
+  /** A Google Meet scheduled from the CRM: the link to join. */
+  meetLink?: string;
 };
 
 export type Task = {

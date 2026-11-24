@@ -49,7 +49,7 @@ const fakeInstagram: typeof fetch = async (input, init) => {
 /** Stand-in for Google: one mailbox's history and messages, a calendar, and the token endpoints. */
 const g = {
   calls: [] as string[],
-  scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.file",
+  scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file",
   history: [] as { id: string; labelIds: string[] }[],
   messages: {} as Record<string, object>,
   events: [] as object[],
@@ -72,6 +72,10 @@ const fakeGoogle: typeof fetch = async (input, init) => {
   if (url.startsWith("https://gmail.googleapis.com/gmail/v1/users/me/history")) return ok({ historyId: "200", history: g.history.map((m) => ({ messagesAdded: [{ message: m }] })) });
   const msg = url.match(/users\/me\/messages\/([^?]+)/);
   if (msg) return g.messages[msg[1]!] ? ok(g.messages[msg[1]!]!) : ok({}, 404);
+  if (url.startsWith("https://www.googleapis.com/calendar/v3/calendars/primary/events") && init?.method === "POST") {
+    sent.push({ url, body: JSON.parse(String(init.body)) });
+    return ok({ id: "ev-meet-1", htmlLink: "https://calendar.google.com/event?eid=1", hangoutLink: "https://meet.google.com/abc-defg-hij" });
+  }
   if (url.startsWith("https://www.googleapis.com/calendar/v3/calendars/primary/events")) return ok({ items: g.events, nextSyncToken: "sync-2" });
   if (url.startsWith("https://www.googleapis.com/drive/v3/files")) return ok({ id: "drive-folder-1", webViewLink: "https://drive.google.com/drive/folders/drive-folder-1" });
   return fakeInstagram(input, init);
@@ -366,7 +370,7 @@ describe("auth", () => {
     // Any teammate can start; Google returns to a one-time link.
     const { url } = (await call("POST", "/integrations/google/start", { origin: "https://crm.example.com" }, "ok:teammate@gmail.com")).json();
     const u = new URL(url);
-    expect(u.searchParams.get("scope")).toBe("https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.file");
+    expect(u.searchParams.get("scope")).toBe("https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file");
     expect(u.searchParams.get("access_type")).toBe("offline");
     const back = await app.inject({ url: `/api/integrations/google/callback?code=c1&state=${u.searchParams.get("state")}` });
     expect(back.headers.location).toBe("https://crm.example.com/settings/integrations?google=connected&detail=studio%40theoysterstudios.com");
@@ -379,7 +383,7 @@ describe("auth", () => {
     const { url: url2 } = (await call("POST", "/integrations/google/start", { origin: "https://crm.example.com" })).json();
     const back2 = await app.inject({ url: `/api/integrations/google/callback?code=c2&state=${new URL(url2).searchParams.get("state")}` });
     expect(back2.headers.location).toContain("google=error");
-    g.scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/drive.file";
+    g.scope = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/drive.file";
 
     // Mail since the last check: a new lead, a newsletter, a colleague, and our reply.
     await call("POST", "/contacts", { name: "Asha Rao", email: "asha@client.in", ownerId: meId, source: "referral" });
@@ -683,6 +687,25 @@ describe("api", () => {
     expect((await call("PATCH", `/tasks/${creatives.id}`, { status: "done" })).json().status).toBe("done");
     expect((await call("PATCH", `/tasks/${creatives.id}`, { links: [{ label: "Draft v1", url: "https://drive.google.com/file/d/1Draft/view" }, { label: "Final", url: "https://youtu.be/dQw4w9WgXcQ" }] })).json().status).toBe("done");
   }, 60_000);
+
+  it("schedules a Google Meet with a client on the organiser's calendar and logs it on the lead", async () => {
+    const me = (await call("GET", "/me")).json();
+    const co = (await call("POST", "/companies", { name: "Meet Client", ownerId: "sr" })).json();
+    const body = { title: "Wedding planning call", start: new Date(Date.now() + 86400_000).toISOString(), minutes: 30, guests: ["Riya@Example.com"], companyId: co.id, notes: "Bring the shot list" };
+    await call("PUT", "/setup/keys", { googleClientId: "123-abc.apps.googleusercontent.com", googleClientSecret: "GOCSPX-abcdefghijklmnopqrstuvwx" });
+    await deps.db.collection("googleAccounts").deleteMany({ connectedBy: me.id });
+    expect((await call("POST", "/meetings", body)).statusCode).toBe(409); // no Google account connected yet
+    await deps.db.collection<{ _id: string }>("googleAccounts").insertOne({ _id: "me@theoysterstudios.com", email: "me@theoysterstudios.com", refreshToken: "r", accessToken: "G-ACCESS", accessTokenExpiresAt: new Date(Date.now() + 3600_000).toISOString(), connectedBy: me.id, connectedAt: new Date().toISOString() } as never);
+    expect((await call("POST", "/meetings", { ...body, start: "2020-01-01T10:00:00+05:30" })).statusCode).toBe(422); // in the past
+    expect((await call("POST", "/meetings", { ...body, guests: ["not-an-email"] })).statusCode).toBe(400);
+    const r = (await call("POST", "/meetings", body)).json();
+    expect(r).toMatchObject({ meetLink: "https://meet.google.com/abc-defg-hij", activity: { type: "meeting", companyId: co.id, meetLink: "https://meet.google.com/abc-defg-hij" } });
+    const req = sent.at(-1)!;
+    expect(req.url).toContain("conferenceDataVersion=1");
+    expect(req.url).toContain("sendUpdates=all"); // Google emails the client the invite
+    expect(req.body).toMatchObject({ summary: "Wedding planning call", attendees: [{ email: "riya@example.com" }], conferenceData: { createRequest: { conferenceSolutionKey: { type: "hangoutsMeet" } } } });
+    await deps.db.collection("googleAccounts").deleteMany({ connectedBy: me.id });
+  });
 
   it("cancels drafts only, keeping them on record", async () => {
     const inv = { companyId: c1, dueAt: "2026-11-13T00:00:00+05:30", supply: "intra", lines: [{ desc: "x", sac: "998391", qty: 1, ratePaise: 100 }] };

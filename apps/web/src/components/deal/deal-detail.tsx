@@ -27,6 +27,7 @@ import type { Deal } from "../../data/types";
 import { changeStage } from "../../lib/actions";
 import { useUi } from "../../lib/ui-store";
 import { Timeline } from "./timeline";
+import { ScheduleMeet } from "../schedule-meet";
 
 const healthTone = { ok: "ok", warn: "warn", risk: "risk" } as const;
 const statusTone = { draft: "mute", sent: "mute", partial: "warn", paid: "ok", overdue: "risk", cancelled: "mute", credited: "mute" } as const;
@@ -263,6 +264,7 @@ export function NoteComposer({ dealId }: { dealId: string }) {
     >
       <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Add a note…" aria-label="Add a note" className="min-h-[64px]" />
       <div className="flex justify-end gap-2">
+        <ScheduleMeet dealId={dealId} />
         <Button type="button" variant="ghost" size="sm" onClick={() => useUi.getState().openComposer("call", { dealId })}>Log call</Button>
         <Button type="button" variant="ghost" size="sm" onClick={() => useUi.getState().openComposer("task", { dealId })}>Add task</Button>
         <Button type="submit" variant="ink" size="sm" disabled={!text.trim()}>Save note</Button>

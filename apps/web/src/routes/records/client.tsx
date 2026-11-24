@@ -3,6 +3,7 @@ import { Avatar, Button, ChannelChip, Input, MoneyText, Pill, Textarea, toast } 
 import { ArrowLeft, ExternalLink, Link2, Trash2, UserRound } from "lucide-react";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
+import { ScheduleMeet } from "../../components/schedule-meet";
 import { DealStage } from "../../components/deal/deal-stage";
 import { Timeline } from "../../components/deal/timeline";
 import { EmptyState } from "../../components/empty-state";
@@ -87,7 +88,7 @@ export function ClientRoute() {
       <PageHeader
         eyebrow={[c.business ? BUSINESS_LABEL[c.business] : "Both businesses", isClient ? (c.clientSince ? `client since ${fmtDay(c.clientSince)}` : "client") : "prospect"].join(" · ")}
         title={c.name}
-        actions={<Button onClick={() => useUi.getState().openComposer("deal", { business: c.business })}>New lead for them</Button>}
+        actions={<><ScheduleMeet companyId={c.id} /><Button onClick={() => useUi.getState().openComposer("deal", { business: c.business })}>New lead for them</Button></>}
       />
 
       <section aria-label="Money" className="mb-8 grid grid-cols-2 border-y border-line md:grid-cols-4">
