@@ -26,7 +26,7 @@ import { ClientPhoto } from "../../components/client-photo";
 import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
 import { useContentItems, type ContentItem } from "../../data/content";
-import { invoiceStatus } from "../../data/derive";
+import { invoiceStatus, isMarketingClient } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
 import { useAccess, useCanEdit, useCrm } from "../../data/store";
 import type { Company } from "../../data/types";
@@ -42,8 +42,7 @@ const PAY_TONE: Record<PaymentStatus, PillTone> = { paid: "ok", pending: "warn",
 const IN_PRODUCTION = new Set(["planning", "shooting", "editing"]);
 const TO_PUBLISH = new Set(["approval", "ready"]);
 
-/** A client counts as a marketing client once it's tagged Marketing or has any workspace detail. */
-const isMarketing = (c: Company) => c.business === "marketing" || !!c.accountStatus || !!c.category || !!c.subscription;
+const isMarketing = isMarketingClient;
 const statusOf = (c: Company): AccountStatus => c.accountStatus ?? (c.clientSince ? "active" : "onboarding");
 
 /** Saves workspace fields on a client, showing them straight away. */

@@ -6,7 +6,7 @@ import { ALargeSmall, LogOut, Moon, Sun } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { useId } from "react";
 import { NavLink } from "react-router";
-import { invoiceStatus, isOpen, taskGroup } from "../data/derive";
+import { invoiceStatus, isMarketingClient, isOpen, taskGroup } from "../data/derive";
 import { useCrm, useMe } from "../data/store";
 import { auth } from "../lib/firebase";
 import { SIGNAL_COUNT, useNav, type CountKey } from "./nav";
@@ -20,7 +20,7 @@ function useCounts(): Record<CountKey, number> {
     inbox: s.conversations.filter((c) => c.unread).length,
     pipeline: s.deals.filter(isOpen).length,
     tasks: s.tasks.filter((t) => ["overdue", "today"].includes(taskGroup(t))).length,
-    companies: s.companies.length,
+    companies: s.companies.filter((c) => !isMarketingClient(c)).length,
     contacts: s.contacts.length,
     invoices: s.invoices.filter((i) => invoiceStatus(i) === "overdue").length,
   };

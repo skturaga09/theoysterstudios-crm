@@ -551,3 +551,6 @@ mirror the M3 API, so wiring the API swaps the data source, not the screens.
   it starts), on the CRM Calendar and on Home's day timeline; the calendar check skips it so it isn't filed twice.
   The Google scope moved from calendar.readonly to calendar.events: the studio's Google admin adds it under Data
   access, and each person clicks Reconnect once; until then booking says so.
+- **Photography clients.** With Marketing clients on their own page, the Clients page is now "Photography clients"
+  (menu, title and sidebar count) and leaves out marketing clients (`isMarketingClient`: tagged Marketing or given
+  any marketing-workspace detail). Client records at /clients/:id still open for both, e.g. "Full client record".

@@ -39,7 +39,7 @@ export const NAV: NavSection[] = [
   {
     label: "Records",
     items: [
-      { to: "/clients", label: "Clients", icon: Building2, count: "companies", area: "sales" },
+      { to: "/clients", label: "Photography clients", icon: Building2, count: "companies", area: "sales" },
       { to: "/marketing", label: "Marketing clients", icon: Megaphone, area: "projects" },
       { to: "/contacts", label: "Contacts", icon: Users, count: "contacts", area: "sales" },
       { to: "/quotes", label: "Quotations", icon: FileSignature, area: "sales" },

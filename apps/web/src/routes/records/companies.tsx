@@ -7,7 +7,7 @@ import { useNavigate } from "react-router";
 import { BulkButton, DataTable } from "../../components/data-table";
 import { EmptyState } from "../../components/empty-state";
 import { PageHeader } from "../../components/page-header";
-import { isOpen } from "../../data/derive";
+import { isMarketingClient, isOpen } from "../../data/derive";
 import { ME_ID } from "../../data/seed";
 import { useCanEdit, useCrm, useCanAssign } from "../../data/store";
 import type { Company, Deal } from "../../data/types";
@@ -37,7 +37,8 @@ export function CompaniesRoute() {
 
   const rows: Row[] = useMemo(
     () =>
-      s.companies.map((c) => {
+      // Marketing clients have their own page; this one is the photography studio's clients.
+      s.companies.filter((c) => !isMarketingClient(c)).map((c) => {
         const deals = s.deals.filter((d) => d.companyId === c.id);
         const open = deals.filter(isOpen);
         const best = [...(open.length ? open : deals)].sort((a, b) => stageRank(s.pipelines, b) - stageRank(s.pipelines, a) || b.valuePaise - a.valuePaise)[0];
@@ -103,7 +104,7 @@ export function CompaniesRoute() {
   return (
     <>
       <PageHeader
-        title="Clients"
+        title="Photography clients"
         stats={[
           { label: "Clients", value: rows.filter((r) => r.isClient).length, tone: "signal" },
           { label: "Prospects", value: rows.filter((r) => !r.isClient).length, tone: "ok" },

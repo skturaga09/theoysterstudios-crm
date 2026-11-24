@@ -1,6 +1,6 @@
 import { invoiceTotals, type Pipelines } from "@pinnacle/shared";
 import { probabilityOf } from "./pipeline";
-import type { Deal, Invoice, InvoiceStatus, Task } from "./types";
+import type { Company, Deal, Invoice, InvoiceStatus, Task } from "./types";
 
 
 export const isOpen = (d: Deal) => d.stage !== "won" && d.stage !== "lost";
@@ -80,3 +80,6 @@ export function agingBucket(inv: Invoice): "0–30" | "31–60" | "61–90" | "9
 const WORDS = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
 export const countWord = (n: number) => WORDS[n] ?? String(n);
 export const plural = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many);
+
+/** A marketing client: tagged Marketing, or given any marketing-workspace detail. Everyone else is a photography client. */
+export const isMarketingClient = (c: Company) => c.business === "marketing" || !!c.accountStatus || !!c.category || !!c.subscription;
